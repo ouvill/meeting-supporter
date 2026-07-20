@@ -1,0 +1,47 @@
+[package]
+name = "meeting-supporter"
+version = "0.1.0"
+description = "Desktop meeting assistant that suggests the next response"
+authors = ["Meeting Supporter contributors"]
+license = "AGPL-3.0-only"
+edition = "2021"
+
+
+[lib]
+name = "meeting_supporter_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+default = []
+webdriver = ["dep:tauri-plugin-wdio", "dep:tauri-plugin-wdio-webdriver"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-wdio = { version = "1.2.0", optional = true }
+tauri-plugin-wdio-webdriver = { version = "1.2.0", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+process-wrap = { version = "9", features = ["std"] }
+rand = "0.8"
+ctrlc = { version = "3", features = ["termination"] }
+thiserror = "1"
+wait-timeout = "0.2"
+ureq = { version = "3", features = ["json"] }
+flate2 = "1"
+tar = "0.4"
+zip = { version = "4", default-features = false, features = ["deflate"] }
+sha2 = "0.10"
+base64 = "0.22"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+jsonwebtoken = "9"
+url = "2"
+
+[dev-dependencies]
+serde_json = "1"

@@ -1,0 +1,19 @@
+from collections.abc import AsyncIterator, Mapping
+
+HeadersLike = Mapping[str, str]
+
+class ClientConnection:
+    async def send(self, message: str | bytes) -> None: ...
+    async def recv(self, decode: bool | None = None) -> str | bytes: ...
+    def __aiter__(self) -> AsyncIterator[str | bytes]: ...
+
+class connect:
+    def __init__(
+        self,
+        uri: str,
+        *,
+        additional_headers: HeadersLike | None = None,
+        **kwargs: object,
+    ) -> None: ...
+    async def __aenter__(self) -> ClientConnection: ...
+    async def __aexit__(self, *args: object) -> None: ...

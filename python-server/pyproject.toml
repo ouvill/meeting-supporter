@@ -1,0 +1,22 @@
+[project]
+name = "meeting-supporter-stt-server"
+version = "0.1.0"
+description = "会議支援AI — Google Cloud STT リモートサーバー"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "google-cloud-speech>=2.26.0",
+    "python-dotenv>=1.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyrefly>=0.61.1",
+    "ruff>=0.9.0",
+    "poethepoet>=0.33.0",
+]
+
+
+[tool.uv]
+package = false

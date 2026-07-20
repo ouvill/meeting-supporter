@@ -1,0 +1,142 @@
+# 会議支援AI 設定ファイル
+# シークレット（APIキー、認証情報）は .env に記載してください。
+
+[ai]
+schema_version = 2
+
+[ai.assignments]
+# 初期状態では全use caseを未割当にします。利用者が確認後にroute idを選択します。
+# reply = "codex"
+# 情報更新・議事録も利用する場合だけroute idを追加してください。
+# info = "gemini"
+# minutes = "gemini"
+
+[ai.routes.codex]
+# 公式 Codex app-server の既定モデル。返答経路へ codex を選ぶ場合に使用します。
+model = "gpt-5.6-luna"
+
+[reply]
+# 返答提案AI 全体の ON/OFF
+enabled = true
+# STT確定時に自動で返答を生成するか（MVPでは手動生成が主導線）
+auto_generate = false
+# 既定の返答スタイル
+default_style = "standard"
+
+[[reply.styles]]
+id = "standard"
+label = "標準"
+enabled = true
+priority = 10
+# 返答スタイルはAI経路を変更しません。経路の正本は [ai.assignments] です。
+# instruction は共通の返答ルールを含むスタイル別プロンプトです。
+instruction = ""
+
+[agents]
+# 会議補助資料を更新する情報AIの ON/OFF
+info_enabled = true
+
+
+[stt]
+# STT バックエンド:
+#   "whisper"  = faster-whisper + webrtcvad（ローカル処理・高精度）
+#   "vosk"     = Vosk + webrtcvad（ローカル処理・軽量、アプリの音声設定からモデル取得可能）
+#   "deepgram" = Deepgram クラウド STT（要 DEEPGRAM_API_KEY 環境変数）
+#   "openai"   = OpenAI クラウド STT（要 OPENAI_API_KEY 環境変数）
+#   "xai"      = Grok / xAI クラウド STT（要 XAI_API_KEY 環境変数）
+backend = "whisper"
+# STT モデル名 (backend = "whisper" 使用時)
+#   "tiny" / "base" / "small" / "medium" / "large-v2" / "large-v3-turbo"
+whisper_model = "large-v3-turbo"
+# STT モデル名 (backend = "deepgram" 使用時)
+#   "nova-3" / "nova-2" / "enhanced" など
+deepgram_model = "nova-3"
+# STT モデル名 (backend = "openai" 使用時)
+#   "gpt-4o-transcribe" / "gpt-4o-mini-transcribe" / "whisper-1"
+openai_model = "gpt-4o-transcribe"
+# STT モデルディレクトリ (backend = "vosk" 使用時)
+#   通常はアプリがAppData配下へ取得して自動設定します。
+#   上級者が既存モデルを使う場合だけ、展開済みディレクトリを指定してください。
+vosk_model_path = "vosk-model-small-ja-0.22"
+# 認識言語
+language = "ja"
+# Silero VAD 感度 (0.0〜1.0 / 高いほど検出しやすい) — stt_v2 では現在未使用
+vad_sensitivity = 0.4
+# 発話後の無音でセグメント確定するまでの秒数 — VAD使用バックエンド
+silence_duration = 0.4
+# WebRTC VAD 積極度 (0〜3 / 高いほど非音声を積極的に除去) — ローカル/VAD使用バックエンド
+vad_aggressiveness = 2
+# 推論デバイス — backend = "whisper" のみ: "cpu" / "cuda" / "auto"
+device = "auto"
+# ローカルSTT共通の旧音声ゲート (Whisper soft_min_* のフォールバック既定値) — backend = "vosk" / "dummy"
+min_voiced_ms = 240
+# ローカルSTT共通の旧発話フレーム比率 (Whisper soft_min_* のフォールバック既定値) — backend = "vosk"
+min_voiced_ratio = 0.35
+# ローカルSTT共通の旧実効音量下限 (Whisper soft_min_* のフォールバック既定値) — backend = "vosk"
+min_rms_dbfs = -45.0
+# Whisper decode は緩く残し、最終判断は transcript judge が行う — backend = "whisper"
+decode_no_speech_threshold = 1.0
+# Whisper decode 平均対数確率しきい値 (緩い一次フィルタ) — backend = "whisper"
+decode_log_prob_threshold = -10.0
+# Whisper decode 圧縮比しきい値 (緩い一次フィルタ) — backend = "whisper"
+decode_compression_ratio_threshold = 10.0
+# Whisper judge ハード音声区間長しきい値 (ms) — backend = "whisper"
+hard_min_voiced_ms = 120
+# Whisper judge ハード no_speech しきい値 — backend = "whisper"
+hard_no_speech_threshold = 0.85
+# Whisper judge ハード平均対数確率しきい値 — backend = "whisper"
+hard_logprob_threshold = -2.0
+# Whisper judge ハード圧縮比しきい値 — backend = "whisper"
+hard_compression_ratio_threshold = 3.5
+# Whisper judge soft 音声区間長しきい値 (ms) — backend = "whisper"
+soft_min_voiced_ms = 240
+# Whisper judge soft 発話フレーム比率しきい値 — backend = "whisper"
+soft_min_voiced_ratio = 0.35
+# Whisper judge soft 実効音量下限 (dBFS) — backend = "whisper"
+soft_min_rms_dbfs = -45.0
+# Whisper judge soft no_speech しきい値 — backend = "whisper"
+soft_no_speech_threshold = 0.6
+# Whisper judge soft 平均対数確率しきい値 — backend = "whisper"
+soft_logprob_threshold = -1.0
+# Whisper judge soft 圧縮比しきい値 — backend = "whisper"
+soft_compression_ratio_threshold = 2.4
+# Whisper judge が複数カテゴリの弱い根拠で破棄するスコアしきい値 — backend = "whisper"
+drop_score_threshold = 0.65
+# Whisper temperature (誤生成抑制のため通常は 0.0 推奨) — backend = "whisper"
+temperature = 0.0
+# 誤認識しやすい定型文の弱いテキスト事前情報 — backend = "whisper"
+suspicious_phrases = ["ご視聴ありがとうございました", "ありがとうございました", "おやすみなさい"]
+
+[remote_stt]
+# リモート STT サーバーの WebSocket URL (backend = "remote" のみ有効)
+url = "ws://localhost:8001/ws/stt"
+# Bearer トークン認証 (サーバー側で STT_API_TOKEN が設定されている場合に指定)
+# token = ""
+
+[context]
+# コンテキストディレクトリのパス（省略時は {user_data_dir}/context/ を使用）
+# dir_override = "~/my-meeting-context"
+
+[ollama]
+# Ollama ローカルサーバーのベースURL
+# デフォルト: http://localhost:11434/v1 （OpenAI 互換 API /v1 エンドポイント）
+# 環境変数 OLLAMA_BASE_URL で上書き可能
+base_url = "http://localhost:11434/v1"
+
+[usage_budget]
+# 0 は無効。上限に達した場合は高コストな返答生成 / 情報AI更新を抑制します。
+meeting_limit_jpy = 0.0
+monthly_limit_jpy = 0.0
+
+[audio]
+# サンプリングレート (Hz) — Google STT と faster-whisper はどちらも 16000 を推奨
+sample_rate = 16000
+# Google STT セッションの最大継続秒数 (上限 ~60 秒)
+max_session_seconds = 55
+
+[recording_retention]
+# 録音と会議履歴は自動では削除しません。設定画面で削除対象を確認し、
+# 明示的に削除を実行したときだけ、この条件を使います。
+# cutoff_date = "2026-01-01"
+# 0 は無効。上限を超えた分は、終了済み会議を古い順に削除できます。
+max_total_bytes = 0

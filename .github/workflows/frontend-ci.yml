@@ -1,0 +1,74 @@
+# Frontend CI
+#
+# Runs on pull_request and push to main.
+# Executes type-check + bundle (`npm run build`), Vitest tests,
+# and verifies that OpenAPI generated files are fresh
+# (`npm run generate:api` then `git diff --exit-code`).
+#
+# Node version: 22 (LTS) — no .node-version file exists in the repo.
+#
+# ── Local reproduction ────────────────────────────────────────────────────────
+# To reproduce these checks locally:
+#   npm ci
+#   npm run build
+#   npm run test
+#   npm run generate:api
+#   git diff --exit-code -- openapi.json src/api/generated
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Frontend CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081
+        with:
+          enable-cache: true
+          cache-dependency-glob: "python/uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Check document governance
+        run: npm run check:docs
+      - name: Check release metadata and assets
+        run: npm run check:release
+
+      - name: Type-check and build
+        run: npm run build
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Sync Python dependencies for OpenAPI generation
+        working-directory: python
+        run: uv sync --locked
+
+      - name: Regenerate OpenAPI client and check freshness
+        run: |
+          npm run generate:api
+          git diff --exit-code -- openapi.json src/api/generated

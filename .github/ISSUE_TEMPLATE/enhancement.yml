@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose an observable product or contributor outcome
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep proposals public and privacy-safe. Do not include credentials, tokens, personal information, meeting transcripts or audio, raw stderr, screenshots containing private data, or absolute home-directory paths.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or need
+      description: What user or contributor problem should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Observable outcome
+      description: What should a user or contributor be able to observe when this is complete?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Optional constraints, examples using synthetic data, or alternatives considered.
+    validations:
+      required: false

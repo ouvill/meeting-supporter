@@ -1,0 +1,19 @@
+{
+  "identifier": "net.ouvill.meeting-supporter.wdio",
+  "build": {
+    "beforeBuildCommand": "npm run prepare:python-resource && npm run build:wdio"
+  },
+  "app": {
+    "security": {
+      "capabilities": [
+        "default",
+        {
+          "identifier": "wdio",
+          "description": "WebDriver permissions used only by desktop smoke tests",
+          "windows": ["main", "assistant"],
+          "permissions": ["wdio:default", "wdio-webdriver:default"]
+        }
+      ]
+    }
+  }
+}

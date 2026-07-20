@@ -1,0 +1,3415 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FastAPI",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Root",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices": {
+      "get": {
+        "summary": "List Devices",
+        "operationId": "list_devices_devices_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/routes": {
+      "get": {
+        "summary": "Get Ai Routes",
+        "operationId": "get_ai_routes_api_ai_routes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteCatalogResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/routes/assignments": {
+      "put": {
+        "summary": "Replace Ai Route Assignments",
+        "operationId": "replace_ai_route_assignments_api_ai_routes_assignments_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RouteAssignmentsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteCatalogResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "summary": "Get Settings",
+        "operationId": "get_settings_api_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Save Settings",
+        "operationId": "save_settings_api_settings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveSettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/connections/test": {
+      "post": {
+        "summary": "Test Connection",
+        "description": "Test an unsaved draft key, or a configured credential, without persisting it.",
+        "operationId": "test_connection_api_settings_connections_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionTestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/ollama/models": {
+      "get": {
+        "summary": "Get Ollama Models",
+        "description": "Fetch available models from an Ollama server.\n\nCalls ``GET {base_url}/models`` which for the default base_url\n``http://localhost:11434/v1`` becomes ``http://localhost:11434/v1/models``.\n\nReturns a typed response with ok: bool, base_url, models: list[str], message: str | None.\nOn connection failure, returns 200 with ok=false and a user-friendly Japanese message.\n\nQuery parameter ``base_url`` overrides the configured Ollama base URL.",
+        "operationId": "get_ollama_models_api_settings_ollama_models_get",
+        "parameters": [
+          {
+            "name": "base_url",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Base Url"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OllamaModelsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stt/model": {
+      "get": {
+        "tags": [
+          "speech-model"
+        ],
+        "summary": "Get Speech Model Status",
+        "operationId": "get_speech_model_status_api_stt_model_get",
+        "parameters": [
+          {
+            "name": "backend",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "vosk",
+                "whisper"
+              ],
+              "type": "string",
+              "title": "Backend"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "ja",
+                "en"
+              ],
+              "type": "string",
+              "title": "Language"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "tiny",
+                    "base",
+                    "small",
+                    "medium",
+                    "large-v2",
+                    "large-v3-turbo"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechModelStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stt/model/download": {
+      "post": {
+        "tags": [
+          "speech-model"
+        ],
+        "summary": "Start Speech Model Download",
+        "operationId": "start_speech_model_download_api_stt_model_download_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechModelDownloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechModelStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stt/model/cancel": {
+      "post": {
+        "tags": [
+          "speech-model"
+        ],
+        "summary": "Cancel Speech Model Download",
+        "operationId": "cancel_speech_model_download_api_stt_model_cancel_post",
+        "parameters": [
+          {
+            "name": "backend",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "vosk",
+                "whisper"
+              ],
+              "type": "string",
+              "title": "Backend"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "ja",
+                "en"
+              ],
+              "type": "string",
+              "title": "Language"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "tiny",
+                    "base",
+                    "small",
+                    "medium",
+                    "large-v2",
+                    "large-v3-turbo"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechModelStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-runtimes/codex/status": {
+      "get": {
+        "tags": [
+          "ai-runtimes"
+        ],
+        "summary": "Status",
+        "operationId": "status_api_ai_runtimes_codex_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodexStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-runtimes/codex/login": {
+      "post": {
+        "tags": [
+          "ai-runtimes"
+        ],
+        "summary": "Start Login",
+        "operationId": "start_login_api_ai_runtimes_codex_login_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-runtimes/codex/login/device-code": {
+      "post": {
+        "tags": [
+          "ai-runtimes"
+        ],
+        "summary": "Start Device Code Login",
+        "operationId": "start_device_code_login_api_ai_runtimes_codex_login_device_code_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCodeLoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-runtimes/codex/login/cancel": {
+      "post": {
+        "tags": [
+          "ai-runtimes"
+        ],
+        "summary": "Cancel Login",
+        "operationId": "cancel_login_api_ai_runtimes_codex_login_cancel_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/LoginCancelRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginCancelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-runtimes/codex/logout": {
+      "post": {
+        "tags": [
+          "ai-runtimes"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_api_ai_runtimes_codex_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-runtimes/codex/rate-limits": {
+      "get": {
+        "tags": [
+          "ai-runtimes"
+        ],
+        "summary": "Rate Limits",
+        "operationId": "rate_limits_api_ai_runtimes_codex_rate_limits_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-runtimes/codex/cancel": {
+      "post": {
+        "tags": [
+          "ai-runtimes"
+        ],
+        "summary": "Cancel Active Turn",
+        "operationId": "cancel_active_turn_api_ai_runtimes_codex_cancel_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/meetings/{meeting_id}/minutes": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Generate Minutes",
+        "operationId": "generate_minutes_meetings__meeting_id__minutes_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "UTF-8 plaintext minutes stream; saved after the stream completes.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/meetings": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "List Meetings",
+        "operationId": "list_meetings_meetings_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingListPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/meetings/recordings/cleanup/preview": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Preview Recording Cleanup",
+        "operationId": "preview_recording_cleanup_meetings_recordings_cleanup_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordingCleanupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingCleanupPreviewResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/meetings/recordings/cleanup": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Execute Recording Cleanup",
+        "operationId": "execute_recording_cleanup_meetings_recordings_cleanup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordingCleanupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingCleanupExecuteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/meetings/{meeting_id}": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Get Meeting",
+        "operationId": "get_meeting_meetings__meeting_id__get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Update Meeting Title",
+        "operationId": "update_meeting_title_meetings__meeting_id__patch",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTitleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateMeetingTitleResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Delete Meeting",
+        "operationId": "delete_meeting_meetings__meeting_id__delete",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteMeetingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/meetings/{meeting_id}/recordings": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "List Recordings",
+        "operationId": "list_recordings_meetings__meeting_id__recordings_get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordingAssetItem"
+                  },
+                  "title": "Response List Recordings Meetings  Meeting Id  Recordings Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/meetings/{meeting_id}/recordings/{role}": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Serve Recording",
+        "operationId": "serve_recording_meetings__meeting_id__recordings__role__get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "other",
+                "self"
+              ],
+              "type": "string",
+              "title": "Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcpConfig": {
+        "properties": {
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Command"
+          },
+          "runtime": {
+            "type": "string",
+            "const": "acp",
+            "title": "Runtime",
+            "default": "acp"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string",
+              "const": "reply"
+            },
+            "type": "array",
+            "title": "Capabilities",
+            "default": [
+              "reply"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "command"
+        ],
+        "title": "AcpConfig",
+        "description": "ACP runtime configuration safe for Advanced Settings."
+      },
+      "AcpConfigPayload": {
+        "properties": {
+          "command": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AcpConfigPayload",
+        "description": "ACP process command, represented as argv without shell evaluation."
+      },
+      "AgentSettings": {
+        "properties": {
+          "info_enabled": {
+            "type": "boolean",
+            "title": "Info Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "info_enabled"
+        ],
+        "title": "AgentSettings",
+        "description": "Non-reply agent settings returned in the settings response."
+      },
+      "AgentSettingsPayload": {
+        "properties": {
+          "info_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Info Enabled"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AgentSettingsPayload",
+        "description": "Non-reply agent flags that the client may send as a patch."
+      },
+      "BillingOwner": {
+        "type": "string",
+        "enum": [
+          "app",
+          "external_subscription",
+          "user",
+          "none"
+        ]
+      },
+      "CodexStatusResponse": {
+        "properties": {
+          "installed": {
+            "type": "boolean",
+            "title": "Installed"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "compatible": {
+            "type": "boolean",
+            "title": "Compatible"
+          },
+          "process_state": {
+            "type": "string",
+            "title": "Process State"
+          },
+          "auth_state": {
+            "type": "string",
+            "title": "Auth State"
+          },
+          "turn_state": {
+            "type": "string",
+            "title": "Turn State"
+          },
+          "authenticated": {
+            "type": "boolean",
+            "title": "Authenticated"
+          },
+          "account_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Type"
+          },
+          "plan_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Type"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "availability": {
+            "type": "string",
+            "const": "experimental",
+            "title": "Availability",
+            "default": "experimental"
+          },
+          "security_boundary_verified": {
+            "type": "boolean",
+            "const": false,
+            "title": "Security Boundary Verified",
+            "default": false
+          },
+          "reason_code": {
+            "type": "string",
+            "title": "Reason Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "installed",
+          "version",
+          "compatible",
+          "process_state",
+          "auth_state",
+          "turn_state",
+          "authenticated",
+          "account_type",
+          "plan_type",
+          "ready",
+          "reason_code",
+          "message"
+        ],
+        "title": "CodexStatusResponse"
+      },
+      "ConnectionProvider": {
+        "type": "string",
+        "enum": [
+          "openai",
+          "deepgram",
+          "xai",
+          "gemini",
+          "anthropic"
+        ]
+      },
+      "ConnectionTestRequest": {
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/ConnectionProvider"
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "title": "ConnectionTestRequest",
+        "description": "A non-persistent provider credential check."
+      },
+      "ConnectionTestResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "invalid",
+              "unavailable"
+            ],
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "status",
+          "message"
+        ],
+        "title": "ConnectionTestResponse",
+        "description": "Credential-check result without exposing stored or draft secret material."
+      },
+      "DataLocation": {
+        "type": "string",
+        "enum": [
+          "cloud",
+          "external",
+          "local",
+          "unknown"
+        ]
+      },
+      "DeleteMeetingResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "DeleteMeetingResponse"
+      },
+      "DeviceCodeLoginResponse": {
+        "properties": {
+          "login_id": {
+            "type": "string",
+            "title": "Login Id"
+          },
+          "verification_url": {
+            "type": "string",
+            "title": "Verification Url"
+          },
+          "user_code": {
+            "type": "string",
+            "title": "User Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "login_id",
+          "verification_url",
+          "user_code"
+        ],
+        "title": "DeviceCodeLoginResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LoginCancelRequest": {
+        "properties": {
+          "login_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "LoginCancelRequest"
+      },
+      "LoginCancelResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "canceled",
+              "notFound"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "LoginCancelResponse"
+      },
+      "LoginResponse": {
+        "properties": {
+          "login_id": {
+            "type": "string",
+            "title": "Login Id"
+          },
+          "auth_url": {
+            "type": "string",
+            "title": "Auth Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "login_id",
+          "auth_url"
+        ],
+        "title": "LoginResponse"
+      },
+      "MeetingDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "ai_note": {
+            "type": "string",
+            "title": "Ai Note",
+            "default": ""
+          },
+          "minutes": {
+            "type": "string",
+            "title": "Minutes",
+            "default": ""
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/TurnItem"
+            },
+            "type": "array",
+            "title": "Turns"
+          },
+          "reply_suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/ReplySuggestionItem"
+            },
+            "type": "array",
+            "title": "Reply Suggestions"
+          },
+          "recording_assets": {
+            "items": {
+              "$ref": "#/components/schemas/RecordingAssetItem"
+            },
+            "type": "array",
+            "title": "Recording Assets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "started_at",
+          "status"
+        ],
+        "title": "MeetingDetail"
+      },
+      "MeetingListItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "has_ai_note": {
+            "type": "boolean",
+            "title": "Has Ai Note"
+          },
+          "has_recording": {
+            "type": "boolean",
+            "title": "Has Recording"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "started_at",
+          "status",
+          "has_ai_note",
+          "has_recording"
+        ],
+        "title": "MeetingListItem",
+        "description": "Lightweight meeting list item with asset indicator flags."
+      },
+      "MeetingListPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MeetingListItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "MeetingListPage",
+        "description": "Paginated meeting list response."
+      },
+      "OllamaConfig": {
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "base_url"
+        ],
+        "title": "OllamaConfig",
+        "description": "Ollama configuration returned in settings response."
+      },
+      "OllamaConfigPayload": {
+        "properties": {
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "OllamaConfigPayload",
+        "description": "Ollama configuration — base_url for now."
+      },
+      "OllamaModelsResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "base_url",
+          "models"
+        ],
+        "title": "OllamaModelsResponse",
+        "description": "Response from GET /api/settings/ollama/models."
+      },
+      "OperationResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "OperationResponse"
+      },
+      "ProviderKind": {
+        "type": "string",
+        "enum": [
+          "google-gla",
+          "google-vertex",
+          "openai",
+          "openai-chat",
+          "openai-responses",
+          "anthropic",
+          "openai-compatible",
+          "ollama"
+        ]
+      },
+      "ProviderSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ProviderKind"
+          },
+          "data_location": {
+            "$ref": "#/components/schemas/DataLocation"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "models": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Models"
+          },
+          "experimental": {
+            "type": "boolean",
+            "title": "Experimental",
+            "default": false
+          },
+          "api_key_configured": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key Configured"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "data_location"
+        ],
+        "title": "ProviderSummary",
+        "description": "Provider metadata safe for Settings UI display."
+      },
+      "RateLimitBucketResponse": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "plan_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Type"
+          },
+          "primary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RateLimitWindowResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RateLimitWindowResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_credits": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Credits"
+          },
+          "unlimited": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlimited"
+          },
+          "reached_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reached Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "plan_type",
+          "primary",
+          "secondary",
+          "has_credits",
+          "unlimited",
+          "reached_reason"
+        ],
+        "title": "RateLimitBucketResponse"
+      },
+      "RateLimitWindowResponse": {
+        "properties": {
+          "used_percent": {
+            "type": "integer",
+            "title": "Used Percent"
+          },
+          "resets_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resets At"
+          },
+          "window_duration_mins": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Duration Mins"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "used_percent",
+          "resets_at",
+          "window_duration_mins"
+        ],
+        "title": "RateLimitWindowResponse"
+      },
+      "RateLimitsResponse": {
+        "properties": {
+          "default": {
+            "$ref": "#/components/schemas/RateLimitBucketResponse"
+          },
+          "buckets": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RateLimitBucketResponse"
+            },
+            "type": "object",
+            "title": "Buckets"
+          },
+          "reset_credits_available": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reset Credits Available"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "default",
+          "buckets",
+          "reset_credits_available"
+        ],
+        "title": "RateLimitsResponse"
+      },
+      "RecordingAssetItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "other",
+              "self"
+            ],
+            "title": "Role"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format",
+            "default": "wav"
+          },
+          "sample_rate": {
+            "type": "integer",
+            "title": "Sample Rate",
+            "default": 16000
+          },
+          "channels": {
+            "type": "integer",
+            "title": "Channels",
+            "default": 1
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "started_at"
+        ],
+        "title": "RecordingAssetItem"
+      },
+      "RecordingCleanupExecuteResponse": {
+        "properties": {
+          "candidate_meeting_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Candidate Meeting Ids"
+          },
+          "delete_count": {
+            "type": "integer",
+            "title": "Delete Count"
+          },
+          "delete_recording_bytes": {
+            "type": "integer",
+            "title": "Delete Recording Bytes"
+          },
+          "total_recording_bytes_before": {
+            "type": "integer",
+            "title": "Total Recording Bytes Before"
+          },
+          "total_recording_bytes_after": {
+            "type": "integer",
+            "title": "Total Recording Bytes After"
+          },
+          "deleted_meeting_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted Meeting Ids"
+          },
+          "failed_meeting_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed Meeting Ids"
+          },
+          "skipped_meeting_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped Meeting Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_meeting_ids",
+          "delete_count",
+          "delete_recording_bytes",
+          "total_recording_bytes_before",
+          "total_recording_bytes_after",
+          "deleted_meeting_ids",
+          "failed_meeting_ids",
+          "skipped_meeting_ids"
+        ],
+        "title": "RecordingCleanupExecuteResponse"
+      },
+      "RecordingCleanupPreviewResponse": {
+        "properties": {
+          "candidate_meeting_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Candidate Meeting Ids"
+          },
+          "delete_count": {
+            "type": "integer",
+            "title": "Delete Count"
+          },
+          "delete_recording_bytes": {
+            "type": "integer",
+            "title": "Delete Recording Bytes"
+          },
+          "total_recording_bytes_before": {
+            "type": "integer",
+            "title": "Total Recording Bytes Before"
+          },
+          "total_recording_bytes_after": {
+            "type": "integer",
+            "title": "Total Recording Bytes After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_meeting_ids",
+          "delete_count",
+          "delete_recording_bytes",
+          "total_recording_bytes_before",
+          "total_recording_bytes_after"
+        ],
+        "title": "RecordingCleanupPreviewResponse"
+      },
+      "RecordingCleanupRequest": {
+        "properties": {
+          "cutoff_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cutoff Date"
+          },
+          "max_total_bytes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Total Bytes"
+          }
+        },
+        "type": "object",
+        "title": "RecordingCleanupRequest",
+        "description": "A user-requested cleanup policy; omitted values disable that condition."
+      },
+      "RecordingRetentionSettings": {
+        "properties": {
+          "cutoff_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cutoff Date"
+          },
+          "max_total_bytes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Total Bytes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RecordingRetentionSettings",
+        "description": "Saved inputs for a user-requested recording cleanup; never auto-runs."
+      },
+      "ReplySettings": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "auto_generate": {
+            "type": "boolean",
+            "title": "Auto Generate"
+          },
+          "default_style": {
+            "type": "string",
+            "title": "Default Style"
+          },
+          "styles": {
+            "items": {
+              "$ref": "#/components/schemas/ReplyStyleSettings"
+            },
+            "type": "array",
+            "title": "Styles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "auto_generate",
+          "default_style",
+          "styles"
+        ],
+        "title": "ReplySettings",
+        "description": "Reply feature settings returned in the settings response."
+      },
+      "ReplySettingsPayload": {
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "auto_generate": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Generate"
+          },
+          "default_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Style"
+          },
+          "styles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReplyStyleEnabledPatch"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Styles"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ReplySettingsPayload",
+        "description": "Reply feature settings and style enablement patches."
+      },
+      "ReplyStyleEnabledPatch": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "enabled"
+        ],
+        "title": "ReplyStyleEnabledPatch",
+        "description": "One entry in a ``reply.styles`` patch array."
+      },
+      "ReplyStyleSettings": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "enabled",
+          "priority"
+        ],
+        "title": "ReplyStyleSettings"
+      },
+      "ReplySuggestionItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "target_turn_id": {
+            "type": "string",
+            "title": "Target Turn Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "agent_label": {
+            "type": "string",
+            "title": "Agent Label"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "target_turn_id",
+          "sequence",
+          "agent_id",
+          "agent_label",
+          "text"
+        ],
+        "title": "ReplySuggestionItem"
+      },
+      "RouteAction": {
+        "type": "string",
+        "enum": [
+          "none",
+          "configure",
+          "install",
+          "login",
+          "start",
+          "sign_in",
+          "subscribe",
+          "manage_billing",
+          "view_usage",
+          "retry"
+        ]
+      },
+      "RouteAssignmentsReadModel": {
+        "properties": {
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply"
+          },
+          "info": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Info"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          }
+        },
+        "type": "object",
+        "title": "RouteAssignmentsReadModel"
+      },
+      "RouteAssignmentsUpdate": {
+        "properties": {
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply"
+          },
+          "info": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Info"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reply",
+          "info",
+          "minutes"
+        ],
+        "title": "RouteAssignmentsUpdate",
+        "description": "Full replacement of schema-v2 use-case route assignments."
+      },
+      "RouteAvailability": {
+        "type": "string",
+        "enum": [
+          "available",
+          "experimental",
+          "planned",
+          "unavailable"
+        ]
+      },
+      "RouteCapability": {
+        "type": "string",
+        "enum": [
+          "reply",
+          "info",
+          "minutes",
+          "stream",
+          "cancel"
+        ]
+      },
+      "RouteCatalogResponse": {
+        "properties": {
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/RouteReadModel"
+            },
+            "type": "array",
+            "title": "Routes"
+          },
+          "assignments": {
+            "$ref": "#/components/schemas/RouteAssignmentsReadModel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "routes",
+          "assignments"
+        ],
+        "title": "RouteCatalogResponse"
+      },
+      "RouteKind": {
+        "type": "string",
+        "enum": [
+          "managed",
+          "subscription_app",
+          "local",
+          "byok"
+        ]
+      },
+      "RouteReadModel": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RouteKind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/RouteAvailability"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/RouteReadiness"
+          },
+          "selectable": {
+            "type": "boolean",
+            "title": "Selectable"
+          },
+          "selected": {
+            "type": "boolean",
+            "title": "Selected"
+          },
+          "data_location": {
+            "$ref": "#/components/schemas/DataLocation"
+          },
+          "billing_owner": {
+            "$ref": "#/components/schemas/BillingOwner"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/RouteCapability"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "action": {
+            "$ref": "#/components/schemas/RouteAction"
+          },
+          "service_tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RouteServiceTier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "description",
+          "availability",
+          "readiness",
+          "selectable",
+          "selected",
+          "data_location",
+          "billing_owner",
+          "capabilities",
+          "reason_code",
+          "message",
+          "action"
+        ],
+        "title": "RouteReadModel",
+        "description": "Secret-free route state returned by the public API."
+      },
+      "RouteReadiness": {
+        "type": "string",
+        "enum": [
+          "ready",
+          "setup_required",
+          "unavailable",
+          "error",
+          "not_offered",
+          "unknown"
+        ]
+      },
+      "RouteServiceTier": {
+        "type": "string",
+        "enum": [
+          "priority",
+          "standard",
+          "unknown"
+        ]
+      },
+      "SaveSettingsResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/SettingsResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "settings"
+        ],
+        "title": "SaveSettingsResponse",
+        "description": "Response from a successful POST /api/settings."
+      },
+      "SecretKey": {
+        "type": "string",
+        "enum": [
+          "GEMINI_API_KEY",
+          "OPENAI_API_KEY",
+          "ANTHROPIC_API_KEY",
+          "GOOGLE_CLOUD_PROJECT",
+          "GOOGLE_APPLICATION_CREDENTIALS",
+          "DEEPGRAM_API_KEY",
+          "XAI_API_KEY"
+        ]
+      },
+      "SecretsPayload": {
+        "properties": {
+          "GEMINI_API_KEY": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gemini Api Key"
+          },
+          "OPENAI_API_KEY": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openai Api Key"
+          },
+          "XAI_API_KEY": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Xai Api Key"
+          },
+          "ANTHROPIC_API_KEY": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anthropic Api Key"
+          },
+          "GOOGLE_CLOUD_PROJECT": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Cloud Project"
+          },
+          "GOOGLE_APPLICATION_CREDENTIALS": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Application Credentials"
+          },
+          "DEEPGRAM_API_KEY": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deepgram Api Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SecretsPayload",
+        "description": "API key values the client may send to persist.\n\nOnly non-empty strings will be saved; ``None`` / missing means \"no update\"."
+      },
+      "SecretsStatus": {
+        "properties": {
+          "GEMINI_API_KEY": {
+            "type": "boolean",
+            "title": "Gemini Api Key",
+            "default": false
+          },
+          "OPENAI_API_KEY": {
+            "type": "boolean",
+            "title": "Openai Api Key",
+            "default": false
+          },
+          "XAI_API_KEY": {
+            "type": "boolean",
+            "title": "Xai Api Key",
+            "default": false
+          },
+          "ANTHROPIC_API_KEY": {
+            "type": "boolean",
+            "title": "Anthropic Api Key",
+            "default": false
+          },
+          "GOOGLE_CLOUD_PROJECT": {
+            "type": "boolean",
+            "title": "Google Cloud Project",
+            "default": false
+          },
+          "GOOGLE_APPLICATION_CREDENTIALS": {
+            "type": "boolean",
+            "title": "Google Application Credentials",
+            "default": false
+          },
+          "DEEPGRAM_API_KEY": {
+            "type": "boolean",
+            "title": "Deepgram Api Key",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "SecretsStatus",
+        "description": "Boolean presence indicators — never leak actual secret values."
+      },
+      "SettingsResponse": {
+        "properties": {
+          "ollama": {
+            "$ref": "#/components/schemas/OllamaConfig"
+          },
+          "acp": {
+            "$ref": "#/components/schemas/AcpConfig"
+          },
+          "stt": {
+            "$ref": "#/components/schemas/TomlTable",
+            "default": {}
+          },
+          "audio": {
+            "$ref": "#/components/schemas/TomlTable",
+            "default": {}
+          },
+          "agents": {
+            "$ref": "#/components/schemas/AgentSettings"
+          },
+          "reply": {
+            "$ref": "#/components/schemas/ReplySettings"
+          },
+          "secrets": {
+            "$ref": "#/components/schemas/SecretsStatus"
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir"
+          },
+          "context_dir": {
+            "type": "string",
+            "title": "Context Dir"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderSummary"
+            },
+            "type": "array",
+            "title": "Providers"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageSettingsResponse"
+          },
+          "recording_retention": {
+            "$ref": "#/components/schemas/RecordingRetentionSettings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ollama",
+          "acp",
+          "agents",
+          "reply",
+          "secrets",
+          "data_dir",
+          "context_dir",
+          "providers",
+          "usage",
+          "recording_retention"
+        ],
+        "title": "SettingsResponse",
+        "description": "Full settings object returned to the frontend."
+      },
+      "SettingsSaveRequest": {
+        "properties": {
+          "ollama": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OllamaConfigPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "acp": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AcpConfigPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agents": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentSettingsPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReplySettingsPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secrets": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SecretsPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stt": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stt"
+          },
+          "audio": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          },
+          "usage_budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageBudgetConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recording_retention": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordingRetentionSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delete_secrets": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SecretKey"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delete Secrets"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SettingsSaveRequest",
+        "description": "Request body for ``POST /api/settings``.\n\nEach field is optional; only provided fields are processed."
+      },
+      "SpeechModelDownloadRequest": {
+        "properties": {
+          "backend": {
+            "type": "string",
+            "enum": [
+              "vosk",
+              "whisper"
+            ],
+            "title": "Backend"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "ja",
+              "en"
+            ],
+            "title": "Language"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "tiny",
+                  "base",
+                  "small",
+                  "medium",
+                  "large-v2",
+                  "large-v3-turbo"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "backend",
+          "language"
+        ],
+        "title": "SpeechModelDownloadRequest",
+        "description": "Request a provider-controlled model without accepting arbitrary URLs or paths."
+      },
+      "SpeechModelStatusResponse": {
+        "properties": {
+          "backend": {
+            "type": "string",
+            "enum": [
+              "vosk",
+              "whisper"
+            ],
+            "title": "Backend"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "downloading",
+              "ready",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State"
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "downloading",
+              "verifying",
+              "extracting",
+              "ready"
+            ],
+            "title": "Phase"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "ja",
+              "en"
+            ],
+            "title": "Language"
+          },
+          "downloaded_bytes": {
+            "type": "integer",
+            "title": "Downloaded Bytes"
+          },
+          "total_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Bytes"
+          },
+          "progress_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Percent"
+          },
+          "model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Path"
+          },
+          "storage_path": {
+            "type": "string",
+            "title": "Storage Path"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "network",
+                  "disk_full",
+                  "permission",
+                  "checksum",
+                  "archive",
+                  "cancelled",
+                  "unknown"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "retryable": {
+            "type": "boolean",
+            "title": "Retryable"
+          },
+          "cancelable": {
+            "type": "boolean",
+            "title": "Cancelable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "backend",
+          "model_id",
+          "state",
+          "phase",
+          "language",
+          "downloaded_bytes",
+          "total_bytes",
+          "progress_percent",
+          "model_path",
+          "storage_path",
+          "error_code",
+          "message",
+          "retryable",
+          "cancelable"
+        ],
+        "title": "SpeechModelStatusResponse",
+        "description": "Stable public state for one provider-managed speech model."
+      },
+      "TomlTable": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/TomlValue"
+        },
+        "type": "object"
+      },
+      "TomlValue": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "items": {
+              "$ref": "#/components/schemas/TomlValue"
+            },
+            "type": "array"
+          },
+          {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TomlValue"
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "TurnItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "speaker": {
+            "type": "string",
+            "title": "Speaker"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "speaker_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "sequence",
+          "speaker",
+          "text"
+        ],
+        "title": "TurnItem"
+      },
+      "UpdateMeetingTitleResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "UpdateMeetingTitleResponse"
+      },
+      "UpdateTitleRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "UpdateTitleRequest"
+      },
+      "UsageBudgetConfig": {
+        "properties": {
+          "meeting_limit_jpy": {
+            "type": "number",
+            "title": "Meeting Limit Jpy",
+            "default": 0.0
+          },
+          "monthly_limit_jpy": {
+            "type": "number",
+            "title": "Monthly Limit Jpy",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "UsageBudgetConfig"
+      },
+      "UsageSettingsResponse": {
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/UsageBudgetConfig"
+          },
+          "current_meeting": {
+            "$ref": "#/components/schemas/UsageSummaryResponse"
+          },
+          "current_month": {
+            "$ref": "#/components/schemas/UsageSummaryResponse"
+          },
+          "billing_mode": {
+            "type": "string",
+            "title": "Billing Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "budget",
+          "current_meeting",
+          "current_month",
+          "billing_mode"
+        ],
+        "title": "UsageSettingsResponse"
+      },
+      "UsageSummaryResponse": {
+        "properties": {
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens",
+            "default": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens",
+            "default": 0
+          },
+          "estimated_cost_jpy": {
+            "type": "number",
+            "title": "Estimated Cost Jpy",
+            "default": 0.0
+          },
+          "request_count": {
+            "type": "integer",
+            "title": "Request Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "UsageSummaryResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

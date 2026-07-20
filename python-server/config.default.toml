@@ -1,0 +1,9 @@
+# 会議支援AI STTサーバー 設定ファイル
+
+[server]
+host = "0.0.0.0"
+port = 8001
+
+[audio]
+# Google STT セッションの最大継続秒数 (上限 ~60 秒)
+max_session_seconds = 55

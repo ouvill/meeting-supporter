@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a reproducible problem in Meeting Supporter
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, tokens, personal information, meeting transcripts or audio, raw stderr, screenshots containing private data, or absolute home-directory paths. Reproduce with synthetic data and redact logs before posting.
+
+        Security vulnerabilities must be reported privately through [GitHub Private Vulnerability Reporting](https://github.com/ouvill/meeting-supporter/security/advisories/new), not this form. If private reporting is unavailable, email contact@ouvill.net without including secrets in the initial message.
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Use synthetic data and the smallest reproducible sequence.
+      placeholder: |
+        1. Start ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What observable result should occur?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: App version or commit, operating system, and relevant runtime versions. Do not include usernames or absolute paths.
+      placeholder: |
+        Meeting Supporter version or commit:
+        Operating system:
+        Node/Python/Rust version when relevant:
+    validations:
+      required: true

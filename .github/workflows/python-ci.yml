@@ -1,0 +1,69 @@
+# Python backend CI
+#
+# Runs on pull_request and push to main.
+# Executes format-check, lint, typecheck (via `uv run poe check`)
+# and pytest (via `uv run poe test`).
+# Covers the declared minimum (3.12) and newest supported (3.14) Python minors.
+#
+# ── basedpyright exit code policy ─────────────────────────────────────────────
+# basedpyright is invoked without --verifytypes or --warnings flags.
+# This means it exits 0 on warnings-only and exits non-zero only on actual
+# type errors. As of 2026-06, warnings exist (e.g. reportUnusedFunction for
+# FastAPI route handlers) but type errors are zero.
+#
+# If basedpyright's behaviour changes in the future (e.g. --warnings is added
+# to pyproject.toml), CI will automatically fail on warnings too — which is
+# the desired fail-safe behaviour.
+#
+# ── Local reproduction ────────────────────────────────────────────────────────
+# To reproduce these checks locally:
+#   cd python
+#   uv sync --locked
+#   uv run poe check
+#   uv run poe test
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Python CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+    defaults:
+      run:
+        working-directory: python
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081
+        with:
+          enable-cache: true
+          cache-dependency-glob: "python/uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      - name: Run poe check (format + lint + typecheck)
+        run: uv run poe check
+
+      - name: Run tests
+        run: uv run poe test

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/ouvill/meeting-supporter/security/advisories/new
+    about: Use GitHub Private Vulnerability Reporting. If it is unavailable, email contact@ouvill.net without secrets in the initial message.
+  - name: Contribution and privacy guidance
+    url: https://github.com/ouvill/meeting-supporter/blob/main/CONTRIBUTING.md
+    about: Review safe reporting, verification, licensing, and pull request requirements.

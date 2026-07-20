@@ -1,0 +1,87 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "schedule": [
+    "before 5am on monday"
+  ],
+  "automerge": false,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 5am on monday"
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "Group Python AI/LLM stack updates (main backend only)",
+      "matchManagers": [
+        "pep621"
+      ],
+      "matchFileNames": [
+        "python/pyproject.toml"
+      ],
+      "matchPackageNames": [
+        "pydantic-ai",
+        "openai",
+        "anthropic",
+        "google-genai",
+        "httpx",
+        "httpcore",
+        "fastmcp"
+      ],
+      "groupName": "python-ai-llm"
+    },
+    {
+      "description": "Group Python audio/STT/native-sensitive stack (main backend only)",
+      "matchManagers": [
+        "pep621"
+      ],
+      "matchFileNames": [
+        "python/pyproject.toml"
+      ],
+      "matchPackageNames": [
+        "faster-whisper",
+        "webrtcvad",
+        "av",
+        "soundcard",
+        "numpy",
+        "uvloop"
+      ],
+      "groupName": "python-audio-stt-native"
+    },
+    {
+      "description": "Group Tauri npm packages",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchPackageNames": [
+        "/^@tauri-apps\\//"
+      ],
+      "groupName": "tauri-npm"
+    },
+    {
+      "description": "Group npm frontend minor/patch updates (non-Tauri)",
+      "matchManagers": [
+        "npm"
+      ],
+      "excludePackageNames": [
+        "/^@tauri-apps\\//"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "npm-non-tauri"
+    },
+    {
+      "description": "Group Cargo/Tauri dependency updates",
+      "matchManagers": [
+        "cargo"
+      ],
+      "groupName": "cargo-tauri"
+    }
+  ]
+}

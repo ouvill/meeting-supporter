@@ -1,0 +1,66 @@
+[project]
+name = "meeting-supporter-backend"
+version = "0.1.0"
+description = "会議支援AI — FastAPI + WebSocket バックエンド (Tauri サイドカー版)"
+license = "AGPL-3.0-only"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "httpx>=0.28.0",
+    "google-genai>=1.0.0",
+    "pydantic-ai-slim[anthropic,google,mcp,openai]>=1.84.1",
+    "python-dotenv>=1.0.0",
+    "platformdirs>=4.0.0",
+    "soundcard>=0.4.3",
+    "numpy>=1.24.0",
+    "faster-whisper>=1.2.1",
+    "webrtcvad>=2.0.10",
+    "websockets>=16.0",
+    "vosk>=0.3.45,<0.4",
+    "keyring>=25.7.0",
+    "agent-client-protocol==0.11.0",
+]
+
+
+[dependency-groups]
+dev = [
+    "pyrefly>=0.61.1",
+    "poethepoet>=0.33.0",
+    "pytest>=9.0.3",
+    "ruff>=0.15.11",
+    "black>=26.3.1",
+    "basedpyright>=1.39.3",
+    "pytest-cov>=6.1.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.basedpyright]
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
+include = ["app", "tests", "typings", "main.py", "scripts"]
+exclude = [".venv", "__pycache__", ".pytest_cache", ".ruff_cache"]
+
+[tool.poe.tasks]
+lint = "ruff check ."
+lint-fix = "ruff check --fix ."
+format = "ruff format ."
+format-check = "ruff format --check ."
+typecheck = "basedpyright"
+test = "pytest --tb=short -q"
+test-cov = "pytest --tb=short -q --cov=app --cov-report=term-missing --cov-report=html"
+generate-openapi = "python scripts/generate_openapi.py"
+metrics = "python scripts/collect_metrics.py"
+check.sequence = ["format-check", "lint", "typecheck"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E402"]
+
