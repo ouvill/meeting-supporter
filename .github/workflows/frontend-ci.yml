@@ -28,6 +28,7 @@ permissions:
 
 jobs:
   check:
+    name: Frontend CI
     runs-on: ubuntu-latest
 
     steps:
