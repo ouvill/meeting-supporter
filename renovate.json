@@ -67,12 +67,12 @@
       "matchManagers": [
         "npm"
       ],
-      "excludePackageNames": [
-        "/^@tauri-apps\\//"
-      ],
       "matchUpdateTypes": [
         "minor",
         "patch"
+      ],
+      "matchPackageNames": [
+        "!/^@tauri-apps\\//"
       ],
       "groupName": "npm-non-tauri"
     },
