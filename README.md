@@ -102,6 +102,17 @@ Python backendだけを起動する場合:
 npm run dev:python
 ```
 
+### 紹介サイト
+
+製品紹介用の静的サイトは`website/`にあります。
+
+```bash
+npm run site:dev
+npm run site:build
+```
+
+production buildは`dist-website/`へ出力されます。
+
 ### ローカル backend の境界
 
 Tauri launcherがdesktop backendごとに生成するcapability tokenは、同一端末上のそのprocessへ届いた呼出しを確認するためだけのものです。これはhosted serviceの利用者認証ではありません。`npm run dev:python`で直接起動するPython backendと`python-server`は、ローカル開発・動作確認用であり、そのまま公開serviceとして運用することを想定していません。

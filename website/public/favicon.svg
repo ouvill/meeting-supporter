@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Meeting Supporter">
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#f6f3ec" />
+  <path d="M48 22c-4-7-11-11-19-10-10 1-17 8-17 18 0 9 6 16 15 18v7l9-7c8-1 14-6 17-13" fill="none" stroke="#145c52" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M49 23c4 8 1 18-7 22l-6 3" fill="none" stroke="#17201c" stroke-width="7" stroke-linecap="round" />
+  <path d="M24 29v6M30 26v12M36 23v17" stroke="#145c52" stroke-width="3.5" stroke-linecap="round" />
+  <path d="m40 29 7 5-7 5Z" fill="#c64b2f" />
+</svg>
