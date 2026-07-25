@@ -152,6 +152,7 @@ jobs:
 
   build:
     name: Build ${{ matrix.label }}
+    if: github.ref_type == 'tag'
     needs: [verify, native-e2e]
     permissions:
       contents: write
@@ -231,3 +232,43 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+  build-windows-draft:
+    name: Build Windows x64 draft
+    if: github.event_name == 'workflow_dispatch'
+    needs: verify
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Windows installers and update the draft release
+        uses: tauri-apps/tauri-action@944946e3e4cac6603d1fe8f514171e9ecd3c78aa # v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: Meeting Supporter v__VERSION__
+          releaseBody: |
+            Meeting Supporter v__VERSION__ のWindowsインストーラー候補です。
+            公開前にWindowsでの起動確認とAuthenticode署名状態を確認してください。
+          releaseDraft: true
+          prerelease: false
