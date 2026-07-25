@@ -205,6 +205,21 @@ describe("SupportMethodPanel", () => {
     expect(screen.getByText("外部サービス料金なし")).toBeInTheDocument();
   });
 
+  it("names Codex CLI explicitly when the runtime must be installed", () => {
+    renderPanel([
+      route({
+        readiness: "unavailable",
+        selectable: false,
+        message: "Codex CLI がインストールされていません。",
+        action: "install",
+      }),
+    ]);
+
+    expect(
+      screen.getByRole("button", { name: "Codex CLIの入手方法を見る" }),
+    ).toBeInTheDocument();
+  });
+
   it("renders provider-specific API controls in known BYOK route cards", () => {
     renderPanel([
       route({

@@ -60,7 +60,7 @@ OpenAI、Grok / xAI、Deepgramは「音声」の「聞き取り方法」から�
 - **Codex App Server直接経路**: 利用者環境の公式`codex`とChatGPT loginを使うAPIキー不要の試験提供経路です。generic ACPとは別の専用runtimeとして扱います。`codex-cli 0.144.0`を最低版とし、それ以降の安定版は起動時のprotocol検証を通れば利用できます。0.144.0 / 0.144.1はschema互換性を追跡する基準版で、未検証の新版は警告を表示します。利用者環境での実Codex turnとdesktop E2Eは未検証であり、一般提供済みとはみなしません。
 - **Generic ACP経路**: 上級者向け設定だけで構成する別のexperimental runtimeです。Codex App Server経路のtransportとしては使わず、一般向けのCodex cardにACPを混在させません。
 
-Experimental経路は環境、version、接続先により利用できない場合があります。CodexはGUIの`PATH`に加えて公式installerの標準配置先も探索し、initialize、ChatGPT認証、モデル一覧のtyped検証が`ready`のときだけ選択できます。返答開始とstream中にもthread/turn/notificationを検証し、非互換なら応答を終了してprocessを停止します。version probeがtimeoutした場合もその子processを停止します。未導入・最低版未満・未ログイン・モデル未提供は理由と復旧操作を区別し、インストールまたは更新後はアプリの再起動が必要です。これは実装上の境界であり、外部Codexを使った生成品質・対応OS・desktop E2Eの検証結果ではありません。
+Experimental経路は環境、version、接続先により利用できない場合があります。Codex経路には、GUIプロセスの`PATH`から実行できる公式Codex CLIが必要です。Meeting SupporterはCodex CLIをインストールせず、未導入時は公式の案内ページを表示します。initialize、ChatGPT認証、モデル一覧のtyped検証が`ready`のときだけ選択できます。返答開始とstream中にもthread/turn/notificationを検証し、非互換なら応答を終了してprocessを停止します。version probeがtimeoutした場合もその子processを停止します。未導入・最低版未満・未ログイン・モデル未提供は理由と復旧操作を区別し、インストールまたは更新後はアプリの再起動が必要です。これは実装上の境界であり、外部Codexを使った生成品質・対応OS・desktop E2Eの検証結果ではありません。
 
 ### Hosted service の境界
 

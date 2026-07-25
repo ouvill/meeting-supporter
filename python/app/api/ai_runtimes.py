@@ -137,19 +137,23 @@ def _installation_message(reason_code: str, detected_version: str | None) -> str
     version_details = f"検出バージョン: {detected}。最低対応版は {MINIMUM_CODEX_VERSION_LABEL} です。"
     restart = "インストール・更新後にアプリを再起動してください。"
     if reason_code == "not_installed":
-        return f"Codex CLI が見つかりません。{version_details} Codex をインストールしてください。{restart}"
+        return (
+            f"Codex CLI がインストールされていないか、見つけられません。{version_details} "
+            + f"公式ページの案内に沿って Codex CLI をインストールしてください。{restart}"
+        )
     if reason_code == "unsupported_version":
         return (
             f"Codex CLI を利用できる安定版として確認できません。{version_details} "
-            + f"Codex の安定版へ更新してください。{restart}"
+            + f"Codex CLI の安定版へ更新してください。{restart}"
         )
     if reason_code == "invalid_binary":
-        return f"Codex CLI を実行できません。{version_details} Codex を再インストールしてください。{restart}"
+        return f"Codex CLI を実行できません。{version_details} " + f"Codex CLI を再インストールしてください。{restart}"
     if reason_code == "version_unavailable":
         return (
-            f"Codex CLI のバージョンを確認できません。{version_details} Codex を再インストールしてください。{restart}"
+            f"Codex CLI のバージョンを確認できません。{version_details} "
+            + f"Codex CLI を再インストールしてください。{restart}"
         )
-    return f"Codex CLI を利用できません。{version_details} Codex のインストール状態を確認してください。"
+    return f"Codex CLI を利用できません。{version_details} Codex CLI のインストール状態を確認してください。"
 
 
 def _untested_version_message(version: str | None) -> str:
@@ -168,7 +172,7 @@ def _auth_message(reason_code: str) -> str:
 
 
 def _runtime_failure_message() -> str:
-    return "Codex app-server を起動または初期化できませんでした。Codex を終了してから状態を再確認してください。"
+    return "Codex CLI を起動または初期化できませんでした。Codex CLI を終了してから状態を再確認してください。"
 
 
 async def probe_codex_route_status(codex: CodexAppServer, requested_model: str) -> RouteProbeStatus:

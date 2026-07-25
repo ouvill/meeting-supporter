@@ -83,7 +83,7 @@ function stateLabel(route: AiRouteReadModel) {
 }
 
 function routeActionLabel(action: AiRouteReadModel["action"]): string | null {
-  if (action === "install") return "準備を開始";
+  if (action === "install") return "Codex CLIの入手方法を見る";
   if (action === "login" || action === "sign_in") return "ログイン";
   if (action === "subscribe") return "月額プランを申し込む";
   if (action === "manage_billing") return "支払いを確認";
