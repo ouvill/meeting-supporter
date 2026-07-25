@@ -70,6 +70,9 @@ jobs:
       - name: Audit third-party licenses and notices
         run: npm run licenses:check
 
+      - name: Prepare bundled Python resource
+        run: npm run prepare:python-resource
+
       - name: Run Rust tests
         working-directory: src-tauri
         run: cargo test --locked
