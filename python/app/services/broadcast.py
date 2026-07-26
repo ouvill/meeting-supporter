@@ -14,7 +14,7 @@ class BroadcastManager:
         """Send a typed outgoing message to all connected clients."""
         payload = msg.model_dump()
         dead: set[WebSocket] = set()
-        for ws in self.connections:
+        for ws in tuple(self.connections):
             try:
                 await ws.send_json(payload)
             except Exception:
@@ -24,7 +24,7 @@ class BroadcastManager:
     async def broadcast_raw(self, msg: BroadcastPayload) -> None:
         """Send a raw dict payload — for use by STT streams that bypass the typed layer."""
         dead: set[WebSocket] = set()
-        for ws in self.connections:
+        for ws in tuple(self.connections):
             try:
                 await ws.send_json(msg)
             except Exception:

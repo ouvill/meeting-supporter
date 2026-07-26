@@ -800,7 +800,7 @@ mod tests {
         let pid_file = executable.with_extension("pid");
         fs::write(
             &executable,
-            "#!/bin/sh\nprintf '%s' \"$$\" > \"$0.pid\"\nwhile :; do :; done\n",
+            "#!/bin/sh\nprintf '%s' \"$$\" > \"$0.pid\"\nexec sleep 60\n",
         )
         .expect("write hanging Codex executable");
         let mut permissions = fs::metadata(&executable)
