@@ -40,7 +40,7 @@ zip = { version = "4", default-features = false, features = ["deflate"] }
 sha2 = "0.10"
 base64 = "0.22"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
-jsonwebtoken = "9"
+jsonwebtoken = "10"
 url = "2"
 
 [dev-dependencies]
