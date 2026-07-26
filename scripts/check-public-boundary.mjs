@@ -36,6 +36,7 @@ const ALLOWED_TOP_LEVEL = new Set([
   "tsconfig.node.json",
   "vite.config.ts",
   "vitest.config.ts",
+  "website",
   "wdio.live-codex.conf.ts",
   "wdio.tauri.conf.ts",
 ]);

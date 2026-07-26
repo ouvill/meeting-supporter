@@ -26,6 +26,8 @@
     "check:release": "npm run check:cla && node scripts/check-release.mjs",
     "prepare:python-resource": "node scripts/prepare-python-resource.mjs",
     "preview": "vite preview",
+    "site:dev": "vite website",
+    "site:build": "vite build website --base ./ --outDir ../dist-website --emptyOutDir",
     "tauri": "tauri",
     "licenses:generate": "uv run --project python python scripts/third-party-licenses.py",
     "licenses:check": "uv run --project python python scripts/third-party-licenses.py --check",
