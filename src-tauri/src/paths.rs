@@ -35,6 +35,10 @@ const MAX_PATH_DIRECTORIES: usize = 64;
 const MAX_CODEX_CANDIDATES: usize = 8;
 /// 不正または壊れた候補が起動を遅延させないための `codex --version` 制限時間（ミリ秒）。
 const CODEX_VERSION_TIMEOUT_MILLIS: u64 = 500;
+/// `wait-timeout` coordinates child exits through process-global SIGCHLD state. Unit tests launch
+/// many fake CLIs in parallel, unlike the single startup resolver, so serialize their probes.
+#[cfg(test)]
+static CODEX_SEARCH_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 pub struct RuntimePaths {
     pub uv: PathBuf,
@@ -520,6 +524,10 @@ fn find_codex_in_directories(directories: impl IntoIterator<Item = PathBuf>) -> 
 }
 
 fn find_codex_from_environment(environment: &CodexSearchEnvironment) -> Option<PathBuf> {
+    #[cfg(test)]
+    let _guard = CODEX_SEARCH_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let nvm_directories = nvm_bin_directories(environment);
     find_codex_in_directories(codex_candidate_directories(environment, nvm_directories))
 }
