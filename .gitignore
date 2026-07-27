@@ -16,6 +16,7 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-website
 dist-ssr
 *.local
 

@@ -208,11 +208,11 @@ mainのnative closeはアプリを終了する。minimize、maximize、restore�
 - Label: `このPCのChatGPTログイン`
 - Badge: `試験提供`
 - Ready: `ChatGPTへのログインを確認しました`
-- Missing binary: `Codexが見つかりません` / `準備方法を見る`
+- Missing binary: `Codex CLIがインストールされていないか、見つけられません` / `Codex CLIの入手方法を見る`
 - Logged out: `ChatGPTへのログインが必要です` / `ログイン方法を見る`
 - Constraint: `会議前に接続を確認してください。動作が不安定な場合があります。`
 
-version番号やApp Serverという語は診断詳細/Advancedにのみ表示する。
+version番号やApp Serverという語は診断詳細/Advancedにのみ表示する。アプリ内ではCodex CLIのインストールを実行せず、公式の案内ページを開く。インストール・更新後はアプリの再起動を案内する。
 
 #### Generic ACP
 
