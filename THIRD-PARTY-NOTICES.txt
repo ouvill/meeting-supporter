@@ -318,8 +318,8 @@ CARGO COMPONENTS (399)
 - serde_repr 0.1.20 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/serde_repr/0.1.20/download
 - serde_spanned 0.6.9 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/serde_spanned/0.6.9/download
 - serde_spanned 1.1.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/serde_spanned/1.1.1/download
-- serde_with 3.20.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/serde_with/3.20.0/download
-- serde_with_macros 3.20.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/serde_with_macros/3.20.0/download
+- serde_with 3.21.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/serde_with/3.21.0/download
+- serde_with_macros 3.21.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/serde_with_macros/3.21.0/download
 - serialize-to-javascript 0.1.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/serialize-to-javascript/0.1.2/download
 - serialize-to-javascript-impl 0.1.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/serialize-to-javascript-impl/0.1.2/download
 - servo_arc 0.4.3 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/servo_arc/0.4.3/download
@@ -14900,8 +14900,8 @@ Used by:
   - cargo:security-framework@3.7.0 (LICENSE-APACHE)
   - cargo:selectors@0.36.1 (malloc_size_of/LICENSE-APACHE (https://github.com/servo/stylo@635e1a19d02960588a00e189bd4bd5bdb150ec3d))
   - cargo:selectors@0.36.1 (servo_arc/LICENSE-APACHE (https://github.com/servo/stylo@635e1a19d02960588a00e189bd4bd5bdb150ec3d))
-  - cargo:serde_with@3.20.0 (LICENSE-APACHE)
-  - cargo:serde_with_macros@3.20.0 (LICENSE-APACHE)
+  - cargo:serde_with@3.21.0 (LICENSE-APACHE)
+  - cargo:serde_with_macros@3.21.0 (LICENSE-APACHE)
   - cargo:servo_arc@0.4.3 (LICENSE-APACHE)
   - cargo:signal-hook-registry@1.4.8 (LICENSE-APACHE)
   - cargo:smallvec@1.15.1 (LICENSE-APACHE)
@@ -31102,8 +31102,8 @@ limitations under the License.
 
 [356] SHA-256 fdd1c2117bcf8157d1d013d0953c0a7e6e5fab73df9e36773cd77634428568eb
 Used by:
-  - cargo:serde_with@3.20.0 (LICENSE-MIT)
-  - cargo:serde_with_macros@3.20.0 (LICENSE-MIT)
+  - cargo:serde_with@3.21.0 (LICENSE-MIT)
+  - cargo:serde_with_macros@3.21.0 (LICENSE-MIT)
 
 Copyright (c) 2015
 
