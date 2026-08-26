@@ -18,6 +18,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:tauri-frontend": "node scripts/run-tauri-frontend-dev.mjs",
     "dev:python": "node scripts/run-python-dev.mjs",
     "build": "tsc && vite build",
     "check:cla": "node scripts/check-cla.mjs",

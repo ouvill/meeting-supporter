@@ -90,6 +90,8 @@ cd python && uv sync --locked
 npm run tauri dev
 ```
 
+Windows WebView2ではVite devの分割module graphが初回評価待ちになるため、desktop developmentは`NODE_ENV=development`、`import.meta.env.DEV=true`の非minify bundleをsource map付きでwatch buildし、`127.0.0.1:1420`のpreview serverから配信します。frontend変更は自動で再buildされるので、desktop windowを再読み込みして反映してください。browser上でHMRを使うfrontend単体開発には`npm run dev`を使用します。
+
 frontendだけを起動する場合:
 
 ```bash
