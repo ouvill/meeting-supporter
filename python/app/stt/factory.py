@@ -10,7 +10,7 @@ from app.core.types import HandleSpeechFn
 from app.services.managed_session import ManagedSessionStore
 from app.stt.pipeline import SttPipeline
 
-_SUPPORTED_BACKENDS = {"whisper", "remote", "deepgram", "managed", "openai", "xai", "dummy", "vosk"}
+_SUPPORTED_BACKENDS = {"whisper", "reazonspeech", "remote", "deepgram", "managed", "openai", "xai", "dummy", "vosk"}
 
 
 def build_pipeline(
@@ -22,7 +22,7 @@ def build_pipeline(
     managed_session_store: ManagedSessionStore | None = None,
     get_managed_session_id: Callable[[], str | None] | None = None,
 ) -> SttPipeline:
-    supported = "whisper / vosk / remote / deepgram / managed / openai / xai / dummy"
+    supported = "whisper / reazonspeech / vosk / remote / deepgram / managed / openai / xai / dummy"
     if cfg.backend == "local":
         raise ValueError(f"app.stt では local バックエンドは未対応です ({supported} を使用してください)")
     if cfg.backend not in _SUPPORTED_BACKENDS:

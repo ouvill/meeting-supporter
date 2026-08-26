@@ -325,6 +325,8 @@ class ConfigLoader:
 
         # STT
         stt_backend = cfg_get("stt", "backend", "whisper")
+        configured_stt_language = cfg_get("stt", "language", "ja")
+        stt_language = "ja" if stt_backend == "reazonspeech" else configured_stt_language
         sample_rate = cfg_get("audio", "sample_rate", 16000)
         chunk_size = int(sample_rate * 0.1)
 
@@ -347,7 +349,7 @@ class ConfigLoader:
             deepgram_model=cfg_get("stt", "deepgram_model", "nova-3"),
             openai_model=cfg_get("stt", "openai_model", "gpt-4o-transcribe"),
             vosk_model_path=cfg_get("stt", "vosk_model_path", "vosk-model-small-ja-0.22"),
-            language=cfg_get("stt", "language", "ja"),
+            language=stt_language,
             vad_sensitivity=cfg_get("stt", "vad_sensitivity", 0.4),
             silence_duration=cfg_get("stt", "silence_duration", 0.8),
             vad_aggressiveness=cfg_get("stt", "vad_aggressiveness", 2),

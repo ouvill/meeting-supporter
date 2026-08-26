@@ -35,6 +35,7 @@
 現在の設定で次のbackendを選択できます。
 
 - Whisper（local。アプリ設定からmodelを準備可能）
+- ReazonSpeech K2-v2 int8（local・日本語専用。アプリ設定からmodelを準備可能）
 - Vosk（local。アプリ設定からmodelを準備可能）
 - Deepgram（cloud。credentialが必要）
 - OpenAI（cloud。`OPENAI_API_KEY`が必要。発話単位で音声を転送）
@@ -152,6 +153,8 @@ workflowは公開を自動化しません。draftを公開する前に対象OS�
 
 「端末内・高精度」のWhisper modelは、アプリの音声設定からダウンロードできます。進捗表示と失敗時の再試行に対応し、保存先にはHugging Faceの標準共有cacheを使用するため、アプリ専用フォルダへmodelを重複保存しません。Whisperのダウンロードは途中キャンセルできません。
 
+「端末内・日本語高精度」のReazonSpeech K2-v2 int8 modelも同じ画面からダウンロードできます。約153MBを使用し、Hugging Faceの標準共有cacheへ保存します。日本語の音声だけに対応し、1回の認識区間をmodelの上限である約30秒未満に分割します。ダウンロードは途中キャンセルできません。modelとReazonSpeechの利用条件はApache License 2.0です。
+
 「端末内・軽量」のVosk音声認識データは、同じ画面から日本語（約48MB）または英語（約40MB）をダウンロードできます。進捗表示、キャンセル、失敗時の再試行に対応し、取得したデータはAppData配下の`models/speech`へ保存されます。既存のVosk modelを使う上級者は、詳細設定の`vosk_model_path`で展開済みディレクトリを指定できます。Ollamaの既定endpointは`http://localhost:11434/v1`です。
 
 ## Architecture and product authority
@@ -177,7 +180,7 @@ workflowは公開を自動化しません。draftを公開する前に対象OS�
 | Desktop   | Tauri 2                                  |
 | Backend   | Python 3.12–3.14, FastAPI, WebSocket     |
 | Audio     | soundcard                                |
-| Local STT | faster-whisper / Vosk                    |
+| Local STT | faster-whisper / ReazonSpeech K2-v2 / Vosk |
 
 ## Contributing
 

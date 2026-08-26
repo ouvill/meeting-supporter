@@ -33,7 +33,7 @@ flowchart LR
     VOL --> WS1[WebSocket\n音量レベル]
     Qb --> VAD[VadStage\nis_speech 付与]
     VAD --> Q2[Q2\nAudioFrame]
-    Q2 --> STT[SttStage\nWhisper / Vosk / Deepgram / Remote]
+    Q2 --> STT[SttStage\nWhisper / ReazonSpeech / Vosk / Deepgram / Remote]
     STT --> Q3[Q3]
     Q3 --> DIAR[DiarizationStage\n話者分離 Optional]
     DIAR --> Q4[Q4]
@@ -103,7 +103,7 @@ CaptureStage → None → Q1
 | 音声取得 | `CaptureStage` | soundcard → PCM フレーム | — | Q1 (`AudioFrame`) |
 | 音量計算 | `VolumeStage` | Q1 をタップし RMS 計算 | Q1 (read-only tap) | WebSocket |
 | VAD | `VadStage` | 各フレームに `is_speech` を付与して全量通過 | Q1 | Q2 (`AudioFrame`) |
-| 音声認識 | `WhisperStage` / `VoskStage` / `DeepgramStage` / `RemoteStage` | `is_speech` を見てバッファリング・テキスト変換 | Q2 | Q3 |
+| 音声認識 | `WhisperStage` / `ReazonSpeechStage` / `VoskStage` / `DeepgramStage` / `RemoteStage` | `is_speech` を見てバッファリング・テキスト変換 | Q2 | Q3 |
 | 話者分離 | `DiarizationStage` | 話者 ID 付与 (Optional) | Q3 | Q4 |
 | 出力 | (パイプライン末端) | WebSocket ブロードキャスト | Q4 or Q3 | WebSocket |
 
@@ -120,6 +120,7 @@ app/stt/
 │   ├── volume.py        # VolumeStage
 │   ├── vad.py           # VadStage (WebRTC VAD / Silero 切り替え可)
 │   ├── stt_whisper.py   # WhisperStage
+│   ├── stt_reazonspeech.py # ReazonSpeechStage
 │   ├── stt_vosk.py      # VoskStage
 │   ├── stt_deepgram.py  # DeepgramStage
 │   ├── stt_remote.py    # RemoteStage
@@ -136,7 +137,7 @@ app/stt/
 |---------|----------------------|----------------|
 | 音声デバイス変更 | `CaptureStage` | VAD, STT, 音量計算 (キュー経由で継続) |
 | VAD エンジン変更 | `VadStage` | 音声取得, STT |
-| STT バックエンド変更 | `WhisperStage` → `VoskStage` / `DeepgramStage` | 音声取得, VAD |
+| STT バックエンド変更 | `WhisperStage` → `ReazonSpeechStage` / `VoskStage` / `DeepgramStage` | 音声取得, VAD |
 | 話者分離 ON/OFF | `DiarizationStage` | 全ステージ継続 |
 
 ### VolumeStage と AudioLevelMonitor の統合

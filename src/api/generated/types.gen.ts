@@ -1093,7 +1093,7 @@ export type SpeechModelDownloadRequest = {
   /**
    * Backend
    */
-  backend: "vosk" | "whisper";
+  backend: "vosk" | "whisper" | "reazonspeech";
   /**
    * Language
    */
@@ -1120,7 +1120,7 @@ export type SpeechModelStatusResponse = {
   /**
    * Backend
    */
-  backend: "vosk" | "whisper";
+  backend: "vosk" | "whisper" | "reazonspeech";
   /**
    * Model Id
    */
@@ -1520,7 +1520,7 @@ export type GetSpeechModelStatusApiSttModelGetData = {
     /**
      * Backend
      */
-    backend: "vosk" | "whisper";
+    backend: "vosk" | "whisper" | "reazonspeech";
     /**
      * Language
      */
@@ -1594,7 +1594,7 @@ export type CancelSpeechModelDownloadApiSttModelCancelPostData = {
     /**
      * Backend
      */
-    backend: "vosk" | "whisper";
+    backend: "vosk" | "whisper" | "reazonspeech";
     /**
      * Language
      */

@@ -46,7 +46,7 @@ class FactoryRoutingTest(unittest.TestCase):
         return dataclasses.replace(self.base_cfg, backend=backend)
 
     def test_supported_backends_return_pipeline_with_public_prewarm_capability(self) -> None:
-        for backend in ("whisper", "vosk", "remote", "deepgram", "managed", "openai", "xai", "dummy"):
+        for backend in ("whisper", "reazonspeech", "vosk", "remote", "deepgram", "managed", "openai", "xai", "dummy"):
             with self.subTest(backend=backend):
                 pipeline = build_pipeline(
                     _make_queue(),
@@ -57,10 +57,10 @@ class FactoryRoutingTest(unittest.TestCase):
                 )
 
                 self.assertIsInstance(pipeline, SttPipeline)
-                self.assertEqual(pipeline.supports_prewarm(), backend in {"whisper", "vosk"})
+                self.assertEqual(pipeline.supports_prewarm(), backend in {"whisper", "reazonspeech", "vosk"})
 
     def test_invalid_backends_raise_exact_errors(self) -> None:
-        supported = "whisper / vosk / remote / deepgram / managed / openai / xai / dummy"
+        supported = "whisper / reazonspeech / vosk / remote / deepgram / managed / openai / xai / dummy"
         cases = (
             ("local", f"app.stt では local バックエンドは未対応です ({supported} を使用してください)"),
             ("mystery", f"未知のSTTバックエンド: 'mystery'  ({supported})"),

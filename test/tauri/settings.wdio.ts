@@ -91,12 +91,8 @@ describe("Contextual settings credentials", () => {
     }
 
     const geminiCard = await $('[data-route-id="gemini"]');
-    const reply = await geminiCard.$(
-      './/button[normalize-space()="返答案"]',
-    );
-    const info = await geminiCard.$(
-      './/button[normalize-space()="会話メモ"]',
-    );
+    const reply = await geminiCard.$('.//button[normalize-space()="返答案"]');
+    const info = await geminiCard.$('.//button[normalize-space()="会話メモ"]');
     const minutes = await geminiCard.$(
       './/button[normalize-space()="要約・議事録"]',
     );
@@ -179,5 +175,51 @@ describe("Contextual settings credentials", () => {
         originalWindowSize.height,
       );
     }
+  });
+
+  it("offers ReazonSpeech as a Japanese local speech model", async () => {
+    await openSettings(waitOptions);
+    const audioCategory = await $(
+      '//button[.//span[normalize-space()="音声"]]',
+    );
+    await audioCategory.waitForClickable(waitOptions);
+    await audioCategory.click();
+
+    const backend = await $('select[aria-label="音声認識方式"]');
+    await backend.waitForDisplayed(waitOptions);
+    await backend.waitForEnabled(waitOptions);
+    const backendOptions = (await browser.tauri.execute(() => {
+      const select = document.querySelector<HTMLSelectElement>(
+        'select[aria-label="音声認識方式"]',
+      );
+      return select ? [...select.options].map((option) => option.value) : [];
+    })) as string[];
+    expect(backendOptions).toContain("reazonspeech");
+    await browser.tauri.execute(() => {
+      const select = document.querySelector<HTMLSelectElement>(
+        'select[aria-label="音声認識方式"]',
+      );
+      if (!select) throw new Error("Speech recognition selector is missing");
+      select.value = "reazonspeech";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await browser.waitUntil(
+      async () => (await backend.getValue()) === "reazonspeech",
+      waitOptions,
+    );
+
+    const modelCardTitle = await $(
+      '//h4[normalize-space()="ReazonSpeech日本語モデル"]',
+    );
+    await modelCardTitle.waitForExist(waitOptions);
+    await modelCardTitle.scrollIntoView();
+    await expect(modelCardTitle).toBeDisplayed();
+    await expect(
+      $('//*[normalize-space()="日本語・約153 MB"]'),
+    ).toBeDisplayed();
+    const language = await $('select[aria-label="会議の言語"]');
+    expect(await language.isEnabled()).toBe(false);
+
+    await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 });

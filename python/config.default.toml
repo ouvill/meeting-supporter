@@ -40,6 +40,7 @@ info_enabled = true
 [stt]
 # STT バックエンド:
 #   "whisper"  = faster-whisper + webrtcvad（ローカル処理・高精度）
+#   "reazonspeech" = ReazonSpeech K2-v2 int8（ローカル処理・日本語専用、アプリの音声設定からモデル取得可能）
 #   "vosk"     = Vosk + webrtcvad（ローカル処理・軽量、アプリの音声設定からモデル取得可能）
 #   "deepgram" = Deepgram クラウド STT（要 DEEPGRAM_API_KEY 環境変数）
 #   "openai"   = OpenAI クラウド STT（要 OPENAI_API_KEY 環境変数）
@@ -68,11 +69,11 @@ silence_duration = 0.4
 vad_aggressiveness = 2
 # 推論デバイス — backend = "whisper" のみ: "cpu" / "cuda" / "auto"
 device = "auto"
-# ローカルSTT共通の旧音声ゲート (Whisper soft_min_* のフォールバック既定値) — backend = "vosk" / "dummy"
+# ローカルSTT共通の旧音声ゲート (Whisper soft_min_* のフォールバック既定値) — backend = "reazonspeech" / "vosk" / "dummy"
 min_voiced_ms = 240
-# ローカルSTT共通の旧発話フレーム比率 (Whisper soft_min_* のフォールバック既定値) — backend = "vosk"
+# ローカルSTT共通の旧発話フレーム比率 (Whisper soft_min_* のフォールバック既定値) — backend = "reazonspeech" / "vosk"
 min_voiced_ratio = 0.35
-# ローカルSTT共通の旧実効音量下限 (Whisper soft_min_* のフォールバック既定値) — backend = "vosk"
+# ローカルSTT共通の旧実効音量下限 (Whisper soft_min_* のフォールバック既定値) — backend = "reazonspeech" / "vosk"
 min_rms_dbfs = -45.0
 # Whisper decode は緩く残し、最終判断は transcript judge が行う — backend = "whisper"
 decode_no_speech_threshold = 1.0

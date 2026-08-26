@@ -273,4 +273,33 @@ describe("SpeechModelPreparationCard", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "もう一度取得" })).toBeEnabled();
   });
+
+  it("presents ReazonSpeech as a fixed Japanese shared-cache model", () => {
+    render(
+      <SpeechModelPreparationCard
+        model={controller({
+          backend: "reazonspeech",
+          model: null,
+          language: "ja",
+          status: status({
+            backend: "reazonspeech",
+            model_id: "reazonspeech-k2-v2-int8",
+            total_bytes: 160_372_200,
+          }),
+        })}
+      />,
+    );
+
+    expect(screen.getByText("ReazonSpeech日本語モデル")).toBeInTheDocument();
+    expect(screen.getByText("日本語・約153 MB")).toBeInTheDocument();
+    expect(
+      screen.getByText("Hugging Face の共有キャッシュ"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "モデルを取得（約153 MB）" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "取得を取り消す" }),
+    ).not.toBeInTheDocument();
+  });
 });

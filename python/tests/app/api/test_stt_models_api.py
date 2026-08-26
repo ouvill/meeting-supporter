@@ -103,14 +103,33 @@ class _WhisperModelManagerForApi:
         return self.status(language, model)
 
 
+class _ReazonSpeechModelManagerForApi:
+    """Deterministic fake for the fixed Japanese non-cancellable model."""
+
+    def __init__(self) -> None:
+        self._status: SpeechModelStatus = _status("ja", state="missing", cancelable=False)
+
+    def status(self) -> SpeechModelStatus:
+        return self._status
+
+    async def start(self) -> SpeechModelStatus:
+        self._status = _status("ja", state="downloading", cancelable=False)
+        return self._status
+
+    def cancel(self) -> SpeechModelStatus:
+        return self._status
+
+
 def _make_client() -> tuple[TypedTestClient, _VoskModelManagerForApi, _WhisperModelManagerForApi]:
     vosk_manager = _VoskModelManagerForApi()
     whisper_manager = _WhisperModelManagerForApi()
+    reazonspeech_manager = _ReazonSpeechModelManagerForApi()
     app = FastAPI()
     app.include_router(
         create_router(
             vosk_model_manager=vosk_manager,  # pyright: ignore[reportArgumentType]
             whisper_model_manager=whisper_manager,  # pyright: ignore[reportArgumentType]
+            reazonspeech_model_manager=reazonspeech_manager,  # pyright: ignore[reportArgumentType]
         )
     )
     return TypedTestClient(app), vosk_manager, whisper_manager
@@ -156,6 +175,26 @@ class TestSpeechModelStatusApi:
         assert arbitrary_url.status_code == 422
         assert invalid_alias_status.status_code == 422
         assert invalid_alias_start.status_code == 422
+
+    def test_reazonspeech_is_fixed_to_the_japanese_int8_model(self) -> None:
+        client, _, _ = _make_client()
+
+        missing = client.get("/api/stt/model?backend=reazonspeech&language=ja")
+        started = client.post(
+            "/api/stt/model/download",
+            json={"backend": "reazonspeech", "language": "ja"},
+        )
+        cancelled = client.post("/api/stt/model/cancel?backend=reazonspeech&language=ja")
+        unsupported_language = client.get("/api/stt/model?backend=reazonspeech&language=en")
+
+        assert missing.status_code == 200
+        assert missing.json_object()["backend"] == "reazonspeech"
+        assert missing.json_object()["model_id"] == "reazonspeech-k2-v2-int8"
+        assert missing.json_object()["language"] == "ja"
+        assert started.json_object()["state"] == "downloading"
+        assert started.json_object()["cancelable"] is False
+        assert cancelled.json_object() == started.json_object()
+        assert unsupported_language.status_code == 422
 
     def test_vosk_start_deduplicates_active_download_and_cancel_is_actionable_and_idempotent(self) -> None:
         client, _, _ = _make_client()
