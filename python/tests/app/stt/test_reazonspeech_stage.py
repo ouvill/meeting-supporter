@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import ctypes
 import importlib
-import os
 import queue
 import tempfile
 import unittest
@@ -155,7 +154,11 @@ class ReazonSpeechModelBoundaryTest(unittest.TestCase):
             module = SimpleNamespace(__file__=str(package_dir / "__init__.py"))
 
             with (
-                patch.object(os, "name", "nt"),
+                patch.object(
+                    reazonspeech_model,
+                    "os",
+                    SimpleNamespace(name="nt"),
+                ),
                 patch.object(
                     reazonspeech_model,
                     "_windows_onnxruntime_handle",
