@@ -177,9 +177,11 @@ class AudioFrame:
 class VadEngine(Protocol):
     def is_speech(self, frame: bytes, sample_rate: int) -> bool: ...
 
-class WebRtcVadEngine:  ...  # webrtcvad ライブラリ使用 (MVP)
-class SileroVadEngine:  ...  # Silero VAD (将来オプション)
+class WebRtcVadEngine: ...  # webrtcvad、最小CPU負荷
+class SileroVadEngine: ...  # sherpa-onnx + 同梱int8 ONNX、既定
 ```
+
+Silero VADはTorchを依存にせず、k2-fsaが配布する16kHz専用int8 ONNX model（約208KB）を既存のsherpa-onnx / ONNX Runtimeで実行する。modelはSHA-256を固定して配布物へ同梱し、起動時に検証する。`vad_engine`、Sileroの`vad_sensitivity`、WebRTCの`vad_aggressiveness`変更時は`VadStage`だけをhot swapする。
 
 **各バックエンドの `is_speech` 活用例**
 

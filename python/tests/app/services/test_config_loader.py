@@ -136,6 +136,15 @@ class FromSettingsStoreSttTest(unittest.TestCase):
         self.assertEqual("openai", loader.stt_config.backend)
         self.assertEqual("gpt-4o-mini-transcribe", loader.stt_config.openai_model)
 
+    def test_silero_is_the_default_vad_without_changing_explicit_webrtc(self) -> None:
+        default_loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=cast(TomlTable, {})))
+        webrtc_loader = ConfigLoader.from_settings_store(
+            _dummy_settings_store(config=cast(TomlTable, {"stt": {"vad_engine": "webrtc"}}))
+        )
+
+        self.assertEqual("silero", default_loader.stt_config.vad_engine)
+        self.assertEqual("webrtc", webrtc_loader.stt_config.vad_engine)
+
     def test_legacy_hallucination_blocklist_maps_to_suspicious_phrases(self) -> None:
         config: TomlTable = cast(TomlTable, {"stt": {"hallucination_phrase_blocklist": ["旧フレーズ"]}})
         store = _dummy_settings_store(config=config)

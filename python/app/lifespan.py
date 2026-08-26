@@ -59,6 +59,12 @@ def create_lifespan(
         logger.info("AI経路 (情報AI): %s", config.ai_assignments.info or "未割当")
         logger.info("AI経路 (議事録AI): %s", config.ai_assignments.minutes or "未割当")
         logger.info("STT import package: app.stt")
+        logger.info(
+            "VAD: engine=%s  silero_threshold=%s  webrtc_aggressiveness=%s",
+            config.stt_config.vad_engine,
+            config.stt_config.vad_sensitivity,
+            config.stt_config.vad_aggressiveness,
+        )
 
         if config.stt_backend == "local":
             logger.warning("backend=local は未対応です。backend=whisper / vosk / remote を使用してください")

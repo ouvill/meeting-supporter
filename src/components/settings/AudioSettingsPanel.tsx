@@ -215,6 +215,20 @@ export function AudioSettingsPanel({
       >
         <div className="space-y-4">
           <FieldRow
+            label="声の検出方法"
+            hint="SileroはTorchを使わず、同梱した約208 KBのONNXモデルを端末内で実行します"
+          >
+            <select
+              value={form.sttVadEngine}
+              onChange={(event) => update("sttVadEngine", event.target.value)}
+              className="field"
+              aria-label="声の検出方法"
+            >
+              <option value="silero">Silero VAD（高精度・おすすめ）</option>
+              <option value="webrtc">WebRTC VAD（最軽量）</option>
+            </select>
+          </FieldRow>
+          <FieldRow
             label="無音とみなす時間"
             hint="短いほど返答案を早く作り始めます"
           >
@@ -236,19 +250,46 @@ export function AudioSettingsPanel({
               </output>
             </div>
           </FieldRow>
-          <FieldRow label="声の検出感度">
-            <select
-              value={form.sttVad}
-              onChange={(event) => update("sttVad", Number(event.target.value))}
-              className="field"
-              aria-label="声の検出感度"
+          {form.sttVadEngine === "silero" ? (
+            <FieldRow
+              label="音声判定しきい値"
+              hint="低いほど小さな声を拾い、高いほど雑音を除外します"
             >
-              <option value={0}>低い</option>
-              <option value={1}>やや低い</option>
-              <option value={2}>標準</option>
-              <option value={3}>高い</option>
-            </select>
-          </FieldRow>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  aria-label="Silero音声判定しきい値"
+                  value={form.sttVadSensitivity}
+                  min={0.05}
+                  max={0.95}
+                  step={0.05}
+                  onChange={(event) =>
+                    update("sttVadSensitivity", Number(event.target.value))
+                  }
+                  className="min-w-0 flex-1 accent-primary"
+                />
+                <output className="w-12 text-right text-sm font-semibold tabular-nums text-ink">
+                  {Math.round(form.sttVadSensitivity * 100)}%
+                </output>
+              </div>
+            </FieldRow>
+          ) : (
+            <FieldRow label="声の検出感度">
+              <select
+                value={form.sttVad}
+                onChange={(event) =>
+                  update("sttVad", Number(event.target.value))
+                }
+                className="field"
+                aria-label="声の検出感度"
+              >
+                <option value={0}>低い</option>
+                <option value={1}>やや低い</option>
+                <option value={2}>標準</option>
+                <option value={3}>高い</option>
+              </select>
+            </FieldRow>
+          )}
         </div>
       </SettingsCard>
     </SettingsPage>

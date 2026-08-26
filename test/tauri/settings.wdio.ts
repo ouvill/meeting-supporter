@@ -91,12 +91,8 @@ describe("Contextual settings credentials", () => {
     }
 
     const geminiCard = await $('[data-route-id="gemini"]');
-    const reply = await geminiCard.$(
-      './/button[normalize-space()="返答案"]',
-    );
-    const info = await geminiCard.$(
-      './/button[normalize-space()="会話メモ"]',
-    );
+    const reply = await geminiCard.$('.//button[normalize-space()="返答案"]');
+    const info = await geminiCard.$('.//button[normalize-space()="会話メモ"]');
     const minutes = await geminiCard.$(
       './/button[normalize-space()="要約・議事録"]',
     );
@@ -179,5 +175,27 @@ describe("Contextual settings credentials", () => {
         originalWindowSize.height,
       );
     }
+  });
+
+  it("offers Torch-free Silero as the default VAD", async () => {
+    await openSettings(waitOptions);
+    const audioCategory = await $(
+      '//button[.//span[normalize-space()="音声"]]',
+    );
+    await audioCategory.waitForClickable(waitOptions);
+    await audioCategory.click();
+
+    const vadEngine = await $('select[aria-label="声の検出方法"]');
+    await vadEngine.waitForDisplayed(waitOptions);
+    expect(await vadEngine.getValue()).toBe("silero");
+    const sileroOption = await $(
+      'select[aria-label="声の検出方法"] option[value="silero"]',
+    );
+    expect(await sileroOption.getText()).toBe("Silero VAD（高精度・おすすめ）");
+    await expect(
+      $('input[aria-label="Silero音声判定しきい値"]'),
+    ).toBeDisplayed();
+
+    await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 });

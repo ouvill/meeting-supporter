@@ -46,6 +46,7 @@
     "pywin32-ctypes@0.2.3": "BSD-3-Clause",
     "tokenizers@0.22.2": "Apache-2.0",
     "secretstorage@3.5.0": "BSD-3-Clause",
+    "sherpa-onnx@1.12.31": "Apache-2.0",
     "uvloop@0.22.1": "Apache-2.0 OR MIT",
     "vosk@0.3.45": "Apache-2.0"
   },
@@ -95,6 +96,19 @@
           "name": "LICENSE-MIT",
           "url": "https://raw.githubusercontent.com/astral-sh/uv/0.11.7/LICENSE-MIT",
           "sha256": "860e3d7a86b84e6a7012c7a635fc64df475cebc6cce34dfeb73a5982ec58176c"
+        }
+      ]
+    },
+    {
+      "name": "silero-vad-int8-onnx",
+      "version": "k2-fsa-c36d490aff5a",
+      "license": "MIT",
+      "source": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.int8.onnx",
+      "license_files": [
+        {
+          "name": "LICENSE",
+          "url": "https://raw.githubusercontent.com/snakers4/silero-vad/867c2aa692646a1f1de3e94a15c9dd9f614c0acb/LICENSE",
+          "sha256": "2e63e9a38b6e8fc0c7bc37ce174caca1862870856c6daf5697cfb785e925520b"
         }
       ]
     }

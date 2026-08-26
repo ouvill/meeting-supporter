@@ -121,6 +121,7 @@ class SttConfig:
     suspicious_phrases: tuple[str, ...] = DEFAULT_SUSPICIOUS_PHRASES
     openai_model: str = "gpt-4o-transcribe"
     vosk_model_path: str = "vosk-model-small-ja-0.22"
+    vad_engine: str = "silero"
 
 
 # ── LLM / Audio typed configs ─────────────────────────────────────────────────

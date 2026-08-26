@@ -32,9 +32,19 @@ from app.stt.stages.stt_remote import RemoteStage
 from app.stt.stages.stt_vosk import VoskEngine, VoskStage
 from app.stt.stages.stt_whisper import WhisperEngine, WhisperStage
 from app.stt.stages.stt_xai import XaiStage
-from app.stt.stages.vad import VadStage, WebRtcVadEngine
+from app.stt.stages.vad import SileroVadEngine, VadEngine, VadStage, WebRtcVadEngine
 
 _Q2_SIZE = 200
+
+
+def _make_vad_engine(cfg: SttConfig) -> VadEngine:
+    if cfg.vad_engine == "webrtc":
+        return WebRtcVadEngine(cfg.vad_aggressiveness)
+    if cfg.vad_engine == "silero":
+        if cfg.sample_rate != 16_000:
+            raise ValueError("Silero VADは16 kHz mono PCMを必要とします。")
+        return SileroVadEngine(cfg.vad_sensitivity)
+    raise ValueError(f"未知のVADエンジン: {cfg.vad_engine!r}")
 
 
 def _make_stt_stage(
@@ -353,7 +363,12 @@ class SttPipeline:
             if not self._started or self._publisher is None:
                 return
 
-            if cfg.vad_aggressiveness != old_cfg.vad_aggressiveness:
+            vad_changed = (
+                cfg.vad_engine != old_cfg.vad_engine
+                or (cfg.vad_engine == "webrtc" and cfg.vad_aggressiveness != old_cfg.vad_aggressiveness)
+                or (cfg.vad_engine == "silero" and cfg.vad_sensitivity != old_cfg.vad_sensitivity)
+            )
+            if vad_changed:
                 self._swap_vad(cfg)
 
             if _stt_stage_config_changed(old_cfg, cfg):
@@ -364,7 +379,7 @@ class SttPipeline:
     def _build_and_start(self) -> None:
         assert self._publisher is not None
         self._q2 = queue.Queue(maxsize=_Q2_SIZE)
-        vad = VadStage(self._stt_queue, self._q2, WebRtcVadEngine(self._cfg.vad_aggressiveness), self._cfg.sample_rate)
+        vad = VadStage(self._stt_queue, self._q2, _make_vad_engine(self._cfg), self._cfg.sample_rate)
         stt = _make_stt_stage(
             self._q2,
             self._cfg,
@@ -396,7 +411,7 @@ class SttPipeline:
         new_vad = VadStage(
             self._stt_queue,
             self._q2,
-            WebRtcVadEngine(new_cfg.vad_aggressiveness),
+            _make_vad_engine(new_cfg),
             new_cfg.sample_rate,
         )
         new_vad.start()

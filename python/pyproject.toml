@@ -20,6 +20,9 @@ dependencies = [
     "keyring>=25.7.0",
     "agent-client-protocol==0.11.0",
     "webrtcvad-wheels>=2.0.14",
+    # 1.13.6 requires ONNX Runtime API 27; the supported 1.24.4 runtime provides API 24.
+    "sherpa-onnx==1.12.31",
+    "onnxruntime>=1.24.4,<2",
 ]
 
 

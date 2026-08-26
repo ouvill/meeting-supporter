@@ -154,6 +154,8 @@ workflowは公開を自動化しません。draftを公開する前に対象OS�
 
 「端末内・軽量」のVosk音声認識データは、同じ画面から日本語（約48MB）または英語（約40MB）をダウンロードできます。進捗表示、キャンセル、失敗時の再試行に対応し、取得したデータはAppData配下の`models/speech`へ保存されます。既存のVosk modelを使う上級者は、詳細設定の`vosk_model_path`で展開済みディレクトリを指定できます。Ollamaの既定endpointは`http://localhost:11434/v1`です。
 
+声の検出は既定でSilero VADを使用します。Torchは導入せず、同梱した約208KBのint8 ONNX modelを既存のsherpa-onnx / ONNX Runtimeで実行します。処理は端末内で完結し、最小負荷を優先する場合は音声設定からWebRTC VADへ切り替えられます。Silero VAD modelの利用条件はMIT Licenseです。
+
 ## Architecture and product authority
 
 - [Documentation index](./doc/README.md)
@@ -176,7 +178,7 @@ workflowは公開を自動化しません。draftを公開する前に対象OS�
 | UI        | React 19, TypeScript, Vite, Tailwind CSS |
 | Desktop   | Tauri 2                                  |
 | Backend   | Python 3.12–3.14, FastAPI, WebSocket     |
-| Audio     | soundcard                                |
+| Audio     | soundcard / Silero VAD / WebRTC VAD     |
 | Local STT | faster-whisper / Vosk                    |
 
 ## Contributing

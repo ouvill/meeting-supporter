@@ -67,6 +67,7 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
             deepgram_model="nova-2",
             language="ja",
             vad_sensitivity=0.5,
+            vad_engine="webrtc",
             silence_duration=0.5,
             vad_aggressiveness=2,
             device="default",
@@ -481,6 +482,7 @@ class SttPipelineHotSwapTest(unittest.IsolatedAsyncioTestCase):
             "deepgram_model": "nova-2",
             "language": "ja",
             "vad_sensitivity": 0.5,
+            "vad_engine": "webrtc",
             "silence_duration": 0.5,
             "vad_aggressiveness": 2,
             "device": "default",
@@ -519,6 +521,25 @@ class SttPipelineHotSwapTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(new_pipeline, old_pipeline)
         self.assertIsNot(new_vad, old_vad)
+        p.stop()
+
+    async def test_apply_config_switches_from_webrtc_to_silero_threshold(self) -> None:
+        p = self._make_pipeline("deepgram")
+        loop = asyncio.get_running_loop()
+        p.start(loop)
+
+        new_cfg = self._make_config(
+            "deepgram",
+            vad_engine="silero",
+            vad_sensitivity=0.65,
+        )
+        with patch(
+            "app.stt.pipeline.SileroVadEngine",
+            return_value=_MarkedVadEngine(2),
+        ) as silero:
+            p.apply_config(new_cfg)
+
+        silero.assert_called_once_with(0.65)
         p.stop()
 
     async def test_apply_config_stt_backend_swap(self) -> None:

@@ -40,6 +40,8 @@ export interface SettingsForm {
   sttOpenaiModel: string;
   sttVoskModelPath: string;
   sttLang: string;
+  sttVadEngine: string;
+  sttVadSensitivity: number;
   sttVad: number;
   sttSilence: number;
   replyFeatureEnabled: boolean;
