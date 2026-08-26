@@ -56,6 +56,7 @@ from app.services.conversation_orchestrator import (
     ConversationOrchestrator,
 )
 from app.services.managed_session import ManagedSessionStore
+from app.services.reazonspeech_model_manager import ReazonSpeechModelManager
 from app.services.secret_store import create_secret_store
 from app.services.settings_store import SettingsStore
 from app.services.stt_controller import SttController
@@ -94,6 +95,7 @@ vosk_model_manager = VoskModelManager(
     event_bus=event_bus,
 )
 whisper_model_manager = WhisperModelManager()
+reazonspeech_model_manager = ReazonSpeechModelManager()
 usage_logger = UsageLogger(
     config.user_data_dir / "usage.jsonl",
     get_meeting_id=lambda: state.current_session.id if state.current_session is not None else None,
@@ -400,6 +402,7 @@ app = create_app(
         get_minutes_runtime=lambda: bundle.minutes_runtime,
         vosk_model_manager=vosk_model_manager,
         whisper_model_manager=whisper_model_manager,
+        reazonspeech_model_manager=reazonspeech_model_manager,
         codex_status=codex_route_status,
         managed_session_store=managed_session_store,
     ),

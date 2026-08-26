@@ -75,7 +75,9 @@ export function AudioSettingsPanel({
       : null;
   const cloud = cloudProvider ? CLOUD_STT[cloudProvider] : null;
   const usesLocalSpeechModel =
-    form.sttBackend === "vosk" || form.sttBackend === "whisper";
+    form.sttBackend === "vosk" ||
+    form.sttBackend === "whisper" ||
+    form.sttBackend === "reazonspeech";
   return (
     <SettingsPage
       title="音声"
@@ -96,6 +98,9 @@ export function AudioSettingsPanel({
               className="field"
             >
               <option value="whisper">端末内・高精度（おすすめ）</option>
+              <option value="reazonspeech">
+                端末内・日本語高精度（ReazonSpeech）
+              </option>
               <option value="vosk">端末内・軽量</option>
               <option value="managed" disabled={!managedStt.selectable}>
                 Meeting Supporter AI（共通利用枠）
@@ -155,6 +160,13 @@ export function AudioSettingsPanel({
               に送信され、利用料は各サービスの契約先から請求されます。APIキーはこの画面で設定します。モデル識別子は詳細設定で管理します。
             </InlineNotice>
           )}
+          {form.sttBackend === "reazonspeech" && (
+            <InlineNotice tone="info">
+              ReazonSpeech
+              K2-v2の軽量化モデルを端末内で実行します。日本語専用で、モデルの取得に約153
+              MB使用します。
+            </InlineNotice>
+          )}
 
           {form.sttBackend === "whisper" && (
             <FieldRow
@@ -182,20 +194,27 @@ export function AudioSettingsPanel({
           <FieldRow
             label="会議の言語"
             hint={
-              speechModelControlsDisabled
-                ? "データの準備中は言語を変更できません"
-                : undefined
+              form.sttBackend === "reazonspeech"
+                ? "ReazonSpeech K2-v2は日本語専用です"
+                : speechModelControlsDisabled
+                  ? "データの準備中は言語を変更できません"
+                  : undefined
             }
           >
             <select
               value={form.sttLang}
               onChange={(event) => update("sttLang", event.target.value)}
-              disabled={speechModelControlsDisabled}
+              disabled={
+                speechModelControlsDisabled ||
+                form.sttBackend === "reazonspeech"
+              }
               className="field"
               aria-label="会議の言語"
             >
               <option value="ja">日本語</option>
-              <option value="en">英語</option>
+              {form.sttBackend !== "reazonspeech" && (
+                <option value="en">英語</option>
+              )}
               {!["ja", "en"].includes(form.sttLang) && (
                 <option value={form.sttLang}>{form.sttLang}</option>
               )}

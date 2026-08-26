@@ -136,6 +136,16 @@ class FromSettingsStoreSttTest(unittest.TestCase):
         self.assertEqual("openai", loader.stt_config.backend)
         self.assertEqual("gpt-4o-mini-transcribe", loader.stt_config.openai_model)
 
+    def test_reazonspeech_forces_its_supported_japanese_language(self) -> None:
+        config: TomlTable = cast(
+            TomlTable,
+            {"stt": {"backend": "reazonspeech", "language": "en"}},
+        )
+        loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
+
+        self.assertEqual("reazonspeech", loader.stt_config.backend)
+        self.assertEqual("ja", loader.stt_config.language)
+
     def test_legacy_hallucination_blocklist_maps_to_suspicious_phrases(self) -> None:
         config: TomlTable = cast(TomlTable, {"stt": {"hallucination_phrase_blocklist": ["旧フレーズ"]}})
         store = _dummy_settings_store(config=config)

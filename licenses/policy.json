@@ -46,6 +46,7 @@
     "pywin32-ctypes@0.2.3": "BSD-3-Clause",
     "tokenizers@0.22.2": "Apache-2.0",
     "secretstorage@3.5.0": "BSD-3-Clause",
+    "sherpa-onnx@1.12.31": "Apache-2.0",
     "uvloop@0.22.1": "Apache-2.0 OR MIT",
     "vosk@0.3.45": "Apache-2.0"
   },

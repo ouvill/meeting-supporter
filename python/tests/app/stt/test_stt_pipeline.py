@@ -94,6 +94,10 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
         p = self._make_pipeline("vosk")
         self.assertTrue(p.supports_prewarm())
 
+    def test_supports_prewarm_true_for_reazonspeech(self) -> None:
+        p = self._make_pipeline("reazonspeech")
+        self.assertTrue(p.supports_prewarm())
+
     def test_supports_prewarm_false_for_deepgram(self) -> None:
         p = self._make_pipeline("deepgram")
         self.assertFalse(p.supports_prewarm())
@@ -273,6 +277,24 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(called.is_set())
         self.assertIsNone(p.on_ready)
 
+    async def test_initialize_reazonspeech_calls_on_ready(self) -> None:
+        p = self._make_pipeline("reazonspeech")
+        loop = asyncio.get_running_loop()
+        called = asyncio.Event()
+
+        async def on_ready() -> None:
+            called.set()
+
+        p.on_ready = on_ready
+
+        with patch("app.stt.pipeline.ReazonSpeechEngine.acquire") as acquire:
+            p.initialize(loop)
+            _ = await asyncio.wait_for(called.wait(), timeout=0.5)
+
+        acquire.assert_called_once()
+        self.assertTrue(called.is_set())
+        self.assertTrue(p._reazonspeech_initialized)  # pyright: ignore[reportPrivateUsage]
+
     async def test_initialize_non_whisper_calls_on_ready_immediately(self) -> None:
         p = self._make_pipeline("deepgram")
         loop = asyncio.get_running_loop()
@@ -421,6 +443,21 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
             p.shutdown()
             mock_engine.release.assert_called_once()  # pyright: ignore[reportAny]
             self.assertFalse(p._whisper_initialized)  # pyright: ignore[reportPrivateUsage]
+
+    async def test_shutdown_releases_reazonspeech(self) -> None:
+        p = self._make_pipeline("reazonspeech")
+        loop = asyncio.get_running_loop()
+
+        with patch("app.stt.pipeline.ReazonSpeechEngine") as mock_engine:
+            p.initialize(loop)
+            await _wait_until(
+                lambda: p._reazonspeech_initialized  # pyright: ignore[reportPrivateUsage]
+            )
+            p.start(loop)
+            p.shutdown()
+
+        mock_engine.release.assert_called_once()  # pyright: ignore[reportAny]
+        self.assertFalse(p._reazonspeech_initialized)  # pyright: ignore[reportPrivateUsage]
 
     async def test_shutdown_during_vosk_load_suppresses_callbacks_and_releases_engine(self) -> None:
         p = self._make_pipeline("vosk")

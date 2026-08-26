@@ -144,6 +144,8 @@ function mapResponseToForm(
         left.priority - right.priority || left.label.localeCompare(right.label),
     );
 
+  const sttBackend = tomlString(settings.stt, "backend") ?? "whisper";
+  const sttLanguage = tomlString(settings.stt, "language") ?? "ja";
   return {
     secretsStatus: Object.fromEntries(
       SECRET_KEYS.map((key) => [key, secretsStatus[key] ?? false]),
@@ -151,7 +153,7 @@ function mapResponseToForm(
     secretInputs: {},
     ollamaBaseUrl: settings.ollama?.base_url ?? "http://localhost:11434/v1",
     acpCommand: settings.acp?.command.join("\n") ?? "",
-    sttBackend: tomlString(settings.stt, "backend") ?? "whisper",
+    sttBackend,
     sttWhisperModel:
       tomlString(settings.stt, "whisper_model") ?? "large-v3-turbo",
     sttDeepgramModel: tomlString(settings.stt, "deepgram_model") ?? "nova-2",
@@ -159,7 +161,7 @@ function mapResponseToForm(
       tomlString(settings.stt, "openai_model") ?? "gpt-4o-transcribe",
     sttVoskModelPath:
       tomlString(settings.stt, "vosk_model_path") ?? "vosk-model-small-ja-0.22",
-    sttLang: tomlString(settings.stt, "language") ?? "ja",
+    sttLang: sttBackend === "reazonspeech" ? "ja" : sttLanguage,
     sttVad: tomlNumber(settings.stt, "vad_aggressiveness") ?? 2,
     sttSilence: tomlNumber(settings.stt, "silence_duration") ?? 0.8,
     replyFeatureEnabled: settings.reply?.enabled ?? true,
@@ -251,7 +253,9 @@ export function useSettingsForm({ routes }: { routes: AiRoutesController }) {
   >({});
 
   const speechModelBackend =
-    form.sttBackend === "vosk" || form.sttBackend === "whisper"
+    form.sttBackend === "vosk" ||
+    form.sttBackend === "whisper" ||
+    form.sttBackend === "reazonspeech"
       ? form.sttBackend
       : null;
   const speechModelLanguage =
@@ -383,6 +387,9 @@ export function useSettingsForm({ routes }: { routes: AiRoutesController }) {
     value: SettingsForm[K],
   ) => {
     const nextForm = { ...form, [key]: value };
+    if (key === "sttBackend" && value === "reazonspeech") {
+      nextForm.sttLang = "ja";
+    }
     setForm(nextForm);
     setFieldErrors((previous) => ({
       ...previous,

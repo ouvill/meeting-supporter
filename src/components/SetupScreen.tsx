@@ -138,9 +138,12 @@ export function SetupScreen({
   const [referenceMessage, setReferenceMessage] = useState("");
   const monitors = state.devices.filter((device) => device.is_monitor);
   const mics = state.devices.filter((device) => !device.is_monitor);
-  const needsAudioPreparation = ["local", "whisper", "vosk"].includes(
-    state.sttBackend,
-  );
+  const needsAudioPreparation = [
+    "local",
+    "whisper",
+    "vosk",
+    "reazonspeech",
+  ].includes(state.sttBackend);
   const audioLocked =
     state.sttInitialized || state.sttInitializing || state.sttInitRequested;
   const audioReady = !needsAudioPreparation || state.sttInitialized;

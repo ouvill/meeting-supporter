@@ -61,7 +61,9 @@ def create_lifespan(
         logger.info("STT import package: app.stt")
 
         if config.stt_backend == "local":
-            logger.warning("backend=local は未対応です。backend=whisper / vosk / remote を使用してください")
+            logger.warning(
+                "backend=local は未対応です。backend=whisper / reazonspeech / vosk / remote を使用してください"
+            )
         elif config.stt_backend == "dummy":
             logger.info("STT: backend=dummy  外部サービスなしの軽量 smoke 用バックエンド")
         elif config.stt_backend == "remote":
@@ -88,6 +90,15 @@ def create_lifespan(
                 cfg.soft_min_voiced_ratio,
                 cfg.soft_no_speech_threshold,
                 cfg.soft_logprob_threshold,
+            )
+        elif config.stt_backend == "reazonspeech":
+            cfg = config.stt_config
+            logger.info(
+                "STT: backend=reazonspeech  model=reazonspeech-k2-v2-int8  lang=%s"
+                + "  vad_aggressiveness=%s  silence=%ss",
+                cfg.language,
+                cfg.vad_aggressiveness,
+                cfg.silence_duration,
             )
         elif config.stt_backend == "vosk":
             cfg = config.stt_config
