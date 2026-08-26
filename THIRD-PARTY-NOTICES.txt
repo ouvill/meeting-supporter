@@ -482,7 +482,7 @@ PYTHON COMPONENTS (110)
 - charset-normalizer 3.4.7 | MIT | https://files.pythonhosted.org/packages/e7/a1/67fe25fac3c7642725500a3f6cfe5821ad557c3abb11c9d20d12c7008d3e/charset_normalizer-3.4.7.tar.gz
 - click 8.4.2 | BSD-3-Clause | https://files.pythonhosted.org/packages/76/d4/81420972a676e8ffea40450d8c8c92943e7218a78fe9b64359836cc9876b/click-8.4.2.tar.gz
 - colorama 0.4.6 | BSD-3-Clause | https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz
-- cryptography 49.0.0 | Apache-2.0 OR BSD-3-Clause | https://files.pythonhosted.org/packages/1f/99/d1c90d6041656cc6ee229dc99cd67fd0cd5aec3c5f7d72fffc27cc750054/cryptography-49.0.0.tar.gz
+- cryptography 50.0.1 | Apache-2.0 OR BSD-3-Clause | https://files.pythonhosted.org/packages/bb/ad/5d6702db60b1e40b41ef513b6967ff5848f307d50f8449baf1634f5908f1/cryptography-50.0.1.tar.gz
 - ctranslate2 4.7.1 | MIT | https://files.pythonhosted.org/packages/fc/0f/581de94b64c5f2327a736270bc7e7a5f8fe5cf1ed56a2203b52de4d8986a/ctranslate2-4.7.1-cp312-cp312-macosx_11_0_arm64.whl
 - distro 1.9.0 | Apache License, Version 2.0 | https://files.pythonhosted.org/packages/fc/f8/98eea607f65de6527f8a2e8885fc8015d3e6f5775df186e443e0964a11c3/distro-1.9.0.tar.gz
 - dnspython 2.8.0 | ISC | https://files.pythonhosted.org/packages/8c/8b/57666417c0f90f08bcafa776861060426765fdb422eb10212086fb811d26/dnspython-2.8.0.tar.gz
@@ -611,7 +611,7 @@ SOFTWARE.
 
 [2] SHA-256 0131a9b49fad291f74a9a9aa195e4aca3e4fc717bd5e6fdc186264b130db98d9
 Used by:
-  - python:cryptography@49.0.0 (LICENSE.BSD)
+  - python:cryptography@50.0.1 (LICENSE.BSD)
 
 Copyright (c) Individual contributors.
 All rights reserved.
@@ -11417,7 +11417,7 @@ licensed under the Apache License, Version 2.0 <LICENSE-APACHE> or
 
 [164] SHA-256 771e6c9f11721b0937412fe85df813fd2c1ff089a033d3a168f3c1609421ca08
 Used by:
-  - python:cryptography@49.0.0 (LICENSE.APACHE)
+  - python:cryptography@50.0.1 (LICENSE.APACHE)
 
 Apache License
                            Version 2.0, January 2004
@@ -27556,7 +27556,7 @@ SOFTWARE.
 
 [300] SHA-256 d25f2af9b444c7da2fc1da15feb0d3d2579f8c6500155d9bcb58f9469ce50c88
 Used by:
-  - python:cryptography@49.0.0 (LICENSE)
+  - python:cryptography@50.0.1 (LICENSE)
 
 This software is made available under the terms of *either* of the licenses
 found in LICENSE.APACHE or LICENSE.BSD. Contributions to cryptography are made
