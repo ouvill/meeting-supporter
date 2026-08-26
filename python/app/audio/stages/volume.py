@@ -1,6 +1,7 @@
 """VolumeStage: computes peak audio level and broadcasts audio_level events."""
 
 import queue
+import time
 from typing import cast, override
 
 import numpy as np
@@ -9,12 +10,11 @@ from app.audio.base import AudioFrame, PipelineStage
 from app.core.messages import AudioLevelMsg
 from app.core.publisher import OutgoingPublisher
 
-_FRAME_MS = 30
 _DEFAULT_LEVEL_INTERVAL_MS = 120
 
 
 class VolumeStage(PipelineStage):
-    """Consumes frames from Qa and emits audio_level WebSocket events."""
+    """Emits peak audio levels at a wall-clock interval."""
 
     def __init__(
         self,
@@ -27,11 +27,11 @@ class VolumeStage(PipelineStage):
         self._in_q: queue.Queue[AudioFrame | None] = in_q
         self._role: str = role
         self._publisher: OutgoingPublisher = publisher
-        self._ticks_per_level: int = max(1, level_interval_ms // _FRAME_MS)
+        self._level_interval_seconds: float = max(1, level_interval_ms) / 1000.0
 
     @override
     def _run(self) -> None:
-        tick = 0
+        last_published_at = time.monotonic()
         window_peak = 0.0
         while not self._stop_event.is_set():
             try:
@@ -45,10 +45,12 @@ class VolumeStage(PipelineStage):
                 abs_pcm: np.ndarray = np.abs(pcm_np)
                 peak = cast(np.ndarray, abs_pcm.max())
                 window_peak = max(window_peak, float(peak))
-            tick += 1
-            if tick % self._ticks_per_level == 0:
+
+            now = time.monotonic()
+            if now - last_published_at >= self._level_interval_seconds:
                 self._publisher.publish(AudioLevelMsg(role=self._role, level=window_peak))
                 window_peak = 0.0
+                last_published_at = now
 
 
 __all__ = ["VolumeStage"]
