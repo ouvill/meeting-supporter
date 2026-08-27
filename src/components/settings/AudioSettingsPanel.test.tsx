@@ -105,4 +105,46 @@ describe("AudioSettingsPanel", () => {
     fireEvent.change(vadEngine, { target: { value: "webrtc" } });
     expect(update).toHaveBeenCalledWith("sttVadEngine", "webrtc");
   });
+
+  it("locks every audio control while a meeting is active", () => {
+    render(
+      <AudioSettingsPanel
+        form={FORM}
+        errors={{}}
+        speechModel={SPEECH_MODEL}
+        audioSettingsLocked
+        managedStt={{
+          offered: false,
+          loading: false,
+          authenticated: false,
+          selectable: false,
+          message: "このビルドでは提供していません。",
+          refresh: vi.fn(async () => {}),
+        }}
+        onManageAccount={vi.fn()}
+        connectionStates={CONNECTION_STATES}
+        secretsStatus={{}}
+        secretInputs={{}}
+        connectionEditingProvider={null}
+        connectionTestingProvider={null}
+        connectionTestMessages={{}}
+        onBeginConnectionEdit={vi.fn()}
+        onCancelConnectionEdit={vi.fn()}
+        onSecretChange={vi.fn()}
+        onTestConnection={vi.fn()}
+        onRequestSecretDelete={vi.fn()}
+        onCancelSecretDelete={vi.fn()}
+        update={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "会議中は音声認識の設定を変更できません。会議を終了してから変更してください。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("音声認識方式")).toBeDisabled();
+    expect(screen.getByLabelText("声の検出方法")).toBeDisabled();
+    expect(screen.getByLabelText("Silero音声判定しきい値")).toBeDisabled();
+  });
 });

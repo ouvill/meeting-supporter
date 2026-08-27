@@ -41,6 +41,8 @@ import {
 } from "./ApiConnectionControl";
 import {
   isConnectionUsable,
+  isVadEngine,
+  STT_FORM_FIELDS,
   type ConnectionUiState,
   type ReplyStyleFormItem,
   type SettingsCategory,
@@ -145,6 +147,7 @@ function mapResponseToForm(
       (left, right) =>
         left.priority - right.priority || left.label.localeCompare(right.label),
     );
+  const sttVadEngine = tomlString(settings.stt, "vad_engine");
 
   return {
     secretsStatus: Object.fromEntries(
@@ -162,7 +165,7 @@ function mapResponseToForm(
     sttVoskModelPath:
       tomlString(settings.stt, "vosk_model_path") ?? "vosk-model-small-ja-0.22",
     sttLang: tomlString(settings.stt, "language") ?? "ja",
-    sttVadEngine: tomlString(settings.stt, "vad_engine") ?? "silero",
+    sttVadEngine: isVadEngine(sttVadEngine) ? sttVadEngine : "silero",
     sttVadSensitivity: tomlNumber(settings.stt, "vad_sensitivity") ?? 0.4,
     sttVad: tomlNumber(settings.stt, "vad_aggressiveness") ?? 2,
     sttSilence: tomlNumber(settings.stt, "silence_duration") ?? 0.8,
@@ -217,7 +220,13 @@ function firstErrorCategory(errors: SettingsFieldErrors): SettingsCategory {
   return "privacy";
 }
 
-export function useSettingsForm({ routes }: { routes: AiRoutesController }) {
+export function useSettingsForm({
+  routes,
+  audioSettingsLocked,
+}: {
+  routes: AiRoutesController;
+  audioSettingsLocked: boolean;
+}) {
   const [form, setForm] = useState<SettingsForm>(INITIAL_FORM);
   const [savedBaseline, setSavedBaseline] = useState<SettingsForm | null>(null);
   const [activeCategory, setActiveCategory] =
@@ -253,6 +262,7 @@ export function useSettingsForm({ routes }: { routes: AiRoutesController }) {
   const [connectionTestMessages, setConnectionTestMessages] = useState<
     Partial<Record<ConnectionProvider, string>>
   >({});
+  const previousAudioSettingsLocked = useRef(audioSettingsLocked);
 
   const speechModelBackend =
     form.sttBackend === "vosk" || form.sttBackend === "whisper"
@@ -296,6 +306,67 @@ export function useSettingsForm({ routes }: { routes: AiRoutesController }) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!audioSettingsLocked) {
+      previousAudioSettingsLocked.current = false;
+      return;
+    }
+    if (previousAudioSettingsLocked.current || savedBaseline === null) return;
+
+    previousAudioSettingsLocked.current = true;
+    const activeProvider =
+      CONNECTION_PROVIDER_BY_STT[savedBaseline.sttBackend] ?? null;
+    setForm((previous) => {
+      let secretInputs = previous.secretInputs;
+      if (activeProvider !== null) {
+        const secretKey = CONNECTIONS[activeProvider].secretKey;
+        secretInputs = { ...secretInputs };
+        if (
+          Object.prototype.hasOwnProperty.call(
+            savedBaseline.secretInputs,
+            secretKey,
+          )
+        ) {
+          secretInputs[secretKey] = savedBaseline.secretInputs[secretKey];
+        } else {
+          delete secretInputs[secretKey];
+        }
+      }
+      return {
+        ...previous,
+        secretInputs,
+        sttBackend: savedBaseline.sttBackend,
+        sttWhisperModel: savedBaseline.sttWhisperModel,
+        sttDeepgramModel: savedBaseline.sttDeepgramModel,
+        sttOpenaiModel: savedBaseline.sttOpenaiModel,
+        sttVoskModelPath: savedBaseline.sttVoskModelPath,
+        sttLang: savedBaseline.sttLang,
+        sttVadEngine: savedBaseline.sttVadEngine,
+        sttVadSensitivity: savedBaseline.sttVadSensitivity,
+        sttVad: savedBaseline.sttVad,
+        sttSilence: savedBaseline.sttSilence,
+      };
+    });
+    if (activeProvider === null) return;
+
+    const activeSecretKey = CONNECTIONS[activeProvider].secretKey;
+    setPendingDeleteSecrets((previous) =>
+      previous.filter((secretKey) => secretKey !== activeSecretKey),
+    );
+    setConnectionEditingProvider((previous) =>
+      previous === activeProvider ? null : previous,
+    );
+    setConnectionVerification((previous) => ({
+      ...previous,
+      [activeProvider]: "unverified",
+    }));
+    setConnectionTestMessages((previous) => {
+      const next = { ...previous };
+      delete next[activeProvider];
+      return next;
+    });
+  }, [audioSettingsLocked, savedBaseline]);
 
   const preparedSpeechModelPath =
     speechModel.backend === "vosk" && speechModel.status?.state === "ready"
@@ -654,6 +725,10 @@ export function useSettingsForm({ routes }: { routes: AiRoutesController }) {
     }
   };
 
+  const currentSttBackend =
+    audioSettingsLocked && savedBaseline !== null
+      ? savedBaseline.sttBackend
+      : form.sttBackend;
   const settingsPayload = useMemo<SettingsSaveRequestWithRetention>(() => {
     const secrets = Object.fromEntries(
       Object.entries(form.secretInputs).filter(([, value]) => value.trim()),
@@ -693,18 +768,23 @@ export function useSettingsForm({ routes }: { routes: AiRoutesController }) {
           .split(/\r?\n/)
           .filter((argument) => argument.trim()),
       },
-      stt: {
-        backend: form.sttBackend,
-        whisper_model: form.sttWhisperModel,
-        deepgram_model: form.sttDeepgramModel,
-        openai_model: form.sttOpenaiModel,
-        vosk_model_path: form.sttVoskModelPath,
-        language: form.sttLang,
-        vad_engine: form.sttVadEngine,
-        vad_sensitivity: form.sttVadSensitivity,
-        vad_aggressiveness: form.sttVad,
-        silence_duration: form.sttSilence,
-      },
+      ...(savedBaseline === null ||
+      STT_FORM_FIELDS.some((field) => form[field] !== savedBaseline[field])
+        ? {
+            stt: {
+              backend: form.sttBackend,
+              whisper_model: form.sttWhisperModel,
+              deepgram_model: form.sttDeepgramModel,
+              openai_model: form.sttOpenaiModel,
+              vosk_model_path: form.sttVoskModelPath,
+              language: form.sttLang,
+              vad_engine: form.sttVadEngine,
+              vad_sensitivity: form.sttVadSensitivity,
+              vad_aggressiveness: form.sttVad,
+              silence_duration: form.sttSilence,
+            },
+          }
+        : {}),
       context: { dir_override: form.contextDir },
       usage_budget: {
         meeting_limit_jpy: form.usageMeetingLimitJpy,
@@ -718,11 +798,11 @@ export function useSettingsForm({ routes }: { routes: AiRoutesController }) {
             : null,
       },
     };
-  }, [form, pendingDeleteSecrets]);
+  }, [form, pendingDeleteSecrets, savedBaseline]);
 
   const save = async () => {
-    if (speechModel.blocksSettingsSave) return;
-    if (form.sttBackend === "managed") {
+    if (speechModel.blocksSettingsSave && !audioSettingsLocked) return;
+    if (settingsPayload.stt && form.sttBackend === "managed") {
       try {
         const auth = await getManagedAuthStatus();
         const entitlement = auth.authenticated
@@ -768,13 +848,16 @@ export function useSettingsForm({ routes }: { routes: AiRoutesController }) {
       lastSyncedSpeechModelPathRef.current !== preparedPathAtSaveStart
         ? preparedPathAtSaveStart
         : form.sttVoskModelPath;
-    const settingsPayloadForSave: SettingsSaveRequestWithRetention = {
-      ...settingsPayload,
-      stt: {
-        ...settingsPayload.stt,
-        vosk_model_path: speechModelPathForSave,
-      },
-    };
+    const settingsPayloadForSave: SettingsSaveRequestWithRetention =
+      settingsPayload.stt
+        ? {
+            ...settingsPayload,
+            stt: {
+              ...settingsPayload.stt,
+              vosk_model_path: speechModelPathForSave,
+            },
+          }
+        : settingsPayload;
     setSavingSettings(true);
     try {
       const { data, error } = await saveSettingsApiSettingsPost({
@@ -870,6 +953,7 @@ export function useSettingsForm({ routes }: { routes: AiRoutesController }) {
     connectionTestingProvider,
     connectionTestMessages,
     speechModel,
+    currentSttBackend,
     selectedRoute,
     connectionStates,
     updateForm,

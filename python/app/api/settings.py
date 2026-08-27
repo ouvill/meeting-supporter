@@ -3,10 +3,12 @@
 import json
 import urllib.error
 import urllib.request
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Literal, cast
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from app.agents.models import ReplyAgentDefinition
@@ -23,10 +25,12 @@ from app.core.config import (
     AgentSettingKey,
     AiRouteAssignments,
     DataLocation,
+    EffectiveAudioSttConfig,
     ProviderKind,
     RouteCapability,
     SecretKey,
     UsageBudgetConfig,
+    normalize_audio_stt_config,
     patch_agent_settings,
 )
 from app.core.config import (
@@ -34,6 +38,7 @@ from app.core.config import (
 )
 from app.core.event_bus import EventBus
 from app.core.events import ConfigChanged
+from app.core.protocols import SecretRollbackError, TransactionalSecretStore
 from app.core.types import TomlTable, TomlValue
 from app.services.settings_store import SettingsStore
 from app.services.usage_logger import UsageLogger, UsageSummary
@@ -241,6 +246,109 @@ def _connection_test_response(
     return ConnectionTestResponse(ok=False, status="unavailable", message="サービスに接続できませんでした。")
 
 
+class SttSettingsPatch(BaseModel):
+    """Typed patch surface for persisted ``[stt]`` settings."""
+
+    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
+
+    backend: str | None = None
+    whisper_model: str | None = None
+    deepgram_model: str | None = None
+    openai_model: str | None = None
+    vosk_model_path: str | None = None
+    language: str | None = None
+    vad_engine: Literal["silero", "webrtc"] | None = None
+    vad_sensitivity: float | None = Field(default=None, ge=0.05, le=0.95)
+    silence_duration: float | None = Field(default=None, ge=0.1, le=5.0)
+    vad_aggressiveness: int | None = Field(default=None, ge=0, le=3)
+    device: str | None = None
+    min_voiced_ms: int | None = Field(default=None, ge=0)
+    min_voiced_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
+    min_rms_dbfs: float | None = None
+    decode_no_speech_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    decode_log_prob_threshold: float | None = None
+    decode_compression_ratio_threshold: float | None = Field(default=None, gt=0.0)
+    hard_min_voiced_ms: int | None = Field(default=None, ge=0)
+    hard_no_speech_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    hard_logprob_threshold: float | None = None
+    hard_compression_ratio_threshold: float | None = Field(default=None, gt=0.0)
+    soft_min_voiced_ms: int | None = Field(default=None, ge=0)
+    soft_min_voiced_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
+    soft_min_rms_dbfs: float | None = None
+    soft_no_speech_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    soft_logprob_threshold: float | None = None
+    soft_compression_ratio_threshold: float | None = Field(default=None, gt=0.0)
+    drop_score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    temperature: float | None = Field(default=None, ge=0.0)
+    suspicious_phrases: list[str] | None = None
+
+    @field_validator(
+        "vad_sensitivity",
+        "silence_duration",
+        "vad_aggressiveness",
+        "min_voiced_ms",
+        "min_voiced_ratio",
+        "min_rms_dbfs",
+        "decode_no_speech_threshold",
+        "decode_log_prob_threshold",
+        "decode_compression_ratio_threshold",
+        "hard_min_voiced_ms",
+        "hard_no_speech_threshold",
+        "hard_logprob_threshold",
+        "hard_compression_ratio_threshold",
+        "soft_min_voiced_ms",
+        "soft_min_voiced_ratio",
+        "soft_min_rms_dbfs",
+        "soft_no_speech_threshold",
+        "soft_logprob_threshold",
+        "soft_compression_ratio_threshold",
+        "drop_score_threshold",
+        "temperature",
+        mode="before",
+    )
+    @classmethod
+    def reject_coerced_numeric_values(cls, value: object) -> object:
+        if isinstance(value, (bool, str)):
+            raise ValueError("must be a JSON number")
+        return value
+
+
+_LEGACY_STT_KEYS: dict[str, str] = {
+    "no_speech_threshold": "soft_no_speech_threshold",
+    "log_prob_threshold": "soft_logprob_threshold",
+    "compression_ratio_threshold": "soft_compression_ratio_threshold",
+    "hallucination_phrase_blocklist": "suspicious_phrases",
+}
+
+
+def _canonical_stt_section(section: TomlTable | None) -> TomlTable:
+    """Filter persisted STT data to the typed API and map supported legacy keys."""
+    if section is None:
+        return {}
+    canonical_fields = SttSettingsPatch.model_fields
+    normalized = {key: value for key, value in section.items() if key in canonical_fields}
+    for legacy_key, canonical_key in _LEGACY_STT_KEYS.items():
+        if canonical_key not in normalized and legacy_key in section:
+            normalized[canonical_key] = section[legacy_key]
+    return normalized
+
+
+class AudioSettingsPatch(BaseModel):
+    """Typed patch surface for persisted ``[audio]`` settings."""
+
+    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
+
+    sample_rate: int | None = Field(default=None, gt=0, le=192_000)
+    max_session_seconds: int | None = Field(default=None, gt=0, le=60)
+
+    @field_validator("sample_rate", "max_session_seconds", mode="before")
+    @classmethod
+    def reject_coerced_numeric_values(cls, value: object) -> object:
+        if isinstance(value, (bool, str)):
+            raise ValueError("must be a JSON number")
+        return value
+
+
 class SettingsSaveRequest(BaseModel):
     """Request body for ``POST /api/settings``.
 
@@ -254,8 +362,8 @@ class SettingsSaveRequest(BaseModel):
     agents: AgentSettingsPayload | None = None
     reply: ReplySettingsPayload | None = None
     secrets: SecretsPayload | None = None
-    stt: dict[str, object] | None = None
-    audio: dict[str, object] | None = None
+    stt: SttSettingsPatch | None = None
+    audio: AudioSettingsPatch | None = None
     context: dict[str, object] | None = None
     usage_budget: UsageBudgetConfig | None = None
     recording_retention: RecordingRetentionSettings | None = None
@@ -371,6 +479,17 @@ class SaveSettingsResponse(BaseModel):
 
     ok: bool
     settings: SettingsResponse
+
+
+class SettingsConflictDetail(BaseModel):
+    code: Literal["AUDIO_SETTINGS_LOCKED"]
+    message: str
+
+
+class SettingsConflictResponse(BaseModel):
+    """Structured response returned when audio settings are locked."""
+
+    detail: SettingsConflictDetail
 
 
 class RouteAssignmentsUpdate(BaseModel):
@@ -600,7 +719,7 @@ def _build_settings_response(
     return SettingsResponse(
         ollama=ollama,
         acp=AcpConfig(command=acp_command),
-        stt=stt_section if stt_section is not None else {},
+        stt=_canonical_stt_section(stt_section),
         audio=audio_section if audio_section is not None else {},
         agents=AgentSettings(info_enabled=agent_settings["info_enabled"]),
         reply=ReplySettings(
@@ -635,6 +754,35 @@ def _merge_ollama_from_body(
         return None
     base_url = _toml_str(raw.get("base_url"), state.config.ollama_base_url)
     return OllamaConfig(base_url=base_url)
+
+
+def _merged_audio_stt_config(body: SettingsSaveRequest, state: "AppState") -> EffectiveAudioSttConfig:
+    """Merge a sparse request into the current normalized runtime settings."""
+
+    candidate_stt = replace(state.config.stt_config)
+    if body.stt is not None:
+        stt_patch: dict[str, object] = body.stt.model_dump(exclude_none=True)
+        for field_name, value in stt_patch.items():
+            if field_name == "suspicious_phrases":
+                if not isinstance(value, list):
+                    raise ValueError("stt.suspicious_phrases must be a list of strings")
+                suspicious_phrases = cast("list[str]", value)
+                value = tuple(suspicious_phrases)
+            setattr(candidate_stt, field_name, value)
+
+    sample_rate = state.config.audio_sample_rate
+    max_session_seconds = state.config.audio_max_session_seconds
+    if body.audio is not None:
+        if body.audio.sample_rate is not None:
+            sample_rate = body.audio.sample_rate
+        if body.audio.max_session_seconds is not None:
+            max_session_seconds = body.audio.max_session_seconds
+
+    return normalize_audio_stt_config(
+        candidate_stt,
+        audio_sample_rate=sample_rate,
+        audio_max_session_seconds=max_session_seconds,
+    )
 
 
 def _route_catalog(
@@ -730,6 +878,10 @@ def create_router(
     ollama_status: OllamaStatusProvider | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api")
+    secret_store = state.secret_store
+    if not isinstance(secret_store, TransactionalSecretStore):
+        raise TypeError("settings router requires a transactional secret store with snapshot and restore support")
+    transactional_secret_store: TransactionalSecretStore = secret_store
 
     @router.get("/ai/routes")
     async def get_ai_routes() -> RouteCatalogResponse:  # pyright: ignore[reportUnusedFunction]
@@ -777,7 +929,20 @@ def create_router(
     async def get_settings() -> SettingsResponse:  # pyright: ignore[reportUnusedFunction]
         return _build_settings_response(state=state, store=store)
 
-    @router.post("/settings", response_model=SaveSettingsResponse)
+    def locked_audio_settings_error() -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "AUDIO_SETTINGS_LOCKED",
+                "message": "会議中は音声認識の設定を変更できません。会議を終了してから変更してください。",
+            },
+        )
+
+    @router.post(
+        "/settings",
+        response_model=SaveSettingsResponse,
+        responses={status.HTTP_409_CONFLICT: {"model": SettingsConflictResponse}},
+    )
     async def save_settings(  # pyright: ignore[reportUnusedFunction]
         body: SettingsSaveRequest,
     ) -> SaveSettingsResponse:
@@ -842,34 +1007,29 @@ def create_router(
                 },
             )
 
-        # ── Secrets ──
-        secrets_changed = False
+        # Stage secret changes without mutating the store. Audio/STT validation
+        # below must succeed before any secret or TOML persistence occurs.
+        updates: dict[SecretKey, str] = {}
         if body.secrets is not None:
             typed_secrets: dict[str, object] = body.secrets.model_dump(exclude_none=True)
-            updates: dict[SecretKey, str] = {}
-            for k in SECRET_KEYS:
-                v = typed_secrets.get(k)
-                if isinstance(v, str) and v:
-                    updates[k] = v
-            if updates:
-                state.secret_store.set_secrets({str(key): value for key, value in updates.items()})
-                secrets_changed = True
-
-        if body.delete_secrets is not None:
-            for key in set(body.delete_secrets):
-                state.secret_store.delete(key)
-            secrets_changed = secrets_changed or bool(body.delete_secrets)
-        if secrets_changed:
-            await event_bus.publish(ConfigChanged())
+            for key in SECRET_KEYS:
+                value = typed_secrets.get(key)
+                if isinstance(value, str) and value:
+                    updates[key] = value
+        deleted_secrets = set(body.delete_secrets or ())
 
         # ── Config sections (stt, audio, ollama, context, etc.) ──
         cfg_sections: dict[str, object] = {}
         acp_command_override = body.acp.command if body.acp is not None and body.acp.command is not None else None
 
         if body.stt is not None:
-            cfg_sections["stt"] = body.stt
+            stt_patch: dict[str, object] = body.stt.model_dump(exclude_none=True)
+            if stt_patch:
+                cfg_sections["stt"] = stt_patch
         if body.audio is not None:
-            cfg_sections["audio"] = body.audio
+            audio_patch: dict[str, object] = body.audio.model_dump(exclude_none=True)
+            if audio_patch:
+                cfg_sections["audio"] = audio_patch
         if body.context is not None:
             cfg_sections["context"] = body.context
         if body.usage_budget is not None:
@@ -887,45 +1047,105 @@ def create_router(
         if acp_command_override is not None:
             cfg_sections["ai"] = {}
 
-        if cfg_sections:
-            with store.locked():
-                existing_cfg = store.load_config()
-                if acp_command_override is not None:
-                    raw_ai = existing_cfg.get("ai")
-                    ai = cast(dict[str, TomlValue], raw_ai) if isinstance(raw_ai, dict) else {}
-                    raw_routes = ai.get("routes")
-                    routes = cast(dict[str, TomlValue], raw_routes) if isinstance(raw_routes, dict) else {}
-                    raw_acp = routes.get("acp")
-                    acp = cast(dict[str, TomlValue], raw_acp) if isinstance(raw_acp, dict) else {}
-                    acp["runtime"] = "acp"
-                    acp["command"] = cast("TomlValue", acp_command_override)
-                    routes["acp"] = cast("TomlValue", acp)
-                    ai["routes"] = cast("TomlValue", routes)
-                    existing_cfg["ai"] = cast("TomlValue", ai)
-                for section, values in cfg_sections.items():
-                    if section == "ai":
-                        continue
-                    if section == "recording_retention":
-                        # This is a complete policy replacement, so clearing an
-                        # input actually disables it instead of reviving a stale
-                        # TOML key through the usual section merge.
-                        existing_cfg[section] = cast("TomlValue", values)
-                        continue
-                    existing = existing_cfg.get(section)
-                    if isinstance(existing, dict) and isinstance(values, dict):
-                        existing.update(cast("dict[str, TomlValue]", values))  # type: ignore[typeddict-item]
-                    else:
-                        existing_cfg[section] = cast("TomlValue", values)
-                if "reply" in cfg_sections:
-                    _ = existing_cfg.pop("reply_agents", None)
-                    agents_section = existing_cfg.get("agents")
-                    if isinstance(agents_section, dict):
-                        _ = agents_section.pop("reply_enabled", None)
-                        _ = agents_section.pop("reply_auto_generate", None)
-                        _ = agents_section.pop("reply_main", None)
-                        _ = agents_section.pop("reply_polite", None)
-                flatten_ai_tables(existing_cfg)
-                store.write_sectioned_toml(store.config_path, existing_cfg)
+        has_mutations = bool(updates or deleted_secrets or cfg_sections)
+        effective_audio_stt_changed = False
+        async with state.audio_lifecycle_lock:
+            try:
+                current_audio_stt = normalize_audio_stt_config(
+                    state.config.stt_config,
+                    audio_sample_rate=state.config.audio_sample_rate,
+                    audio_max_session_seconds=state.config.audio_max_session_seconds,
+                )
+                candidate_audio_stt = _merged_audio_stt_config(body, state)
+            except ValueError as exc:
+                raise RequestValidationError(
+                    [
+                        {
+                            "type": "value_error",
+                            "loc": ("body", "audio"),
+                            "msg": str(exc),
+                        }
+                    ]
+                ) from exc
+            effective_audio_stt_changed = candidate_audio_stt != current_audio_stt
+
+            if state.is_running and candidate_audio_stt != current_audio_stt:
+                raise locked_audio_settings_error()
+
+            affected_secret_keys = set(updates) | deleted_secrets
+            secret_snapshot = (
+                transactional_secret_store.snapshot(affected_secret_keys) if affected_secret_keys else None
+            )
+
+            try:
+                if updates:
+                    transactional_secret_store.set_secrets({str(key): value for key, value in updates.items()})
+                for key in deleted_secrets:
+                    transactional_secret_store.delete(key)
+
+                if cfg_sections:
+                    with store.locked():
+                        existing_cfg = store.load_config()
+                        if acp_command_override is not None:
+                            raw_ai = existing_cfg.get("ai")
+                            ai = cast(dict[str, TomlValue], raw_ai) if isinstance(raw_ai, dict) else {}
+                            raw_routes = ai.get("routes")
+                            routes = cast(dict[str, TomlValue], raw_routes) if isinstance(raw_routes, dict) else {}
+                            raw_acp = routes.get("acp")
+                            acp = cast(dict[str, TomlValue], raw_acp) if isinstance(raw_acp, dict) else {}
+                            acp["runtime"] = "acp"
+                            acp["command"] = cast("TomlValue", acp_command_override)
+                            routes["acp"] = cast("TomlValue", acp)
+                            ai["routes"] = cast("TomlValue", routes)
+                            existing_cfg["ai"] = cast("TomlValue", ai)
+                        for section, values in cfg_sections.items():
+                            if section == "ai":
+                                continue
+                            if section == "recording_retention":
+                                # This is a complete policy replacement, so clearing an
+                                # input actually disables it instead of reviving a stale
+                                # TOML key through the usual section merge.
+                                existing_cfg[section] = cast("TomlValue", values)
+                                continue
+                            existing = existing_cfg.get(section)
+                            if isinstance(existing, dict) and isinstance(values, dict):
+                                incoming = cast("dict[str, TomlValue]", values)
+                                if section == "stt":
+                                    for legacy_key, canonical_key in _LEGACY_STT_KEYS.items():
+                                        if (
+                                            legacy_key in existing
+                                            and canonical_key not in existing
+                                            and canonical_key not in incoming
+                                        ):
+                                            existing[canonical_key] = existing[legacy_key]
+                                        _ = existing.pop(legacy_key, None)
+                                existing.update(incoming)  # type: ignore[typeddict-item]
+                            else:
+                                existing_cfg[section] = cast("TomlValue", values)
+                        if "reply" in cfg_sections:
+                            _ = existing_cfg.pop("reply_agents", None)
+                            agents_section = existing_cfg.get("agents")
+                            if isinstance(agents_section, dict):
+                                _ = agents_section.pop("reply_enabled", None)
+                                _ = agents_section.pop("reply_auto_generate", None)
+                                _ = agents_section.pop("reply_main", None)
+                                _ = agents_section.pop("reply_polite", None)
+                        flatten_ai_tables(existing_cfg)
+                        store.write_sectioned_toml(store.config_path, existing_cfg)
+            except Exception as original_error:
+                if secret_snapshot is not None:
+                    try:
+                        transactional_secret_store.restore(secret_snapshot)
+                    except SecretRollbackError as rollback_error:
+                        raise rollback_error from original_error
+                    except Exception as rollback_error:
+                        raise SecretRollbackError((rollback_error,)) from original_error
+                raise
+
+            if has_mutations and effective_audio_stt_changed:
+                await event_bus.publish(ConfigChanged(audio_lifecycle_lock_held=True))
+
+        if has_mutations and not effective_audio_stt_changed:
             await event_bus.publish(ConfigChanged())
 
         # ── Build response with actual saved/merged values ──

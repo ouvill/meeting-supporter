@@ -79,6 +79,7 @@ class MeetingLifecycleCoordinator:
         user_data_dir: Path | None = None,
     ) -> None:
         self._state: ConversationState = state
+        self._audio_lifecycle_lock: asyncio.Lock = cast(asyncio.Lock, getattr(state, "audio_lifecycle_lock"))
         self._stt_controller: SttController = stt_controller
         self._broadcast: OutgoingBroadcastFn = broadcast
         self._history: MeetingHistoryService = history
@@ -95,25 +96,47 @@ class MeetingLifecycleCoordinator:
         meeting_context_payload: MeetingContextPayload | None = None,
         reference_payloads: list[ReferenceDocumentPayload] | None = None,
     ) -> None:
+        """Serialize and start a new meeting."""
+        async with self._audio_lifecycle_lock:
+            await self._start_meeting_locked(
+                ws,
+                meeting_context_payload=meeting_context_payload,
+                reference_payloads=reference_payloads,
+            )
+
+    async def _start_meeting_locked(
+        self,
+        ws: WebSocketLike,
+        *,
+        meeting_context_payload: MeetingContextPayload | None = None,
+        reference_payloads: list[ReferenceDocumentPayload] | None = None,
+    ) -> None:
         """Start a new meeting following ADR-003 Phase 4 order.
 
         1. If already running, delegate to STT controller (no new draft).
-        2. Create a new ``MeetingSession`` and set it in ``AppState``.
-        3. Persist a draft record via ``MeetingHistoryService``.
-        4. Start recording (WAV) — non-fatal if it fails.
-        5. Start STT via ``SttController.start_meeting(…, session_already_started=True)``.
-        6. On draft failure — clear session, broadcast error (STT/recording skipped).
-        7. On STT failure — abort draft, stop recording cleanup, clear session.
-        8. Broadcast ``SessionInfoMsg``.
+        2. Apply any pending audio reload, refusing the start if it still fails.
+        3. Create a new ``MeetingSession`` and set it in ``AppState``.
+        4. Persist a draft record via ``MeetingHistoryService``.
+        5. Start recording (WAV) — non-fatal if it fails.
+        6. Start STT via ``SttController.start_meeting(…, session_already_started=True)``.
+        7. On draft failure — clear session, broadcast error (STT/recording skipped).
+        8. On STT failure — abort draft, stop recording cleanup, clear session.
+        9. Broadcast ``SessionInfoMsg``.
         """
         # Phase 1a — already running → delegate without creating a new draft.
         if self._state.is_running:
             _ = await self._stt_controller.start_meeting(ws)
             return
+        # Phase 1b — this gate must precede draft creation.  A failed audio
+        # replacement may have restarted a pipeline with a new queue while a
+        # preserved prewarmed STT stream still references the old queue.
+        if not await self._stt_controller.apply_pending_audio_reload():
+            logger.error("Pending audio subsystem reload failed — refusing to start a new meeting")
+            return
 
         await self._reset_info_note_updater()
         self._reset_reply_cancel_results()
-        # Phase 1b — create session and set in AppState.
+        # Phase 1c — create session and set in AppState.
         meeting_context = context_from_payload(meeting_context_payload)
         references = parse_reference_payloads(reference_payloads or [])
         session = MeetingSession(
@@ -124,7 +147,7 @@ class MeetingLifecycleCoordinator:
         )
         self._state.current_session = session
 
-        # Phase 1c — persist draft record and meeting-scoped context/reference files.
+        # Phase 1d — persist draft record and meeting-scoped context/reference files.
         try:
             await self._history.create_draft_meeting(session)
             if self._user_data_dir is not None:
@@ -136,7 +159,7 @@ class MeetingLifecycleCoordinator:
             await self._broadcast(ErrorMsg(text="会議の開始に失敗しました（データベースエラー）"))
             return
 
-        # Phase 1d — start recording (non-fatal).
+        # Phase 1e — start recording (non-fatal).
         if self._recording is not None:
             try:
                 await self._recording.start_recording(
@@ -147,7 +170,7 @@ class MeetingLifecycleCoordinator:
             except Exception:
                 logger.exception("Recording start failed (non-fatal) for meeting %s", session.id)
 
-        # Phase 1e — start STT (session is already set, skip is_running guard).
+        # Phase 1f — start STT (session is already set, skip is_running guard).
         stt_ok = await self._stt_controller.start_meeting(ws, session_already_started=True)
         if not stt_ok:
             logger.error("STT start 失敗 after draft creation — aborting meeting %s", session.id)
@@ -193,10 +216,15 @@ class MeetingLifecycleCoordinator:
             await self._broadcast(MeetingStateMsg(running=False))
             return
 
-        # Phase 1f — broadcast session info.
+        # Phase 1g — broadcast session info.
         await self._broadcast(session_info_msg(session))
 
     async def stop_meeting(self) -> None:
+        """Serialize and stop the active meeting."""
+        async with self._audio_lifecycle_lock:
+            await self._stop_meeting_locked()
+
+    async def _stop_meeting_locked(self) -> None:
         """Stop STT, finalise recording, persist completion, broadcast, clear state."""
         _ = await self._cancel_replies()
         await self._reset_info_note_updater()
@@ -269,6 +297,7 @@ class MeetingLifecycleCoordinator:
             await self._broadcast(session_info_msg(ended_session))
 
         self._state.current_session = None
+        _ = await self._stt_controller.apply_pending_audio_reload()
 
 
 __all__ = ["MeetingLifecycleCoordinator"]

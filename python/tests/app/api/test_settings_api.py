@@ -1,12 +1,16 @@
 """Tests for app.api.settings — GET/POST /api/settings."""
 
+import asyncio
 import os
 import tempfile
 import urllib.error
 import urllib.request
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from email.message import Message
 from pathlib import Path
+from threading import Event, Thread
+from typing import override
 from unittest.mock import patch
 
 import pytest
@@ -16,12 +20,67 @@ from app.api.settings import create_router
 from app.core.config import SECRET_KEYS
 from app.core.event_bus import EventBus
 from app.core.events import ConfigChanged
+from app.core.protocols import SecretStore
 from app.core.state import AppState
 from app.meetings.models import MeetingSession
-from app.services.secret_store import FileSecretStore
+from app.services.secret_store import CredentialSecretStore, FileSecretStore
 from app.services.settings_store import SettingsStore
 from app.services.usage_logger import UsageLogger
 from tests.helpers.api_client import JsonObject, TypedResponse, TypedTestClient, as_json_object, as_object_array
+
+
+class _MemoryKeyring:
+    def __init__(self, initial: dict[str, str], *, fail_reads: bool = False) -> None:
+        self.passwords: dict[str, str] = dict(initial)
+        self.fail_reads: bool = fail_reads
+        self.set_calls: list[str] = []
+        self.delete_calls: list[str] = []
+
+    def get_password(self, service_name: str, username: str) -> str | None:
+        _ = service_name
+        if self.fail_reads:
+            raise RuntimeError("injected credential read failure")
+        return self.passwords.get(username)
+
+    def set_password(self, service_name: str, username: str, password: str) -> None:
+        _ = service_name
+        self.set_calls.append(username)
+        self.passwords[username] = password
+
+    def delete_password(self, service_name: str, username: str) -> None:
+        _ = service_name
+        self.delete_calls.append(username)
+        _ = self.passwords.pop(username, None)
+
+
+class _NonTransactionalSecretStore(SecretStore):
+    """Minimal broad secret-store fake without settings compensation APIs."""
+
+    @override
+    def get(self, key: str) -> str | None:
+        _ = key
+        return None
+
+    @override
+    def set_secrets(self, updates: dict[str, str]) -> None:
+        _ = updates
+
+    @override
+    def delete(self, key: str) -> None:
+        _ = key
+
+    @override
+    def status(self, key: str) -> bool:
+        _ = key
+        return False
+
+    @override
+    def status_all(self) -> dict[str, bool]:
+        return {}
+
+    @override
+    def apply_secrets_to_env(self, keys: Iterable[str] | None = None) -> None:
+        _ = keys
 
 
 class _ConnectionResponse:
@@ -50,18 +109,26 @@ def _make_client(
     tmp_path: Path,
     *,
     config_text: str | None = None,
+    configure_app: Callable[[FastAPI, AppState], None] | None = None,
+    secret_store: SecretStore | None = None,
 ) -> tuple[TypedTestClient, AppState, SettingsStore, EventBus, list[str]]:
     """Build a TypedTestClient with a fresh settings router."""
     config_path = tmp_path / "config.toml"
     default_path = tmp_path / "default.toml"
     _ = default_path.write_text(
-        '[ai]\nschema_version = 2\n\n[stt]\nbackend = "whisper"\nsample_rate = 16000\n\n[audio]\nsample_rate = 16000\n',
+        "".join(
+            (
+                '[ai]\nschema_version = 2\n\n[stt]\nbackend = "whisper"\n',
+                'vad_engine = "silero"\n\n[audio]\nsample_rate = 16000\n',
+            )
+        ),
         encoding="utf-8",
     )
     store = SettingsStore(config_path=config_path, default_config_path=default_path)
     if config_text is not None:
         _ = store.config_path.write_text(config_text, encoding="utf-8")
-    secret_store = FileSecretStore(path=tmp_path / "secrets.toml")
+    if secret_store is None:
+        secret_store = FileSecretStore(path=tmp_path / "secrets.toml")
     event_bus = EventBus()
 
     # Minimal AppState for settings router.
@@ -78,6 +145,8 @@ def _make_client(
     event_bus.subscribe(ConfigChanged, capture_event)
 
     app = FastAPI()
+    if configure_app is not None:
+        configure_app(app, state)
     router = create_router(state=state, store=store, event_bus=event_bus)
     app.include_router(router)
 
@@ -90,6 +159,11 @@ class TestGetSettings:
         """Remove all known secret env vars before each test to prevent leakage."""
         for key in SECRET_KEYS:
             monkeypatch.delenv(key, raising=False)
+
+    def test_router_rejects_secret_store_without_transaction_support(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            with pytest.raises(TypeError, match="transactional secret store"):
+                _ = _make_client(Path(td), secret_store=_NonTransactionalSecretStore())
 
     def test_provider_summaries_include_data_locations_without_secret_values(
         self, monkeypatch: pytest.MonkeyPatch
@@ -203,6 +277,298 @@ class TestPostSettings:
         """Remove all known secret env vars before each test to prevent leakage."""
         for key in SECRET_KEYS:
             monkeypatch.delenv(key, raising=False)
+
+    def test_rejects_audio_changes_during_active_meeting(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            client, state, store, _, events = _make_client(Path(td))
+            state.current_session = MeetingSession(id="meeting-active", started_at=datetime.now(UTC))
+
+            resp = client.post("/api/settings", json={"stt": {"backend": "deepgram"}})
+
+            assert resp.status_code == 409
+            detail = as_json_object(resp.json_object()["detail"])
+            assert detail["code"] == "AUDIO_SETTINGS_LOCKED"
+            assert not store.config_path.exists()
+            assert events == []
+
+    def test_allows_non_audio_changes_with_unchanged_stt_during_active_meeting(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            client, state, store, _, _ = _make_client(Path(td))
+            state.current_session = MeetingSession(id="meeting-active", started_at=datetime.now(UTC))
+
+            resp = client.post(
+                "/api/settings",
+                json={
+                    "stt": {"backend": "whisper"},
+                    "audio": {"sample_rate": 16000},
+                    "agents": {"info_enabled": False},
+                },
+            )
+
+            assert resp.status_code == 200
+            cfg = store.load_config()
+            assert cfg["agents"] == {"info_enabled": False}
+
+    def test_full_get_payload_round_trips_while_active(self) -> None:
+        config_text = """
+[ai]
+schema_version = 2
+
+[stt]
+backend = "whisper"
+whisper_model = "large-v3-turbo"
+deepgram_model = "nova-3"
+openai_model = "gpt-4o-transcribe"
+vosk_model_path = "vosk-model-small-ja-0.22"
+language = "ja"
+vad_engine = "silero"
+vad_sensitivity = 0.4
+silence_duration = 0.4
+vad_aggressiveness = 2
+device = "auto"
+min_voiced_ms = 240
+min_voiced_ratio = 0.35
+min_rms_dbfs = -45.0
+decode_no_speech_threshold = 1.0
+decode_log_prob_threshold = -10.0
+decode_compression_ratio_threshold = 10.0
+hard_min_voiced_ms = 120
+hard_no_speech_threshold = 0.85
+hard_logprob_threshold = -2.0
+hard_compression_ratio_threshold = 3.5
+soft_min_voiced_ms = 240
+soft_min_voiced_ratio = 0.35
+soft_min_rms_dbfs = -45.0
+soft_no_speech_threshold = 0.6
+soft_logprob_threshold = -1.0
+soft_compression_ratio_threshold = 2.4
+drop_score_threshold = 0.65
+temperature = 0.0
+suspicious_phrases = ["synthetic phrase", "another phrase"]
+
+[audio]
+sample_rate = 16000
+max_session_seconds = 55
+"""
+        with tempfile.TemporaryDirectory() as td:
+            client, state, _, _, events = _make_client(Path(td), config_text=config_text)
+            state.current_session = MeetingSession(id="meeting-active", started_at=datetime.now(UTC))
+            before = client.get("/api/settings").json_object()
+            stt = as_json_object(before["stt"])
+            audio = as_json_object(before["audio"])
+
+            saved = client.post("/api/settings", json={"stt": stt, "audio": audio})
+
+            assert saved.status_code == 200
+            saved_settings = as_json_object(saved.json_object()["settings"])
+            assert as_json_object(saved_settings["stt"]) == stt
+            assert as_json_object(saved_settings["audio"]) == audio
+            assert events == ["ConfigChanged"]
+
+    def test_legacy_stt_get_post_round_trip_migrates_to_canonical_keys(self) -> None:
+        config_text = """
+[stt]
+backend = "whisper"
+no_speech_threshold = 0.42
+log_prob_threshold = -0.75
+compression_ratio_threshold = 1.9
+hallucination_phrase_blocklist = ["legacy phrase"]
+private_backend_option = "not-part-of-settings-api"
+"""
+        with tempfile.TemporaryDirectory() as td:
+            client, _, store, _, events = _make_client(Path(td), config_text=config_text)
+
+            before = client.get("/api/settings")
+
+            assert before.status_code == 200
+            stt = as_json_object(before.json_object()["stt"])
+            assert stt == {
+                "backend": "whisper",
+                "soft_no_speech_threshold": 0.42,
+                "soft_logprob_threshold": -0.75,
+                "soft_compression_ratio_threshold": 1.9,
+                "suspicious_phrases": ["legacy phrase"],
+            }
+
+            saved = client.post("/api/settings", json={"stt": stt})
+
+            assert saved.status_code == 200
+            assert as_json_object(saved.json_object()["settings"])["stt"] == stt
+            persisted_stt = store.load_config()["stt"]
+            assert isinstance(persisted_stt, dict)
+            for legacy_key in (
+                "no_speech_threshold",
+                "log_prob_threshold",
+                "compression_ratio_threshold",
+                "hallucination_phrase_blocklist",
+            ):
+                assert legacy_key not in persisted_stt
+            assert persisted_stt["soft_no_speech_threshold"] == 0.42
+            assert persisted_stt["soft_logprob_threshold"] == -0.75
+            assert persisted_stt["soft_compression_ratio_threshold"] == 1.9
+            assert persisted_stt["suspicious_phrases"] == ["legacy phrase"]
+            assert events == ["ConfigChanged"]
+
+    def test_sparse_stt_save_preserves_and_migrates_legacy_values(self) -> None:
+        config_text = """
+[stt]
+backend = "whisper"
+no_speech_threshold = 0.23
+hallucination_phrase_blocklist = ["preserve me"]
+"""
+        with tempfile.TemporaryDirectory() as td:
+            client, _, store, _, _ = _make_client(Path(td), config_text=config_text)
+
+            saved = client.post("/api/settings", json={"stt": {"backend": "deepgram"}})
+
+            assert saved.status_code == 200
+            persisted_stt = store.load_config()["stt"]
+            assert isinstance(persisted_stt, dict)
+            assert persisted_stt["backend"] == "deepgram"
+            assert persisted_stt["soft_no_speech_threshold"] == 0.23
+            assert persisted_stt["suspicious_phrases"] == ["preserve me"]
+            assert "no_speech_threshold" not in persisted_stt
+            assert "hallucination_phrase_blocklist" not in persisted_stt
+
+    def test_full_form_defaults_match_sparse_config_while_active(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            client, state, _, _, _ = _make_client(Path(td))
+            state.current_session = MeetingSession(id="meeting-active", started_at=datetime.now(UTC))
+
+            response = client.post(
+                "/api/settings",
+                json={
+                    "stt": {
+                        "backend": "whisper",
+                        "whisper_model": "large-v3-turbo",
+                        "deepgram_model": "nova-3",
+                        "openai_model": "gpt-4o-transcribe",
+                        "vosk_model_path": "vosk-model-small-ja-0.22",
+                        "language": "ja",
+                        "vad_engine": "silero",
+                        "vad_sensitivity": 0.4,
+                        "vad_aggressiveness": 2,
+                        "silence_duration": 0.8,
+                    },
+                    "audio": {"sample_rate": 16000, "max_session_seconds": 55},
+                },
+            )
+
+            assert response.status_code == 200
+
+    def test_meeting_start_and_settings_save_are_serialized_by_audio_mutex(self) -> None:
+        meeting_start_entered = Event()
+        allow_meeting_start = Event()
+
+        def configure_app(app: FastAPI, state: AppState) -> None:
+            async def start_meeting() -> dict[str, bool]:
+                async with state.audio_lifecycle_lock:
+                    meeting_start_entered.set()
+                    _ = await asyncio.to_thread(allow_meeting_start.wait)
+                    state.current_session = MeetingSession(id="serialized-meeting", started_at=datetime.now(UTC))
+                return {"ok": True}
+
+            app.add_api_route("/test/meeting/start", start_meeting, methods=["POST"])
+
+        with tempfile.TemporaryDirectory() as td:
+            client, _, store, _, events = _make_client(Path(td), configure_app=configure_app)
+            start_responses: list[TypedResponse] = []
+            save_responses: list[TypedResponse] = []
+
+            def call_start() -> None:
+                start_responses.append(client.post("/test/meeting/start"))
+
+            def call_save() -> None:
+                save_responses.append(client.post("/api/settings", json={"stt": {"backend": "deepgram"}}))
+
+            with client:
+                start_thread = Thread(target=call_start)
+                start_thread.start()
+                assert meeting_start_entered.wait(timeout=2)
+                save_thread = Thread(target=call_save)
+                save_thread.start()
+                allow_meeting_start.set()
+                start_thread.join(timeout=2)
+                save_thread.join(timeout=2)
+
+            assert [response.status_code for response in start_responses] == [200]
+            assert [response.status_code for response in save_responses] == [409]
+            assert not store.config_path.exists()
+            assert events == []
+
+    def test_audio_save_establishes_reload_before_queued_meeting_start(self) -> None:
+        handler_entered = Event()
+        allow_handler = Event()
+        meeting_start_attempted = Event()
+        meeting_start_entered = Event()
+        reload_pending = Event()
+        handler_lock_flags: list[bool] = []
+        handler_saw_lock_held: list[bool] = []
+        start_saw_reload_pending: list[bool] = []
+
+        def configure_app(app: FastAPI, state: AppState) -> None:
+            async def start_meeting() -> dict[str, bool]:
+                async def acquire_audio_lifecycle() -> None:
+                    async with state.audio_lifecycle_lock:
+                        meeting_start_entered.set()
+                        start_saw_reload_pending.append(reload_pending.is_set())
+                        state.current_session = MeetingSession(id="queued-meeting", started_at=datetime.now(UTC))
+
+                acquire_task = asyncio.create_task(acquire_audio_lifecycle())
+                await asyncio.sleep(0)
+                meeting_start_attempted.set()
+                await acquire_task
+                return {"ok": True}
+
+            app.add_api_route("/test/meeting/start", start_meeting, methods=["POST"])
+
+        with tempfile.TemporaryDirectory() as td:
+            client, state, _, event_bus, events = _make_client(Path(td), configure_app=configure_app)
+
+            async def establish_reload_or_pending(event: ConfigChanged) -> None:
+                handler_lock_flags.append(event.audio_lifecycle_lock_held)
+                handler_entered.set()
+                _ = await asyncio.to_thread(allow_handler.wait)
+                if event.audio_lifecycle_lock_held:
+                    handler_saw_lock_held.append(state.audio_lifecycle_lock.locked())
+                    reload_pending.set()
+                    return
+                async with state.audio_lifecycle_lock:
+                    reload_pending.set()
+
+            event_bus.subscribe(ConfigChanged, establish_reload_or_pending)
+            save_responses: list[TypedResponse] = []
+            start_responses: list[TypedResponse] = []
+
+            def call_save() -> None:
+                save_responses.append(client.post("/api/settings", json={"stt": {"backend": "deepgram"}}))
+
+            def call_start() -> None:
+                start_responses.append(client.post("/test/meeting/start"))
+
+            with client:
+                save_thread = Thread(target=call_save)
+                save_thread.start()
+                assert handler_entered.wait(timeout=2)
+
+                start_thread = Thread(target=call_start)
+                start_thread.start()
+                assert meeting_start_attempted.wait(timeout=2)
+                start_entered_before_handler_finished = meeting_start_entered.is_set()
+
+                allow_handler.set()
+                save_thread.join(timeout=2)
+                start_thread.join(timeout=2)
+
+            assert not save_thread.is_alive()
+            assert not start_thread.is_alive()
+            assert start_entered_before_handler_finished is False
+            assert [response.status_code for response in save_responses] == [200]
+            assert [response.status_code for response in start_responses] == [200]
+            assert handler_lock_flags == [True]
+            assert handler_saw_lock_held == [True]
+            assert start_saw_reload_pending == [True]
+            assert events == ["ConfigChanged"]
 
     def test_updates_reply_settings_and_info_flag(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -362,12 +728,230 @@ class TestPostSettings:
 
             assert os.getenv("DEEPGRAM_API_KEY") == "secret123"
 
+    def test_batches_secret_and_config_changes_into_one_event(self) -> None:
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                client, state, store, _, events = _make_client(Path(td))
+
+                response = client.post(
+                    "/api/settings",
+                    json={
+                        "secrets": {"GEMINI_API_KEY": "synthetic-key"},
+                        "agents": {"info_enabled": False},
+                    },
+                )
+
+                assert response.status_code == 200
+                assert state.secret_store.get("GEMINI_API_KEY") == "synthetic-key"
+                assert store.load_config()["agents"] == {"info_enabled": False}
+                assert events == ["ConfigChanged"]
+        finally:
+            _ = os.environ.pop("GEMINI_API_KEY", None)
+
+    def test_keyring_read_failure_aborts_before_any_settings_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            secret_path = root / "secrets.toml"
+            keyring = _MemoryKeyring(
+                {"DEEPGRAM_API_KEY": "synthetic-original"},
+                fail_reads=True,
+            )
+            credential_store = CredentialSecretStore(
+                fallback=FileSecretStore(secret_path),
+                keyring_client=keyring,
+            )
+            client, _, store, _, events = _make_client(root, secret_store=credential_store)
+
+            with pytest.raises(RuntimeError, match="credential.*read"):
+                _ = client.post(
+                    "/api/settings",
+                    json={
+                        "secrets": {"DEEPGRAM_API_KEY": "synthetic-replacement"},
+                        "agents": {"info_enabled": False},
+                    },
+                )
+
+            assert keyring.passwords == {"DEEPGRAM_API_KEY": "synthetic-original"}
+            assert keyring.set_calls == []
+            assert keyring.delete_calls == []
+            assert os.environ.get("DEEPGRAM_API_KEY") is None
+            assert not secret_path.exists()
+            assert not store.config_path.exists()
+            assert events == []
+
+    def test_config_failure_after_deleting_absent_secret_removes_new_fallback_file(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            secret_path = root / "secrets.toml"
+            keyring = _MemoryKeyring({})
+            credential_store = CredentialSecretStore(
+                fallback=FileSecretStore(secret_path),
+                keyring_client=keyring,
+            )
+            client, _, store, _, events = _make_client(root, secret_store=credential_store)
+
+            with (
+                patch.object(store, "write_sectioned_toml", side_effect=OSError("injected config failure")),
+                pytest.raises(OSError, match="injected config failure"),
+            ):
+                _ = client.post(
+                    "/api/settings",
+                    json={
+                        "delete_secrets": ["ANTHROPIC_API_KEY"],
+                        "agents": {"info_enabled": False},
+                    },
+                )
+
+            assert keyring.passwords == {}
+            assert keyring.set_calls == []
+            assert keyring.delete_calls == ["ANTHROPIC_API_KEY"]
+            assert os.environ.get("ANTHROPIC_API_KEY") is None
+            assert not secret_path.exists()
+            assert events == []
+
+    def test_config_and_secret_rollback_failure_exposes_rollback_and_publishes_no_event(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            client, state, store, _, events = _make_client(Path(td))
+
+            with (
+                patch.object(store, "write_sectioned_toml", side_effect=OSError("injected config failure")),
+                patch.object(
+                    state.secret_store,
+                    "restore",
+                    side_effect=RuntimeError("injected secret rollback failure"),
+                ),
+                pytest.raises(RuntimeError, match="rollback"),
+            ):
+                _ = client.post(
+                    "/api/settings",
+                    json={
+                        "secrets": {"GEMINI_API_KEY": "synthetic-replacement"},
+                        "agents": {"info_enabled": False},
+                    },
+                )
+
+            assert events == []
+
+    def test_config_write_failure_restores_exact_file_bytes_and_state_without_event(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            secret_path = root / "secrets.toml"
+            original_file = (
+                b"# synthetic formatting preserved across compensation\n"
+                b'OPENAI_API_KEY = "synthetic-unrelated-original"\n'
+                b"\n"
+                b'DEEPGRAM_API_KEY    = "synthetic-deepgram-original"  # harmless comment\n'
+            )
+            _ = secret_path.write_bytes(original_file)
+            client, state, store, _, events = _make_client(root)
+            os.environ["OPENAI_API_KEY"] = "synthetic-environment-override"
+
+            with (
+                patch.object(store, "write_sectioned_toml", side_effect=OSError("injected write failure")),
+                pytest.raises(OSError, match="injected write failure"),
+            ):
+                _ = client.post(
+                    "/api/settings",
+                    json={
+                        "secrets": {"OPENAI_API_KEY": "synthetic-openai-replacement-before-delete"},
+                        "delete_secrets": ["OPENAI_API_KEY"],
+                        "agents": {"info_enabled": False},
+                    },
+                )
+
+            assert state.secret_store.get("OPENAI_API_KEY") == "synthetic-environment-override"
+            assert os.environ.get("OPENAI_API_KEY") == "synthetic-environment-override"
+            assert secret_path.read_bytes() == original_file
+            assert state.secret_store.get("DEEPGRAM_API_KEY") == "synthetic-deepgram-original"
+            assert events == []
+
+    def test_config_load_failure_restores_deleted_secret_without_event(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            client, state, store, _, events = _make_client(Path(td))
+            state.secret_store.set_secrets(
+                {
+                    "DEEPGRAM_API_KEY": "original-deepgram-key",
+                    "OPENAI_API_KEY": "unrelated-key",
+                }
+            )
+
+            with (
+                patch.object(store, "load_config", side_effect=OSError("injected load failure")),
+                pytest.raises(OSError, match="injected load failure"),
+            ):
+                _ = client.post(
+                    "/api/settings",
+                    json={
+                        "secrets": {"DEEPGRAM_API_KEY": "replacement-before-delete"},
+                        "delete_secrets": ["DEEPGRAM_API_KEY"],
+                        "agents": {"info_enabled": False},
+                    },
+                )
+
+            assert state.secret_store.get("DEEPGRAM_API_KEY") == "original-deepgram-key"
+            assert os.environ.get("DEEPGRAM_API_KEY") == "original-deepgram-key"
+            assert state.secret_store.get("OPENAI_API_KEY") == "unrelated-key"
+            assert events == []
+
+    def test_config_failure_restores_exact_credential_fallback_bytes_and_state(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("SECRET_STORE_BACKEND", raising=False)
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            secret_path = root / "secrets.toml"
+            original_file = (
+                b"# synthetic fallback formatting preserved across compensation\n"
+                b'OPENAI_API_KEY = "synthetic-unrelated-fallback"\n'
+                b"\n"
+                b'DEEPGRAM_API_KEY    = "synthetic-deepgram-fallback"  # harmless comment\n'
+            )
+            _ = secret_path.write_bytes(original_file)
+            keyring = _MemoryKeyring(
+                {
+                    "OPENAI_API_KEY": "synthetic-openai-credential",
+                    "DEEPGRAM_API_KEY": "synthetic-unrelated-credential",
+                }
+            )
+            credential_store = CredentialSecretStore(
+                fallback=FileSecretStore(secret_path),
+                keyring_client=keyring,
+            )
+            client, _, store, _, events = _make_client(root, secret_store=credential_store)
+            monkeypatch.setenv("OPENAI_API_KEY", "synthetic-environment-override")
+
+            with (
+                patch.object(store, "write_sectioned_toml", side_effect=OSError("injected write failure")),
+                pytest.raises(OSError, match="injected write failure"),
+            ):
+                _ = client.post(
+                    "/api/settings",
+                    json={
+                        "secrets": {"OPENAI_API_KEY": "synthetic-openai-replacement-before-delete"},
+                        "delete_secrets": ["OPENAI_API_KEY"],
+                        "agents": {"info_enabled": False},
+                    },
+                )
+
+            assert keyring.passwords == {
+                "OPENAI_API_KEY": "synthetic-openai-credential",
+                "DEEPGRAM_API_KEY": "synthetic-unrelated-credential",
+            }
+            assert secret_path.read_bytes() == original_file
+            assert os.environ.get("OPENAI_API_KEY") == "synthetic-environment-override"
+            monkeypatch.delenv("OPENAI_API_KEY")
+            assert credential_store.get("OPENAI_API_KEY") == "synthetic-openai-credential"
+            assert events == []
+
     def test_updates_config_sections(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             client, _, store, _, _ = _make_client(Path(td))
             resp = client.post(
                 "/api/settings",
-                json={"stt": {"backend": "deepgram", "sample_rate": 48000}},
+                json={
+                    "stt": {"backend": "deepgram", "vad_engine": "webrtc"},
+                    "audio": {"sample_rate": 48000},
+                },
             )
             assert resp.status_code == 200
             assert resp.json_object()["ok"] is True
@@ -376,7 +960,10 @@ class TestPostSettings:
             stt = cfg["stt"]
             assert isinstance(stt, dict)
             assert stt["backend"] == "deepgram"
-            assert stt["sample_rate"] == 48000
+            assert stt["vad_engine"] == "webrtc"
+            audio = cfg["audio"]
+            assert isinstance(audio, dict)
+            assert audio["sample_rate"] == 48000
 
     def test_merges_config_sections(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -391,8 +978,7 @@ class TestPostSettings:
             stt = cfg["stt"]
             assert isinstance(stt, dict)
             assert stt["backend"] == "remote"
-            # Existing keys should be preserved.
-            assert stt["sample_rate"] == 16000
+            assert stt["vad_engine"] == "silero"
 
     def test_empty_body_returns_ok(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -488,8 +1074,7 @@ class TestSettingsApiPostReturnsSavedValues:
             settings = self._ok_settings(resp)
             stt = as_json_object(settings["stt"])
             assert stt["backend"] == "deepgram"
-            # Existing keys in the section should be preserved (merged).
-            assert stt["sample_rate"] == 16000
+            assert stt["vad_engine"] == "silero"
 
             agents = as_json_object(settings["agents"])
             reply = as_json_object(settings["reply"])
@@ -701,6 +1286,117 @@ class TestPostSettingsPydanticValidation:
                 },
             )
             assert resp.status_code == 422
+
+    @pytest.mark.parametrize(
+        ("section", "field_name"),
+        [
+            ("stt", "vad_sensitivity"),
+            ("stt", "silence_duration"),
+            ("stt", "vad_aggressiveness"),
+            ("stt", "min_voiced_ms"),
+            ("stt", "min_voiced_ratio"),
+            ("stt", "min_rms_dbfs"),
+            ("stt", "decode_no_speech_threshold"),
+            ("stt", "decode_log_prob_threshold"),
+            ("stt", "decode_compression_ratio_threshold"),
+            ("stt", "hard_min_voiced_ms"),
+            ("stt", "hard_no_speech_threshold"),
+            ("stt", "hard_logprob_threshold"),
+            ("stt", "hard_compression_ratio_threshold"),
+            ("stt", "soft_min_voiced_ms"),
+            ("stt", "soft_min_voiced_ratio"),
+            ("stt", "soft_min_rms_dbfs"),
+            ("stt", "soft_no_speech_threshold"),
+            ("stt", "soft_logprob_threshold"),
+            ("stt", "soft_compression_ratio_threshold"),
+            ("stt", "drop_score_threshold"),
+            ("stt", "temperature"),
+            ("audio", "sample_rate"),
+            ("audio", "max_session_seconds"),
+        ],
+    )
+    @pytest.mark.parametrize("invalid_value", [True, "1"])
+    def test_rejects_coerced_numeric_values_without_persistence_or_event(
+        self,
+        section: str,
+        field_name: str,
+        invalid_value: bool | str,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            client, state, store, _, events = _make_client(Path(td))
+
+            response = client.post(
+                "/api/settings",
+                json={
+                    section: {field_name: invalid_value},
+                    "secrets": {"DEEPGRAM_API_KEY": "must-not-be-saved"},
+                },
+            )
+
+            assert response.status_code == 422
+            assert state.secret_store.get("DEEPGRAM_API_KEY") is None
+            assert os.getenv("DEEPGRAM_API_KEY") is None
+            assert not store.config_path.exists()
+            assert events == []
+
+    def test_rejects_unknown_stt_and_audio_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            client, _, store, _, events = _make_client(Path(td))
+
+            stt_response = client.post("/api/settings", json={"stt": {"unknown_vad_option": True}})
+            audio_response = client.post("/api/settings", json={"audio": {"channels": 2}})
+
+            assert stt_response.status_code == 422
+            assert audio_response.status_code == 422
+            assert not store.config_path.exists()
+            assert events == []
+
+    def test_rejects_unknown_vad_engine_without_persistence_or_event(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            client, _, store, _, events = _make_client(Path(td))
+
+            response = client.post("/api/settings", json={"stt": {"vad_engine": "unknown"}})
+
+            assert response.status_code == 422
+            assert not store.config_path.exists()
+            assert events == []
+
+    def test_rejects_silero_with_48khz_before_secret_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            client, state, store, _, events = _make_client(Path(td))
+
+            response = client.post(
+                "/api/settings",
+                json={
+                    "stt": {"vad_engine": "silero"},
+                    "audio": {"sample_rate": 48000},
+                    "secrets": {"DEEPGRAM_API_KEY": "must-not-be-saved"},
+                },
+            )
+
+            assert response.status_code == 422
+            detail = as_object_array(response.json_object()["detail"])
+            assert detail == [
+                {
+                    "type": "value_error",
+                    "loc": ["body", "audio"],
+                    "msg": "Silero VADは16 kHz mono PCMを必要とします。",
+                }
+            ]
+            assert state.secret_store.get("DEEPGRAM_API_KEY") is None
+            assert os.getenv("DEEPGRAM_API_KEY") is None
+            assert not store.config_path.exists()
+            assert events == []
+
+    def test_settings_conflict_response_is_declared_in_openapi(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            client, _, _, _, _ = _make_client(Path(td))
+
+            schema = client.get("/openapi.json").json_object()
+
+            settings_path = as_json_object(as_json_object(schema["paths"])["/api/settings"])
+            responses = as_json_object(as_json_object(settings_path["post"])["responses"])
+            assert "SettingsConflictResponse" in str(responses["409"])
 
     def test_rejects_bad_reply_style_entry(self) -> None:
         """ReplyStyleEnabledPatch requires id (str) and enabled (bool)."""

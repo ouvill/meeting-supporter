@@ -162,6 +162,108 @@ describe("ApiConnectionControl", () => {
     );
   });
 
+  it("disables every credential action when the control is locked", () => {
+    const controlProps = props({
+      state: "saved-unverified",
+      hasSavedKey: true,
+      disabled: true,
+    });
+    const { rerender } = render(
+      <ApiConnectionControl {...controlProps} />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Google Gemini APIキーを変更" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Google Gemini 接続を確認" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Google Gemini APIキーを削除" }),
+    ).toBeDisabled();
+
+    rerender(
+      <ApiConnectionControl
+        {...controlProps}
+        state="draft-unverified"
+        editing
+        draftKey="replacement"
+      />,
+    );
+    expect(screen.getByLabelText("Google Gemini APIキー")).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "APIキーを表示" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "変更をキャンセル" }),
+    ).toBeDisabled();
+
+    rerender(
+      <ApiConnectionControl
+        {...controlProps}
+        state="pending-delete"
+      />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Google Gemini APIキーの削除を取り消す",
+      }),
+    ).toBeDisabled();
+  });
+
+  it("does not lock an unrelated provider", () => {
+    const locked = props({
+      provider: "openai",
+      state: "saved-unverified",
+      hasSavedKey: true,
+      disabled: true,
+    });
+    const editable = props({
+      provider: "gemini",
+      state: "saved-unverified",
+      hasSavedKey: true,
+    });
+    render(
+      <>
+        <ApiConnectionControl {...locked} />
+        <ApiConnectionControl {...editable} />
+      </>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "OpenAI APIキーを変更" }),
+    ).toBeDisabled();
+    const editableButton = screen.getByRole("button", {
+      name: "Google Gemini APIキーを変更",
+    });
+    expect(editableButton).toBeEnabled();
+    fireEvent.click(editableButton);
+    expect(editable.onBeginEdit).toHaveBeenCalledOnce();
+    expect(locked.onBeginEdit).not.toHaveBeenCalled();
+  });
+
+  it("locks an already-open delete confirmation", () => {
+    const controlProps = props({
+      state: "saved-unverified",
+      hasSavedKey: true,
+    });
+    const { rerender } = render(
+      <ApiConnectionControl {...controlProps} />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Google Gemini APIキーを削除" }),
+    );
+    rerender(<ApiConnectionControl {...controlProps} disabled />);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Google Gemini APIキーを削除予定にする",
+      }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "キャンセル" })).toBeDisabled();
+  });
+
   it("shows a failed verification message inside the control", () => {
     render(
       <ApiConnectionControl

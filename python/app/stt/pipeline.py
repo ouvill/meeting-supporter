@@ -86,42 +86,6 @@ def _make_stt_stage(
     raise ValueError(f"未知の STT バックエンド: {cfg.backend!r}")
 
 
-def _stt_stage_config_changed(old_cfg: SttConfig, new_cfg: SttConfig) -> bool:
-    watched_fields = (
-        "backend",
-        "whisper_model",
-        "openai_model",
-        "deepgram_model",
-        "vosk_model_path",
-        "language",
-        "silence_duration",
-        "remote_url",
-        "remote_token",
-        "sample_rate",
-        "chunk_size",
-        "min_voiced_ms",
-        "min_voiced_ratio",
-        "min_rms_dbfs",
-        "temperature",
-        "decode_no_speech_threshold",
-        "decode_log_prob_threshold",
-        "decode_compression_ratio_threshold",
-        "hard_min_voiced_ms",
-        "hard_no_speech_threshold",
-        "hard_logprob_threshold",
-        "hard_compression_ratio_threshold",
-        "soft_min_voiced_ms",
-        "soft_min_voiced_ratio",
-        "soft_min_rms_dbfs",
-        "soft_no_speech_threshold",
-        "soft_logprob_threshold",
-        "soft_compression_ratio_threshold",
-        "drop_score_threshold",
-        "suspicious_phrases",
-    )
-    return any(getattr(old_cfg, field_name) != getattr(new_cfg, field_name) for field_name in watched_fields)
-
-
 class SttPipeline:
     """VAD + STT pipeline that attaches to an AudioPipeline's stt_queue.
 
@@ -130,7 +94,6 @@ class SttPipeline:
         start(loop)       — starts VadStage + SttStage
         stop()            — stops VAD + STT; AudioPipeline keeps running
         shutdown()        — stop() + release local model
-        apply_config()    — hot-swap VAD or STT stage
     """
 
     def __init__(
@@ -317,10 +280,24 @@ class SttPipeline:
         with self._lock:
             if self._started:
                 return
+            whisper_was_initialized = self._whisper_initialized
+            vosk_was_initialized = self._vosk_initialized
             self._loop = loop
             self._publisher = ThreadSafePublisher(self._broadcast, loop)
+            try:
+                self._pipeline = self._build_and_start()
+            except Exception:
+                self._pipeline = None
+                self._publisher = None
+                self._loop = None
+                if not whisper_was_initialized and self._whisper_initialized:
+                    WhisperEngine.release()
+                    self._whisper_initialized = False
+                if not vosk_was_initialized and self._vosk_initialized:
+                    VoskEngine.release()
+                    self._vosk_initialized = False
+                raise
             self._started = True
-            self._build_and_start()
 
     def stop(self) -> None:
         with self._lock:
@@ -329,9 +306,11 @@ class SttPipeline:
             self._started = False
             if self._pipeline is not None:
                 # Do NOT inject sentinels into self._stt_queue — it is owned by
-                # AudioPipeline.  Stages use _stop_event for hot shutdown.
+                # AudioPipeline. Stages use _stop_event for subsystem shutdown.
                 self._pipeline.stop(timeout=2, inject_sentinels=False)
                 self._pipeline = None
+            self._publisher = None
+            self._loop = None
 
     def shutdown(self) -> None:
         """stop() + release local STT models."""
@@ -352,31 +331,9 @@ class SttPipeline:
         if release_vosk:
             VoskEngine.release()
 
-    # ── Config hot-swap ───────────────────────────────────────────────────────
-
-    def apply_config(self, cfg: SttConfig) -> None:
-        """Hot-swap VAD and/or STT stage when config changes."""
-        with self._lock:
-            old_cfg = self._cfg
-            self._cfg = cfg
-
-            if not self._started or self._publisher is None:
-                return
-
-            vad_changed = (
-                cfg.vad_engine != old_cfg.vad_engine
-                or (cfg.vad_engine == "webrtc" and cfg.vad_aggressiveness != old_cfg.vad_aggressiveness)
-                or (cfg.vad_engine == "silero" and cfg.vad_sensitivity != old_cfg.vad_sensitivity)
-            )
-            if vad_changed:
-                self._swap_vad(cfg)
-
-            if _stt_stage_config_changed(old_cfg, cfg):
-                self._swap_stt(cfg)
-
     # ── Internal ─────────────────────────────────────────────────────────────
 
-    def _build_and_start(self) -> None:
+    def _build_and_start(self) -> Pipeline[AudioFrame | None]:
         assert self._publisher is not None
         self._q2 = queue.Queue(maxsize=_Q2_SIZE)
         vad = VadStage(self._stt_queue, self._q2, _make_vad_engine(self._cfg), self._cfg.sample_rate)
@@ -397,61 +354,9 @@ class SttPipeline:
             VoskEngine.acquire(self._cfg, publisher=self._publisher)
             self._vosk_initialized = True
 
-        self._pipeline = Pipeline[AudioFrame | None]([vad, stt], input_queues=[self._q2])
-        self._pipeline.start()
-
-    def _swap_vad(self, new_cfg: SttConfig) -> None:
-        if self._pipeline is None:
-            return
-        stages = self._pipeline.stages
-        if not stages:
-            return
-        old_vad = stages[0]
-        old_vad.stop(timeout=2)
-        new_vad = VadStage(
-            self._stt_queue,
-            self._q2,
-            _make_vad_engine(new_cfg),
-            new_cfg.sample_rate,
-        )
-        new_vad.start()
-        self._pipeline.replace_stage(0, new_vad)
-
-    def _swap_stt(self, new_cfg: SttConfig) -> None:
-        assert self._publisher is not None
-        if self._pipeline is None:
-            return
-        stages = self._pipeline.stages
-        if len(stages) < 2:
-            return
-        old_stt = stages[1]
-        if isinstance(old_stt, WhisperStage):
-            WhisperEngine.release()
-            self._whisper_initialized = False
-        if isinstance(old_stt, VoskStage):
-            VoskEngine.release()
-            self._vosk_initialized = False
-
-        old_stt.stop(timeout=2)
-
-        new_stt = _make_stt_stage(
-            self._q2,
-            new_cfg,
-            self._role,
-            self._publisher,
-            self._handle_speech,
-            self._managed_session_store,
-            self._get_managed_session_id,
-        )
-        if isinstance(new_stt, WhisperStage):
-            WhisperEngine.acquire(new_cfg, publisher=self._publisher)
-            self._whisper_initialized = True
-        if isinstance(new_stt, VoskStage):
-            VoskEngine.acquire(new_cfg, publisher=self._publisher)
-            self._vosk_initialized = True
-
-        new_stt.start()
-        self._pipeline.replace_stage(1, new_stt)
+        pipeline = Pipeline[AudioFrame | None]([vad, stt], input_queues=[self._q2])
+        pipeline.start()
+        return pipeline
 
 
 __all__ = ["SttPipeline"]

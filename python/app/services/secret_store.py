@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Protocol, cast
 
 from app.core.config import SECRET_KEYS
-from app.services._file_utils import atomic_write_text
+from app.core.protocols import SecretRollbackError, SecretSnapshot, SecretSnapshotError
+from app.services._file_utils import atomic_write_bytes, atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,38 @@ def _load_keyring_client() -> _KeyringClient | None:
     return _ImportedKeyringClient(module)
 
 
+@dataclass(frozen=True)
+class _FileSecretSnapshotValue:
+    """Exact fallback-file bytes and environment before a mutation."""
+
+    file_content: bytes | None
+    environment: dict[str, str | None]
+
+
+@dataclass(frozen=True)
+class _CredentialSecretSnapshotValue:
+    """Credential, fallback-file, and environment state before a mutation."""
+
+    credential_values: dict[str, str | None] | None
+    credential_failed: bool
+    fallback: SecretSnapshot
+    environment: dict[str, str | None]
+
+
+def _restore_environment(environment: dict[str, str | None]) -> list[Exception]:
+    """Restore every captured environment entry, collecting independent failures."""
+    failures: list[Exception] = []
+    for key, secret in environment.items():
+        try:
+            if secret is None:
+                _ = os.environ.pop(key, None)
+            else:
+                os.environ[key] = secret
+        except Exception as exc:
+            failures.append(RuntimeError(f"environment rollback failed for {key}: {exc}"))
+    return failures
+
+
 @dataclass
 class FileSecretStore:
     path: Path
@@ -60,8 +93,11 @@ class FileSecretStore:
         if not self.path.exists():
             return {}
         with open(self.path, "rb") as f:
-            data = tomllib.load(f)
-        return {k: str(v) for k, v in cast("dict[str, object]", data).items() if isinstance(v, str)}
+            raw_data = cast(object, tomllib.load(f))
+        if not isinstance(raw_data, dict):
+            return {}
+        data = cast("dict[object, object]", raw_data)
+        return {key: value for key, value in data.items() if isinstance(key, str) and isinstance(value, str)}
 
     def _write(self, data: dict[str, str]) -> None:
         lines: list[str] = []
@@ -119,6 +155,43 @@ class FileSecretStore:
     def keys(self) -> set[str]:
         return set(self._load())
 
+    def snapshot(self, keys: Iterable[str]) -> SecretSnapshot:
+        """Capture the exact file bytes and affected process environment."""
+        affected_keys = set(keys)
+        environment = {key: os.environ.get(key) for key in affected_keys}
+        try:
+            file_content = self.path.read_bytes()
+        except FileNotFoundError:
+            file_content = None
+        return SecretSnapshot(
+            _FileSecretSnapshotValue(file_content=file_content, environment=environment),
+        )
+
+    def restore(self, snapshot: SecretSnapshot) -> None:
+        """Restore the exact fallback file and affected process environment."""
+        value = snapshot.value
+        if not isinstance(value, _FileSecretSnapshotValue):
+            raise TypeError("snapshot was not created by a file secret store")
+
+        failures: list[Exception] = []
+        try:
+            if value.file_content is None:
+                self.path.unlink(missing_ok=True)
+            else:
+                try:
+                    current_content = self.path.read_bytes()
+                except FileNotFoundError:
+                    current_content = None
+                if current_content != value.file_content:
+                    atomic_write_bytes(self.path, value.file_content)
+        except Exception as exc:
+            failures.append(RuntimeError(f"fallback file rollback failed: {exc}"))
+        finally:
+            failures.extend(_restore_environment(value.environment))
+
+        if failures:
+            raise SecretRollbackError(failures) from failures[0]
+
 
 @dataclass
 class CredentialSecretStore:
@@ -156,6 +229,23 @@ class CredentialSecretStore:
             self._credential_failed = True
             logger.warning("OS credential store read failed; falling back to secrets.toml: %s", exc)
             return None
+
+    def _snapshot_credentials(self, keys: Iterable[str]) -> dict[str, str | None] | None:
+        """Read prior credentials without conflating backend failure with absence."""
+        client = self._client()
+        if client is None:
+            return None
+
+        values: dict[str, str | None] = {}
+        for key in keys:
+            try:
+                values[key] = client.get_password(self.service_name, key)
+            except Exception as exc:
+                self._credential_failed = True
+                raise SecretSnapshotError(
+                    f"credential snapshot failed while reading {key}; settings were not changed"
+                ) from exc
+        return values
 
     def _set_credentials(self, updates: dict[str, str]) -> bool:
         client = self._client()
@@ -214,6 +304,71 @@ class CredentialSecretStore:
         keys = set(SECRET_KEYS) | self.fallback.keys()
         return {key: self.status(key) for key in keys}
 
+    def snapshot(self, keys: Iterable[str]) -> SecretSnapshot:
+        """Capture credential, fallback-file, and process-environment state."""
+        affected_keys = set(keys)
+        environment = {key: os.environ.get(key) for key in affected_keys}
+        credential_failed = self._credential_failed
+        credential_values = self._snapshot_credentials(affected_keys)
+        return SecretSnapshot(
+            _CredentialSecretSnapshotValue(
+                credential_values=credential_values,
+                credential_failed=credential_failed,
+                fallback=self.fallback.snapshot(affected_keys),
+                environment=environment,
+            ),
+        )
+
+    def restore(self, snapshot: SecretSnapshot) -> None:
+        """Restore the captured credential, fallback-file, and environment state."""
+        value = snapshot.value
+        if not isinstance(value, _CredentialSecretSnapshotValue):
+            raise TypeError("snapshot was not created by a credential secret store")
+
+        failures: list[Exception] = []
+        credential_restore_failed = False
+        try:
+            if value.credential_values is not None:
+                self._credential_failed = value.credential_failed
+                client = self._client()
+                if client is None:
+                    credential_restore_failed = True
+                    failures.append(RuntimeError("credential rollback failed: backend is unavailable"))
+                else:
+                    for key, secret in value.credential_values.items():
+                        try:
+                            current = client.get_password(self.service_name, key)
+                        except Exception as exc:
+                            credential_restore_failed = True
+                            failures.append(RuntimeError(f"credential rollback read failed for {key}: {exc}"))
+                            continue
+                        if current == secret:
+                            continue
+
+                        self._credential_failed = value.credential_failed
+                        try:
+                            restored = (
+                                self._delete_credential(key) if secret is None else self._set_credentials({key: secret})
+                            )
+                        except Exception as exc:
+                            credential_restore_failed = True
+                            failures.append(RuntimeError(f"credential rollback write failed for {key}: {exc}"))
+                        else:
+                            if not restored:
+                                credential_restore_failed = True
+                                failures.append(RuntimeError(f"credential rollback write failed for {key}"))
+
+            try:
+                self.fallback.restore(value.fallback)
+            except Exception as exc:
+                failures.append(exc)
+        finally:
+            failures.extend(_restore_environment(value.environment))
+            self._credential_failed = True if credential_restore_failed else value.credential_failed
+
+        if failures:
+            raise SecretRollbackError(failures) from failures[0]
+
 
 def create_secret_store(path: Path) -> CredentialSecretStore | FileSecretStore:
     fallback = FileSecretStore(path)
@@ -222,4 +377,8 @@ def create_secret_store(path: Path) -> CredentialSecretStore | FileSecretStore:
     return CredentialSecretStore(fallback=fallback)
 
 
-__all__ = ["CredentialSecretStore", "FileSecretStore", "create_secret_store"]
+__all__ = [
+    "CredentialSecretStore",
+    "FileSecretStore",
+    "create_secret_store",
+]

@@ -1,12 +1,15 @@
 # pyright: reportPrivateUsage=false, reportUninitializedInstanceVariable=false, reportAny=false
+import queue
 import unittest
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast, override
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import numpy as np
 
+from app.audio.base import AudioFrame
 from app.core.config import SttConfig
+from app.core.publisher import OutgoingPublisher
 from app.stt.stages.stt_whisper import WhisperEngine, WhisperStage
 from app.stt.transcript_judge import (
     AudioEvidence,
@@ -201,6 +204,140 @@ class WhisperStageGateTest(unittest.TestCase):
         )
 
         self.assertTrue(should_enqueue)
+
+
+class WhisperStagePreRollTest(unittest.TestCase):
+    def test_prepends_last_150ms_without_changing_voiced_gate(self) -> None:
+        cfg = _make_config()
+        cfg.silence_duration = 0.06
+        in_q: queue.Queue[AudioFrame | None] = queue.Queue()
+        pre_roll = [
+            AudioFrame(
+                pcm=value.to_bytes(2, "little", signed=True) * 480,
+                is_speech=False,
+                timestamp_ms=index * 30.0,
+            )
+            for index, value in enumerate(range(1, 7))
+        ]
+        speech = [
+            AudioFrame(
+                pcm=(12000).to_bytes(2, "little", signed=True) * 480,
+                is_speech=True,
+                timestamp_ms=(index + 6) * 30.0,
+            )
+            for index in range(4)
+        ]
+        trailing = [
+            AudioFrame(
+                pcm=b"\x00\x00" * 480,
+                is_speech=False,
+                timestamp_ms=(index + 10) * 30.0,
+            )
+            for index in range(2)
+        ]
+        for frame in [*pre_roll, *speech, *trailing]:
+            in_q.put(frame)
+        in_q.put(None)
+
+        async def handle_speech(_role: str, _text: str) -> None:
+            pass
+
+        publisher = cast(OutgoingPublisher, Mock())
+        stage = WhisperStage(in_q, cfg, "other", publisher, handle_speech)
+        with patch.object(stage, "_enqueue_audio") as enqueue:
+            stage.start()
+            stage.join(timeout=1)
+
+        self.assertFalse(stage.running)
+        audio_np = cast(np.ndarray[tuple[int], np.dtype[np.float32]], enqueue.call_args.args[0])
+        evidence = cast(AudioEvidence, enqueue.call_args.args[1])
+        self.assertEqual(audio_np.size, 11 * 480)
+        self.assertAlmostEqual(float(audio_np[0]), 2 / 32767.0)
+        self.assertAlmostEqual(float(audio_np[5 * 480]), 12000 / 32767.0)
+        self.assertEqual(evidence.voiced_ms, 120)
+        self.assertAlmostEqual(evidence.voiced_ratio, 4 / 6)
+        self.assertEqual(evidence.duration_ms, 330)
+
+    def test_each_close_utterance_gets_the_immediately_preceding_five_frames(self) -> None:
+        cfg = _make_config()
+        cfg.silence_duration = 0.06
+
+        def make_frame(value: int, is_speech: bool, index: int) -> AudioFrame:
+            return AudioFrame(
+                pcm=value.to_bytes(2, "little", signed=True) * 480,
+                is_speech=is_speech,
+                timestamp_ms=index * 30.0,
+            )
+
+        history = [make_frame(value, False, index) for index, value in enumerate(range(1, 6))]
+        first_speech = [make_frame(value, True, index + 5) for index, value in enumerate(range(101, 105))]
+        first_trailing = [make_frame(value, False, index + 9) for index, value in enumerate(range(201, 203))]
+        second_speech = [make_frame(value, True, index + 11) for index, value in enumerate(range(301, 305))]
+        second_trailing = [make_frame(value, False, index + 15) for index, value in enumerate(range(401, 403))]
+        frames = [*history, *first_speech, *first_trailing, *second_speech, *second_trailing]
+        in_q: queue.Queue[AudioFrame | None] = queue.Queue()
+        for frame in frames:
+            in_q.put(frame)
+        in_q.put(None)
+
+        async def handle_speech(_role: str, _text: str) -> None:
+            pass
+
+        stage = WhisperStage(in_q, cfg, "other", cast(OutgoingPublisher, Mock()), handle_speech)
+        with patch.object(stage, "_enqueue_audio") as enqueue:
+            stage.start()
+            stage.join(timeout=1)
+
+        self.assertFalse(stage.running)
+        self.assertEqual(enqueue.call_count, 2)
+        expected_segments = [
+            [*history, *first_speech, *first_trailing],
+            [*first_speech[-3:], *first_trailing, *second_speech, *second_trailing],
+        ]
+        for call, expected_frames in zip(enqueue.call_args_list, expected_segments, strict=True):
+            actual = cast(np.ndarray[tuple[int], np.dtype[np.float32]], call.args[0])
+            expected = (
+                np.frombuffer(b"".join(frame.pcm for frame in expected_frames), dtype=np.int16).astype(np.float32)
+                / 32767.0
+            )
+            np.testing.assert_array_equal(actual, expected)
+
+    def test_preroll_volume_does_not_change_segment_rms_evidence(self) -> None:
+        cfg = _make_config()
+        cfg.silence_duration = 0.06
+        speech_pcm = (1200).to_bytes(2, "little", signed=True) * 480
+        silence_pcm = b"\x00\x00" * 480
+
+        def run_with_preroll(preroll_pcm: bytes) -> AudioEvidence:
+            frames = [
+                *[AudioFrame(pcm=preroll_pcm, is_speech=False, timestamp_ms=index * 30.0) for index in range(5)],
+                *[AudioFrame(pcm=speech_pcm, is_speech=True, timestamp_ms=(index + 5) * 30.0) for index in range(4)],
+                *[AudioFrame(pcm=silence_pcm, is_speech=False, timestamp_ms=(index + 9) * 30.0) for index in range(2)],
+            ]
+            in_q: queue.Queue[AudioFrame | None] = queue.Queue()
+            for frame in frames:
+                in_q.put(frame)
+            in_q.put(None)
+
+            async def handle_speech(_role: str, _text: str) -> None:
+                pass
+
+            stage = WhisperStage(in_q, cfg, "other", cast(OutgoingPublisher, Mock()), handle_speech)
+            with patch.object(stage, "_enqueue_audio") as enqueue:
+                stage.start()
+                stage.join(timeout=1)
+            self.assertFalse(stage.running)
+            return cast(AudioEvidence, enqueue.call_args.args[1])
+
+        quiet_preroll_evidence = run_with_preroll(silence_pcm)
+        loud_preroll_evidence = run_with_preroll((30000).to_bytes(2, "little", signed=True) * 480)
+        owned_audio = (
+            np.frombuffer(b"".join([speech_pcm] * 4 + [silence_pcm] * 2), dtype=np.int16).astype(np.float32) / 32767.0
+        )
+        expected_rms = WhisperStage._rms_dbfs(owned_audio)
+
+        self.assertAlmostEqual(quiet_preroll_evidence.rms_dbfs, expected_rms)
+        self.assertAlmostEqual(loud_preroll_evidence.rms_dbfs, expected_rms)
 
 
 class WhisperTranscribeThresholdTest(unittest.TestCase):

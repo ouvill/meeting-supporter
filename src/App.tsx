@@ -290,6 +290,7 @@ function MainWindowContent({
                 onCloseSettings();
               }}
               routes={routes}
+              audioSettingsLocked={state.isRunning}
               restoreFocusTo={settingsReturnFocusTo}
             />
           </Suspense>

@@ -150,6 +150,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsConflictResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1132,6 +1142,40 @@
         "type": "object",
         "title": "AgentSettingsPayload",
         "description": "Non-reply agent flags that the client may send as a patch."
+      },
+      "AudioSettingsPatch": {
+        "properties": {
+          "sample_rate": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 192000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Rate"
+          },
+          "max_session_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Session Seconds"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AudioSettingsPatch",
+        "description": "Typed patch surface for persisted ``[audio]`` settings."
       },
       "BillingOwner": {
         "type": "string",
@@ -2816,6 +2860,38 @@
         "title": "SecretsStatus",
         "description": "Boolean presence indicators — never leak actual secret values."
       },
+      "SettingsConflictDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "AUDIO_SETTINGS_LOCKED",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "SettingsConflictDetail"
+      },
+      "SettingsConflictResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/SettingsConflictDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "SettingsConflictResponse",
+        "description": "Structured response returned when audio settings are locked."
+      },
       "SettingsResponse": {
         "properties": {
           "ollama": {
@@ -2934,26 +3010,22 @@
           "stt": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/SttSettingsPatch"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Stt"
+            ]
           },
           "audio": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/AudioSettingsPatch"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Audio"
+            ]
           },
           "context": {
             "anyOf": [
@@ -3191,6 +3263,376 @@
         ],
         "title": "SpeechModelStatusResponse",
         "description": "Stable public state for one provider-managed speech model."
+      },
+      "SttSettingsPatch": {
+        "properties": {
+          "backend": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backend"
+          },
+          "whisper_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Whisper Model"
+          },
+          "deepgram_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deepgram Model"
+          },
+          "openai_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openai Model"
+          },
+          "vosk_model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vosk Model Path"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "vad_engine": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "silero",
+                  "webrtc"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vad Engine"
+          },
+          "vad_sensitivity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 0.95,
+                "minimum": 0.05
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vad Sensitivity"
+          },
+          "silence_duration": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 5.0,
+                "minimum": 0.1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Silence Duration"
+          },
+          "vad_aggressiveness": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vad Aggressiveness"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "min_voiced_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Voiced Ms"
+          },
+          "min_voiced_ratio": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Voiced Ratio"
+          },
+          "min_rms_dbfs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Rms Dbfs"
+          },
+          "decode_no_speech_threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decode No Speech Threshold"
+          },
+          "decode_log_prob_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decode Log Prob Threshold"
+          },
+          "decode_compression_ratio_threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decode Compression Ratio Threshold"
+          },
+          "hard_min_voiced_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hard Min Voiced Ms"
+          },
+          "hard_no_speech_threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hard No Speech Threshold"
+          },
+          "hard_logprob_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hard Logprob Threshold"
+          },
+          "hard_compression_ratio_threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hard Compression Ratio Threshold"
+          },
+          "soft_min_voiced_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soft Min Voiced Ms"
+          },
+          "soft_min_voiced_ratio": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soft Min Voiced Ratio"
+          },
+          "soft_min_rms_dbfs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soft Min Rms Dbfs"
+          },
+          "soft_no_speech_threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soft No Speech Threshold"
+          },
+          "soft_logprob_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soft Logprob Threshold"
+          },
+          "soft_compression_ratio_threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soft Compression Ratio Threshold"
+          },
+          "drop_score_threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drop Score Threshold"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          },
+          "suspicious_phrases": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suspicious Phrases"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SttSettingsPatch",
+        "description": "Typed patch surface for persisted ``[stt]`` settings."
       },
       "TomlTable": {
         "additionalProperties": {

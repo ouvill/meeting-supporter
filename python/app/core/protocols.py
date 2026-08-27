@@ -4,13 +4,13 @@ import asyncio
 import queue
 from collections.abc import AsyncIterator, Callable, Coroutine, Iterable, Sequence
 from contextlib import AbstractAsyncContextManager
-from typing import TYPE_CHECKING, Never, Protocol, Self
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Never, Protocol, Self, final, runtime_checkable
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from app.audio.base import AudioFrame, RecordingResult
-    from app.core.config import SttConfig
 
 # ── Conversation Orchestrator protocols ──────────────────────────────────────
 
@@ -103,8 +103,6 @@ class SttStreamLike(Protocol):
 
     def shutdown(self) -> None: ...
 
-    def apply_config(self, cfg: "SttConfig") -> None: ...
-
 
 class SttState(Protocol):
     @property
@@ -127,6 +125,33 @@ class WebSocketLike(Protocol):
 # ── Secret store protocol ─────────────────────────────────────────────────────
 
 
+class SecretSnapshotError(RuntimeError):
+    """A transactional secret snapshot could not determine prior state."""
+
+
+class SecretRollbackError(RuntimeError):
+    """One or more secret-store compensation steps failed."""
+
+    failures: tuple[Exception, ...]
+
+    def __init__(self, failures: Iterable[Exception]) -> None:
+        self.failures = tuple(failures)
+        details = "; ".join(str(failure) for failure in self.failures)
+        super().__init__(f"secret rollback failed: {details}")
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class SecretSnapshot:
+    """Opaque, backend-typed state captured before a mutation.
+
+    A payload must retain the exact durable representation needed to reverse
+    its backend without including secret values in rollback diagnostics.
+    """
+
+    value: object
+
+
 class SecretStore(Protocol):
     def get(self, key: str) -> str | None: ...
     def set_secrets(self, updates: dict[str, str]) -> None: ...
@@ -136,12 +161,24 @@ class SecretStore(Protocol):
     def apply_secrets_to_env(self, keys: Iterable[str] | None = None) -> None: ...
 
 
+@runtime_checkable
+class TransactionalSecretStore(SecretStore, Protocol):
+    """Secret store supporting exact pre-mutation snapshot restoration."""
+
+    def snapshot(self, keys: Iterable[str]) -> SecretSnapshot: ...
+    def restore(self, snapshot: SecretSnapshot) -> None: ...
+
+
 __all__ = [
     "AgentLike",
     "AudioPipelineLike",
     "ConversationState",
     "LifecycledAgentLike",
+    "SecretRollbackError",
+    "SecretSnapshotError",
+    "SecretSnapshot",
     "SecretStore",
+    "TransactionalSecretStore",
     "StreamLike",
     "SttState",
     "SttStreamLike",

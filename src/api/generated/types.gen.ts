@@ -60,6 +60,22 @@ export type AgentSettingsPayload = {
   info_enabled?: boolean | null;
 };
 
+/**
+ * AudioSettingsPatch
+ *
+ * Typed patch surface for persisted ``[audio]`` settings.
+ */
+export type AudioSettingsPatch = {
+  /**
+   * Sample Rate
+   */
+  sample_rate?: number | null;
+  /**
+   * Max Session Seconds
+   */
+  max_session_seconds?: number | null;
+};
+
 export type BillingOwner = "app" | "external_subscription" | "user" | "none";
 
 /**
@@ -1017,6 +1033,29 @@ export type SecretsStatus = {
 };
 
 /**
+ * SettingsConflictDetail
+ */
+export type SettingsConflictDetail = {
+  /**
+   * Code
+   */
+  code: "AUDIO_SETTINGS_LOCKED";
+  /**
+   * Message
+   */
+  message: string;
+};
+
+/**
+ * SettingsConflictResponse
+ *
+ * Structured response returned when audio settings are locked.
+ */
+export type SettingsConflictResponse = {
+  detail: SettingsConflictDetail;
+};
+
+/**
  * SettingsResponse
  *
  * Full settings object returned to the frontend.
@@ -1058,18 +1097,8 @@ export type SettingsSaveRequest = {
   agents?: AgentSettingsPayload | null;
   reply?: ReplySettingsPayload | null;
   secrets?: SecretsPayload | null;
-  /**
-   * Stt
-   */
-  stt?: {
-    [key: string]: unknown;
-  } | null;
-  /**
-   * Audio
-   */
-  audio?: {
-    [key: string]: unknown;
-  } | null;
+  stt?: SttSettingsPatch | null;
+  audio?: AudioSettingsPatch | null;
   /**
    * Context
    */
@@ -1181,6 +1210,134 @@ export type SpeechModelStatusResponse = {
    * Cancelable
    */
   cancelable: boolean;
+};
+
+/**
+ * SttSettingsPatch
+ *
+ * Typed patch surface for persisted ``[stt]`` settings.
+ */
+export type SttSettingsPatch = {
+  /**
+   * Backend
+   */
+  backend?: string | null;
+  /**
+   * Whisper Model
+   */
+  whisper_model?: string | null;
+  /**
+   * Deepgram Model
+   */
+  deepgram_model?: string | null;
+  /**
+   * Openai Model
+   */
+  openai_model?: string | null;
+  /**
+   * Vosk Model Path
+   */
+  vosk_model_path?: string | null;
+  /**
+   * Language
+   */
+  language?: string | null;
+  /**
+   * Vad Engine
+   */
+  vad_engine?: "silero" | "webrtc" | null;
+  /**
+   * Vad Sensitivity
+   */
+  vad_sensitivity?: number | null;
+  /**
+   * Silence Duration
+   */
+  silence_duration?: number | null;
+  /**
+   * Vad Aggressiveness
+   */
+  vad_aggressiveness?: number | null;
+  /**
+   * Device
+   */
+  device?: string | null;
+  /**
+   * Min Voiced Ms
+   */
+  min_voiced_ms?: number | null;
+  /**
+   * Min Voiced Ratio
+   */
+  min_voiced_ratio?: number | null;
+  /**
+   * Min Rms Dbfs
+   */
+  min_rms_dbfs?: number | null;
+  /**
+   * Decode No Speech Threshold
+   */
+  decode_no_speech_threshold?: number | null;
+  /**
+   * Decode Log Prob Threshold
+   */
+  decode_log_prob_threshold?: number | null;
+  /**
+   * Decode Compression Ratio Threshold
+   */
+  decode_compression_ratio_threshold?: number | null;
+  /**
+   * Hard Min Voiced Ms
+   */
+  hard_min_voiced_ms?: number | null;
+  /**
+   * Hard No Speech Threshold
+   */
+  hard_no_speech_threshold?: number | null;
+  /**
+   * Hard Logprob Threshold
+   */
+  hard_logprob_threshold?: number | null;
+  /**
+   * Hard Compression Ratio Threshold
+   */
+  hard_compression_ratio_threshold?: number | null;
+  /**
+   * Soft Min Voiced Ms
+   */
+  soft_min_voiced_ms?: number | null;
+  /**
+   * Soft Min Voiced Ratio
+   */
+  soft_min_voiced_ratio?: number | null;
+  /**
+   * Soft Min Rms Dbfs
+   */
+  soft_min_rms_dbfs?: number | null;
+  /**
+   * Soft No Speech Threshold
+   */
+  soft_no_speech_threshold?: number | null;
+  /**
+   * Soft Logprob Threshold
+   */
+  soft_logprob_threshold?: number | null;
+  /**
+   * Soft Compression Ratio Threshold
+   */
+  soft_compression_ratio_threshold?: number | null;
+  /**
+   * Drop Score Threshold
+   */
+  drop_score_threshold?: number | null;
+  /**
+   * Temperature
+   */
+  temperature?: number | null;
+  /**
+   * Suspicious Phrases
+   */
+  suspicious_phrases?: Array<string> | null;
 };
 
 export type TomlTable = {
@@ -1435,6 +1592,10 @@ export type SaveSettingsApiSettingsPostData = {
 };
 
 export type SaveSettingsApiSettingsPostErrors = {
+  /**
+   * Conflict
+   */
+  409: SettingsConflictResponse;
   /**
    * Validation Error
    */

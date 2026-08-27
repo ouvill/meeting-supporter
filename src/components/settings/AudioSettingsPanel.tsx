@@ -9,10 +9,11 @@ import {
 } from "./ApiConnectionControl";
 import { SpeechModelPreparationCard } from "./SpeechModelPreparationCard";
 import { FieldRow, SettingsCard, SettingsPage } from "./SettingsPrimitives";
-import type {
-  ConnectionUiState,
-  SettingsFieldErrors,
-  SettingsForm,
+import {
+  isVadEngine,
+  type ConnectionUiState,
+  type SettingsFieldErrors,
+  type SettingsForm,
 } from "./types";
 
 const CLOUD_STT = {
@@ -26,6 +27,7 @@ interface Props {
   errors: SettingsFieldErrors;
   speechModel: SpeechModelController;
   speechModelActionsDisabled?: boolean;
+  audioSettingsLocked?: boolean;
   managedStt: ManagedSttAvailability;
   onManageAccount: () => void;
   connectionStates: Record<ConnectionProvider, ConnectionUiState>;
@@ -51,6 +53,7 @@ export function AudioSettingsPanel({
   errors,
   speechModel,
   speechModelActionsDisabled = false,
+  audioSettingsLocked = false,
   managedStt,
   onManageAccount,
   connectionStates,
@@ -68,7 +71,9 @@ export function AudioSettingsPanel({
   update,
 }: Props) {
   const speechModelControlsDisabled =
-    speechModel.blocksSettingsSave || speechModelActionsDisabled;
+    audioSettingsLocked ||
+    speechModel.blocksSettingsSave ||
+    speechModelActionsDisabled;
   const cloudProvider =
     form.sttBackend in CLOUD_STT
       ? (form.sttBackend as keyof typeof CLOUD_STT)
@@ -81,6 +86,15 @@ export function AudioSettingsPanel({
       title="音声"
       description="会議の音声を文字にする方法と、発話の区切り方を設定します。端末内で処理する方法をおすすめします。"
     >
+      {audioSettingsLocked && (
+        <InlineNotice tone="warning">
+          会議中は音声認識の設定を変更できません。会議を終了してから変更してください。
+        </InlineNotice>
+      )}
+      <fieldset
+        disabled={audioSettingsLocked}
+        className="m-0 min-w-0 space-y-5 border-0 p-0"
+      >
       <SettingsCard title="聞き取り方法">
         <div className="space-y-4">
           <FieldRow
@@ -206,7 +220,7 @@ export function AudioSettingsPanel({
       {usesLocalSpeechModel && (
         <SpeechModelPreparationCard
           model={speechModel}
-          startDisabled={speechModelActionsDisabled}
+          startDisabled={speechModelActionsDisabled || audioSettingsLocked}
         />
       )}
       <SettingsCard
@@ -220,7 +234,13 @@ export function AudioSettingsPanel({
           >
             <select
               value={form.sttVadEngine}
-              onChange={(event) => update("sttVadEngine", event.target.value)}
+              disabled={audioSettingsLocked}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (isVadEngine(value)) {
+                  update("sttVadEngine", value);
+                }
+              }}
               className="field"
               aria-label="声の検出方法"
             >
@@ -237,6 +257,7 @@ export function AudioSettingsPanel({
                 type="range"
                 aria-label="無音判定（秒）"
                 value={form.sttSilence}
+                disabled={audioSettingsLocked}
                 min={0.1}
                 max={5}
                 step={0.1}
@@ -260,6 +281,7 @@ export function AudioSettingsPanel({
                   type="range"
                   aria-label="Silero音声判定しきい値"
                   value={form.sttVadSensitivity}
+                  disabled={audioSettingsLocked}
                   min={0.05}
                   max={0.95}
                   step={0.05}
@@ -277,6 +299,7 @@ export function AudioSettingsPanel({
             <FieldRow label="声の検出感度">
               <select
                 value={form.sttVad}
+                disabled={audioSettingsLocked}
                 onChange={(event) =>
                   update("sttVad", Number(event.target.value))
                 }
@@ -292,6 +315,7 @@ export function AudioSettingsPanel({
           )}
         </div>
       </SettingsCard>
+      </fieldset>
     </SettingsPage>
   );
 }

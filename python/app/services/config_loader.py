@@ -28,13 +28,16 @@ from app.core.config import (
     AgentSettings,
     AiRouteAssignments,
     DataLocation,
+    EffectiveAudioSttConfig,
     ProviderDefinition,
     ProviderKind,
     RouteDefinition,
     RouteRuntime,
     SttConfig,
     UsageBudgetConfig,
+    VadEngine,
     _read_agent_settings,
+    normalize_audio_stt_config,
 )
 from app.services.settings_store import SettingsStore
 
@@ -66,6 +69,55 @@ def _parse_data_location(value: object) -> DataLocation:
     if value in valid:
         return value  # type: ignore[return-value]
     raise ValueError(f"未知の data_location です: {value!r}")
+
+
+def _parse_vad_engine(value: object) -> VadEngine:
+    if value == "silero":
+        return "silero"
+    if value == "webrtc":
+        return "webrtc"
+    raise ValueError(f"未知のVADエンジン: {value!r}")
+
+
+def _validate_effective_audio_stt_ranges(config: EffectiveAudioSttConfig) -> EffectiveAudioSttConfig:
+    """Fail closed when persisted audio/STT numbers cannot pass the settings API."""
+
+    stt = config.stt
+    invalid_fields = (
+        ("audio.sample_rate", not 0 < config.audio_sample_rate <= 192_000),
+        ("audio.max_session_seconds", not 0 < config.audio_max_session_seconds <= 60),
+        ("stt.vad_sensitivity", not 0.05 <= stt.vad_sensitivity <= 0.95),
+        ("stt.silence_duration", not 0.1 <= stt.silence_duration <= 5.0),
+        ("stt.vad_aggressiveness", not 0 <= stt.vad_aggressiveness <= 3),
+        ("stt.min_voiced_ms", stt.min_voiced_ms < 0),
+        ("stt.min_voiced_ratio", not 0.0 <= stt.min_voiced_ratio <= 1.0),
+        ("stt.decode_no_speech_threshold", not 0.0 <= stt.decode_no_speech_threshold <= 1.0),
+        ("stt.decode_compression_ratio_threshold", stt.decode_compression_ratio_threshold <= 0.0),
+        ("stt.hard_min_voiced_ms", stt.hard_min_voiced_ms < 0),
+        ("stt.hard_no_speech_threshold", not 0.0 <= stt.hard_no_speech_threshold <= 1.0),
+        ("stt.hard_compression_ratio_threshold", stt.hard_compression_ratio_threshold <= 0.0),
+        ("stt.soft_min_voiced_ms", stt.soft_min_voiced_ms < 0),
+        ("stt.soft_min_voiced_ratio", not 0.0 <= stt.soft_min_voiced_ratio <= 1.0),
+        ("stt.soft_no_speech_threshold", not 0.0 <= stt.soft_no_speech_threshold <= 1.0),
+        ("stt.soft_compression_ratio_threshold", stt.soft_compression_ratio_threshold <= 0.0),
+        ("stt.drop_score_threshold", not 0.0 <= stt.drop_score_threshold <= 1.0),
+        ("stt.temperature", stt.temperature < 0.0),
+    )
+    for field_name, invalid in invalid_fields:
+        if invalid:
+            raise ValueError(f"{field_name} is outside the supported settings range")
+    return config
+
+
+def _parse_str_tuple(value: object, field_name: str) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{field_name} must be a list of strings")
+    result: list[str] = []
+    for item in value:  # pyright: ignore[reportUnknownVariableType]
+        if not isinstance(item, str):
+            raise ValueError(f"{field_name} must be a list of strings")
+        result.append(item)
+    return tuple(result)
 
 
 def _coerce_str_list(value: object) -> list[str] | None:
@@ -326,7 +378,6 @@ class ConfigLoader:
         # STT
         stt_backend = cfg_get("stt", "backend", "whisper")
         sample_rate = cfg_get("audio", "sample_rate", 16000)
-        chunk_size = int(sample_rate * 0.1)
 
         legacy_min_voiced_ms = cfg_get("stt", "min_voiced_ms", 240)
         legacy_min_voiced_ratio = cfg_get("stt", "min_voiced_ratio", 0.35)
@@ -348,7 +399,7 @@ class ConfigLoader:
             openai_model=cfg_get("stt", "openai_model", "gpt-4o-transcribe"),
             vosk_model_path=cfg_get("stt", "vosk_model_path", "vosk-model-small-ja-0.22"),
             language=cfg_get("stt", "language", "ja"),
-            vad_engine=cfg_get("stt", "vad_engine", "silero"),
+            vad_engine=_parse_vad_engine(cfg_get("stt", "vad_engine", "silero")),
             vad_sensitivity=cfg_get("stt", "vad_sensitivity", 0.4),
             silence_duration=cfg_get("stt", "silence_duration", 0.8),
             vad_aggressiveness=cfg_get("stt", "vad_aggressiveness", 2),
@@ -356,7 +407,7 @@ class ConfigLoader:
             remote_url=remote_url,
             remote_token=remote_token,
             sample_rate=sample_rate,
-            chunk_size=chunk_size,
+            chunk_size=1,
             min_voiced_ms=legacy_min_voiced_ms,
             min_voiced_ratio=legacy_min_voiced_ratio,
             min_rms_dbfs=legacy_min_rms_dbfs,
@@ -379,7 +430,10 @@ class ConfigLoader:
             ),
             drop_score_threshold=cfg_get("stt", "drop_score_threshold", 0.65),
             temperature=cfg_get("stt", "temperature", 0.0),
-            suspicious_phrases=tuple(cfg_get("stt", "suspicious_phrases", legacy_phrases)),
+            suspicious_phrases=_parse_str_tuple(
+                cfg_get("stt", "suspicious_phrases", legacy_phrases),
+                "stt.suspicious_phrases",
+            ),
         )
 
         usage_budget = UsageBudgetConfig(
@@ -387,8 +441,20 @@ class ConfigLoader:
             monthly_limit_jpy=float(cfg_get("usage_budget", "monthly_limit_jpy", 0.0)),
         )
 
-        # Audio
+        # Audio/STT values are normalized together so lifecycle comparisons use
+        # one canonical representation; unsupported ranges and VAD/rate pairs fail at load.
         max_session_seconds = cfg_get("audio", "max_session_seconds", 55)
+        effective_audio_stt = _validate_effective_audio_stt_ranges(
+            normalize_audio_stt_config(
+                stt_config,
+                audio_sample_rate=sample_rate,
+                audio_max_session_seconds=max_session_seconds,
+            )
+        )
+        stt_config = effective_audio_stt.stt
+        sample_rate = effective_audio_stt.audio_sample_rate
+        max_session_seconds = effective_audio_stt.audio_max_session_seconds
+        chunk_size = effective_audio_stt.audio_chunk_size
 
         # MCP servers
         mcp_config_path = user_data_dir / "mcp.json"

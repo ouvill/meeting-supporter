@@ -181,6 +181,46 @@ class TestFileSecretStore:
 
         assert os.environ.get("GEMINI_API_KEY") == "env-key"
 
+    def test_restore_reproduces_exact_file_bytes_and_environment(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = tmp_path / "secrets.toml"
+        original_file = (
+            b"# synthetic formatting preserved across rollback\n"
+            b'OPENAI_API_KEY    = "synthetic-openai-original"\n'
+            b"\n"
+            b'DEEPGRAM_API_KEY = "synthetic-deepgram-original"  # harmless comment\n'
+        )
+        _ = path.write_bytes(original_file)
+        store = FileSecretStore(path)
+        monkeypatch.setenv("OPENAI_API_KEY", "synthetic-environment-original")
+        snapshot = store.snapshot(["OPENAI_API_KEY"])
+
+        store.delete("OPENAI_API_KEY")
+        store.restore(snapshot)
+
+        assert path.read_bytes() == original_file
+        assert os.environ.get("OPENAI_API_KEY") == "synthetic-environment-original"
+        assert os.environ.get("DEEPGRAM_API_KEY") is None
+        monkeypatch.delenv("OPENAI_API_KEY")
+        assert store.get("OPENAI_API_KEY") == "synthetic-openai-original"
+        assert store.get("DEEPGRAM_API_KEY") == "synthetic-deepgram-original"
+
+    def test_restore_file_failure_still_restores_runtime_environment(self, tmp_path: Path) -> None:
+        path = tmp_path / "secrets.toml"
+        store = FileSecretStore(path)
+        store.set_secrets({"GEMINI_API_KEY": "synthetic-original"})
+        snapshot = store.snapshot(["GEMINI_API_KEY"])
+        store.set_secrets({"GEMINI_API_KEY": "synthetic-replacement"})
+
+        with (
+            patch("app.services.secret_store.atomic_write_bytes", side_effect=OSError("injected file failure")),
+            pytest.raises(RuntimeError, match="rollback"),
+        ):
+            store.restore(snapshot)
+
+        assert os.environ.get("GEMINI_API_KEY") == "synthetic-original"
+
     # ── Internals tests (white-box: must call _write / _load) ───────────
 
     def test_original_file_preserved_on_write_failure(self, tmp_path: Path) -> None:
@@ -291,6 +331,61 @@ class TestCredentialSecretStore:
         assert fallback.get("ANTHROPIC_API_KEY") is None
         assert os.getenv("ANTHROPIC_API_KEY") is None
         assert store.status("ANTHROPIC_API_KEY") is False
+
+    def test_restore_surfaces_keyring_set_failure_and_retains_failed_backend(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = tmp_path / "secrets.toml"
+        original_file = (
+            b"# synthetic fallback formatting preserved across rollback\n"
+            b'OPENAI_API_KEY = "synthetic-unrelated-fallback"\n'
+            b"\n"
+            b'DEEPGRAM_API_KEY    = "synthetic-fallback-original"  # harmless comment\n'
+        )
+        _ = path.write_bytes(original_file)
+        fallback = FileSecretStore(path)
+        keyring = _FakeKeyring({"OPENAI_API_KEY": "synthetic-original"})
+        store = CredentialSecretStore(fallback=fallback, keyring_client=keyring)
+        monkeypatch.setenv("OPENAI_API_KEY", "synthetic-environment-original")
+        snapshot = store.snapshot(["OPENAI_API_KEY"])
+        store.set_secrets({"OPENAI_API_KEY": "synthetic-replacement"})
+        fallback.delete("OPENAI_API_KEY")
+        keyring.fail_writes = True
+
+        with pytest.raises(RuntimeError, match="rollback"):
+            store.restore(snapshot)
+
+        assert keyring.passwords["OPENAI_API_KEY"] == "synthetic-replacement"
+        assert os.environ.get("OPENAI_API_KEY") == "synthetic-environment-original"
+        assert path.read_bytes() == original_file
+
+        keyring.fail_writes = False
+        store.set_secrets({"ANTHROPIC_API_KEY": "synthetic-fallback-after-failure"})
+        assert "ANTHROPIC_API_KEY" not in keyring.passwords
+        monkeypatch.delenv("ANTHROPIC_API_KEY")
+        assert FileSecretStore(path).get("ANTHROPIC_API_KEY") == "synthetic-fallback-after-failure"
+
+    def test_restore_surfaces_keyring_delete_failure_and_retains_failed_backend(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = tmp_path / "secrets.toml"
+        keyring = _FakeKeyring()
+        store = CredentialSecretStore(fallback=FileSecretStore(path), keyring_client=keyring)
+        snapshot = store.snapshot(["ANTHROPIC_API_KEY"])
+        store.set_secrets({"ANTHROPIC_API_KEY": "synthetic-new-secret"})
+        keyring.fail_deletes = True
+
+        with pytest.raises(RuntimeError, match="rollback"):
+            store.restore(snapshot)
+
+        assert keyring.passwords["ANTHROPIC_API_KEY"] == "synthetic-new-secret"
+        assert os.environ.get("ANTHROPIC_API_KEY") is None
+
+        keyring.fail_deletes = False
+        store.set_secrets({"OPENAI_API_KEY": "synthetic-fallback-after-failure"})
+        assert "OPENAI_API_KEY" not in keyring.passwords
+        monkeypatch.delenv("OPENAI_API_KEY")
+        assert FileSecretStore(path).get("OPENAI_API_KEY") == "synthetic-fallback-after-failure"
 
     def test_secret_store_backend_file_returns_file_store(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

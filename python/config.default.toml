@@ -38,9 +38,9 @@ info_enabled = true
 
 
 [stt]
-# STT バックエンド:
-#   "whisper"  = faster-whisper + webrtcvad（ローカル処理・高精度）
-#   "vosk"     = Vosk + webrtcvad（ローカル処理・軽量、アプリの音声設定からモデル取得可能）
+# STT バックエンド（VADエンジンは vad_engine で独立して選択）:
+#   "whisper"  = faster-whisper（ローカル処理・高精度）
+#   "vosk"     = Vosk（ローカル処理・軽量、アプリの音声設定からモデル取得可能）
 #   "deepgram" = Deepgram クラウド STT（要 DEEPGRAM_API_KEY 環境変数）
 #   "openai"   = OpenAI クラウド STT（要 OPENAI_API_KEY 環境変数）
 #   "xai"      = Grok / xAI クラウド STT（要 XAI_API_KEY 環境変数）

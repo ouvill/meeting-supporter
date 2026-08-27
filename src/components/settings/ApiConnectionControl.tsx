@@ -95,6 +95,7 @@ export function ApiConnectionControl({
   const helpId = useId();
   const connection = CONNECTIONS[provider];
   const expanded = !hasSavedKey || editing || draftKey.trim().length > 0;
+  const interactionsDisabled = disabled || testing;
   useEffect(() => {
     if (!expanded || state === "pending-delete") setShowSecret(false);
   }, [expanded, state]);
@@ -137,7 +138,7 @@ export function ApiConnectionControl({
             size="sm"
             variant="secondary"
             onClick={onCancelDelete}
-            disabled={testing}
+            disabled={interactionsDisabled}
             aria-label={`${connection.label} APIキーの削除を取り消す`}
             className="mt-3"
           >
@@ -162,14 +163,14 @@ export function ApiConnectionControl({
               value={draftKey}
               onChange={(event) => onDraftChange(event.target.value)}
               placeholder="APIキーを入力"
-              disabled={testing}
+              disabled={interactionsDisabled}
               className="field min-w-0 flex-1"
             />
             <Button
               size="md"
               variant="secondary"
               onClick={() => setShowSecret((value) => !value)}
-              disabled={testing}
+              disabled={interactionsDisabled}
               aria-label={showSecret ? "APIキーを隠す" : "APIキーを表示"}
               aria-pressed={showSecret}
               className="px-3"
@@ -192,7 +193,7 @@ export function ApiConnectionControl({
                 setShowSecret(false);
                 onCancelEdit();
               }}
-              disabled={testing}
+              disabled={interactionsDisabled}
             >
               変更をキャンセル
             </Button>
@@ -207,7 +208,7 @@ export function ApiConnectionControl({
             size="md"
             variant="secondary"
             onClick={onBeginEdit}
-            disabled={testing}
+            disabled={interactionsDisabled}
             aria-label={`${connection.label} APIキーを変更`}
             className="w-full max-sm:min-h-11 sm:w-auto"
           >
@@ -228,7 +229,7 @@ export function ApiConnectionControl({
                 onRequestDelete();
                 setConfirmingDelete(false);
               }}
-              disabled={testing}
+              disabled={interactionsDisabled}
               className="w-full max-sm:min-h-11 sm:w-auto"
             >
               削除予定にする
@@ -237,7 +238,7 @@ export function ApiConnectionControl({
               size="md"
               variant="secondary"
               onClick={() => setConfirmingDelete(false)}
-              disabled={testing}
+              disabled={interactionsDisabled}
               className="w-full max-sm:min-h-11 sm:w-auto"
             >
               キャンセル
@@ -260,7 +261,7 @@ export function ApiConnectionControl({
             aria-label={`${connection.label} ${testing ? "確認中" : testLabel}`}
             onClick={onTest}
             disabled={
-              disabled || testing || (!hasSavedKey && !draftKey.trim())
+              interactionsDisabled || (!hasSavedKey && !draftKey.trim())
             }
             loading={testing}
             className="w-full max-sm:min-h-11 sm:w-auto"
@@ -272,7 +273,7 @@ export function ApiConnectionControl({
               size="md"
               variant="quiet"
               onClick={() => setConfirmingDelete(true)}
-              disabled={testing}
+              disabled={interactionsDisabled}
               aria-label={`${connection.label} APIキーを削除`}
               className="w-full text-danger max-sm:min-h-11 sm:ml-auto sm:w-auto"
             >

@@ -1,4 +1,4 @@
-"""Tests for app.stt.pipeline — SttPipeline lifecycle and hot-swap."""
+"""Tests for app.stt.pipeline lifecycle."""
 
 import asyncio
 import queue
@@ -474,144 +474,22 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(ready_called.is_set())
         self.assertFalse(error_called.is_set())
 
-
-class SttPipelineHotSwapTest(unittest.IsolatedAsyncioTestCase):
-    def _make_config(self, backend: str, **kwargs: object) -> SttConfig:
-        defaults: dict[str, object] = {
-            "whisper_model": "tiny",
-            "deepgram_model": "nova-2",
-            "language": "ja",
-            "vad_sensitivity": 0.5,
-            "vad_engine": "webrtc",
-            "silence_duration": 0.5,
-            "vad_aggressiveness": 2,
-            "device": "default",
-            "remote_url": "",
-            "remote_token": "",
-            "sample_rate": 16000,
-            "chunk_size": 960,
-        }
-        defaults.update(kwargs)
-        return SttConfig(backend=backend, **defaults)  # pyright: ignore[reportArgumentType]
-
-    def _make_pipeline(self, backend: str = "deepgram", **kwargs: object) -> SttPipeline:
-        stt_q = queue.Queue[_AudioFrame | None]()
-        return SttPipeline(
-            stt_queue=cast("queue.Queue[AudioFrame | None]", stt_q),
-            cfg=self._make_config(backend, **kwargs),
-            role="other",
-            broadcast_fn=FakeBroadcast(),
-            handle_speech_fn=_noop_handle_speech,
-        )
-
-    async def test_apply_config_vad_swap(self) -> None:
+    async def test_start_failure_rolls_back_and_allows_retry(self) -> None:
         p = self._make_pipeline("deepgram")
         loop = asyncio.get_running_loop()
-        p.start(loop)
-        old_pipeline = p._pipeline  # pyright: ignore[reportPrivateUsage]
-        assert old_pipeline is not None
-        old_vad = old_pipeline.stages[0]
 
-        new_cfg = self._make_config("deepgram", vad_aggressiveness=3)
-        p.apply_config(new_cfg)
+        with patch("app.stt.pipeline._make_vad_engine", side_effect=RuntimeError("invalid VAD")):
+            with self.assertRaisesRegex(RuntimeError, "invalid VAD"):
+                p.start(loop)
 
-        new_pipeline = p._pipeline  # pyright: ignore[reportPrivateUsage]
-        assert new_pipeline is not None
-        new_vad = new_pipeline.stages[0]
-
-        self.assertIs(new_pipeline, old_pipeline)
-        self.assertIsNot(new_vad, old_vad)
-        p.stop()
-
-    async def test_apply_config_switches_from_webrtc_to_silero_threshold(self) -> None:
-        p = self._make_pipeline("deepgram")
-        loop = asyncio.get_running_loop()
-        p.start(loop)
-
-        new_cfg = self._make_config(
-            "deepgram",
-            vad_engine="silero",
-            vad_sensitivity=0.65,
-        )
-        with patch(
-            "app.stt.pipeline.SileroVadEngine",
-            return_value=_MarkedVadEngine(2),
-        ) as silero:
-            p.apply_config(new_cfg)
-
-        silero.assert_called_once_with(0.65)
-        p.stop()
-
-    async def test_apply_config_stt_backend_swap(self) -> None:
-        p = self._make_pipeline("deepgram")
-        loop = asyncio.get_running_loop()
-        p.start(loop)
-        old_pipeline = p._pipeline  # pyright: ignore[reportPrivateUsage]
-        assert old_pipeline is not None
-        old_stt = old_pipeline.stages[1]
-
-        new_cfg = self._make_config("remote")
-        p.apply_config(new_cfg)
-
-        new_pipeline = p._pipeline  # pyright: ignore[reportPrivateUsage]
-        assert new_pipeline is not None
-        new_stt = new_pipeline.stages[1]
-
-        self.assertIs(new_pipeline, old_pipeline)
-        self.assertIsNot(new_stt, old_stt)
-        p.stop()
-
-    async def test_apply_config_openai_model_swap(self) -> None:
-        p = self._make_pipeline("openai", openai_model="gpt-4o-transcribe")
-        p.start(asyncio.get_running_loop())
-        old_pipeline = p._pipeline  # pyright: ignore[reportPrivateUsage]
-        assert old_pipeline is not None
-        old_stt = old_pipeline.stages[1]
-
-        p.apply_config(self._make_config("openai", openai_model="gpt-4o-mini-transcribe"))
-
-        new_pipeline = p._pipeline  # pyright: ignore[reportPrivateUsage]
-        assert new_pipeline is not None
-        self.assertIsNot(new_pipeline.stages[1], old_stt)
-        p.stop()
-
-    async def test_apply_config_whisper_acquire_release(self) -> None:
-        p = self._make_pipeline("whisper")
-        loop = asyncio.get_running_loop()
-
-        with patch("app.stt.pipeline.WhisperEngine") as mock_engine:
-            p.initialize(loop)
-            p.start(loop)
-            acquire_calls = mock_engine.acquire.call_count  # pyright: ignore[reportAny]
-
-            # swap to deepgram should release whisper
-            new_cfg = self._make_config("deepgram")
-            p.apply_config(new_cfg)
-            mock_engine.release.assert_called_once()  # pyright: ignore[reportAny]
-            self.assertFalse(p._whisper_initialized)  # pyright: ignore[reportPrivateUsage]
-
-            # swap back to whisper should acquire again
-            newer_cfg = self._make_config("whisper")
-            p.apply_config(newer_cfg)
-            self.assertEqual(mock_engine.acquire.call_count, acquire_calls + 1)  # pyright: ignore[reportAny]
-            self.assertTrue(p._whisper_initialized)  # pyright: ignore[reportPrivateUsage]
-
-            p.stop()
-
-    async def test_apply_config_noop_when_not_started(self) -> None:
-        p = self._make_pipeline("deepgram")
-        new_cfg = self._make_config("remote")
-        p.apply_config(new_cfg)
+        self.assertFalse(p._started)  # pyright: ignore[reportPrivateUsage]
         self.assertIsNone(p._pipeline)  # pyright: ignore[reportPrivateUsage]
+        self.assertIsNone(p._publisher)  # pyright: ignore[reportPrivateUsage]
+        self.assertIsNone(p._loop)  # pyright: ignore[reportPrivateUsage]
 
-    async def test_apply_config_noop_when_same_config(self) -> None:
-        p = self._make_pipeline("deepgram")
-        loop = asyncio.get_running_loop()
-        p.start(loop)
-        old_pipeline = p._pipeline  # pyright: ignore[reportPrivateUsage]
-
-        p.apply_config(self._make_config("deepgram"))
-        self.assertIs(p._pipeline, old_pipeline)  # pyright: ignore[reportPrivateUsage]
+        with patch("app.stt.pipeline._make_vad_engine", return_value=_MarkedVadEngine(2)):
+            p.start(loop)
+        self.assertTrue(p._started)  # pyright: ignore[reportPrivateUsage]
         p.stop()
 
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import type { AiRoutesController } from "../hooks/useAiRoutes";
 import { useManagedSttAvailability } from "../hooks/useManagedService";
@@ -10,6 +10,7 @@ import { AboutSettingsPanel } from "./settings/AboutSettingsPanel";
 import { AudioSettingsPanel } from "./settings/AudioSettingsPanel";
 import { PrivacySettingsPanel } from "./settings/PrivacySettingsPanel";
 import { SettingsNavigation } from "./settings/SettingsPrimitives";
+import type { ConnectionProvider } from "./settings/ApiConnectionControl";
 import { SupportMethodPanel } from "./settings/SupportMethodPanel";
 import type { SettingsCategory } from "./settings/types";
 import { useSettingsForm } from "./settings/useSettingsForm";
@@ -18,6 +19,7 @@ interface Props {
   onClose: () => void;
   routes: AiRoutesController;
   restoreFocusTo?: HTMLElement | null;
+  audioSettingsLocked?: boolean;
 }
 
 const CATEGORY_LABELS: Record<SettingsCategory, string> = {
@@ -28,8 +30,21 @@ const CATEGORY_LABELS: Record<SettingsCategory, string> = {
   advanced: "詳細設定",
   about: "このアプリについて",
 };
-export function SettingsModal({ onClose, routes, restoreFocusTo }: Props) {
-  const controller = useSettingsForm({ routes });
+
+const CONNECTION_PROVIDER_BY_STT_BACKEND: Partial<
+  Record<string, ConnectionProvider>
+> = {
+  deepgram: "deepgram",
+  openai: "openai",
+  xai: "xai",
+};
+export function SettingsModal({
+  onClose,
+  routes,
+  restoreFocusTo,
+  audioSettingsLocked = false,
+}: Props) {
+  const controller = useSettingsForm({ routes, audioSettingsLocked });
   const {
     form,
     activeCategory,
@@ -49,6 +64,7 @@ export function SettingsModal({ onClose, routes, restoreFocusTo }: Props) {
     connectionTestingProvider,
     connectionTestMessages,
     speechModel,
+    currentSttBackend,
     selectedRoute,
     connectionStates,
     updateForm,
@@ -72,6 +88,17 @@ export function SettingsModal({ onClose, routes, restoreFocusTo }: Props) {
     routes.reload,
   );
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
+  const lockedConnectionProviders = useMemo(() => {
+    const providers = new Set<ConnectionProvider>();
+    const provider = CONNECTION_PROVIDER_BY_STT_BACKEND[currentSttBackend];
+    if (audioSettingsLocked && provider) providers.add(provider);
+    return providers;
+  }, [audioSettingsLocked, currentSttBackend]);
+  const managedActionsLocked =
+    audioSettingsLocked &&
+    (!loaded || currentSttBackend === "managed");
+  const speechModelBlocksSave =
+    speechModel.blocksSettingsSave && !audioSettingsLocked;
 
   const requestClose = () => {
     if (!loaded || loadingError || !dirty) {
@@ -146,6 +173,7 @@ export function SettingsModal({ onClose, routes, restoreFocusTo }: Props) {
               ) : activeCategory === "account" ? (
                 <AccountSettingsPanel
                   offered={managedStt.offered}
+                  managedActionsLocked={managedActionsLocked}
                   onChanged={() => {
                     void managedStt.refresh();
                     void routes.reload();
@@ -154,6 +182,10 @@ export function SettingsModal({ onClose, routes, restoreFocusTo }: Props) {
               ) : activeCategory === "support" ? (
                 <SupportMethodPanel
                   routes={routes.routes}
+                  lockedConnectionProviders={lockedConnectionProviders}
+                  managedRouteActionsLocked={
+                    audioSettingsLocked && currentSttBackend === "managed"
+                  }
                   assignments={routes.draftAssignments}
                   loading={routes.loading}
                   manualReloadStatus={routes.manualReloadStatus}
@@ -195,6 +227,7 @@ export function SettingsModal({ onClose, routes, restoreFocusTo }: Props) {
                   errors={fieldErrors}
                   speechModel={speechModel}
                   speechModelActionsDisabled={busy}
+                  audioSettingsLocked={audioSettingsLocked}
                   connectionStates={connectionStates}
                   secretsStatus={form.secretsStatus}
                   secretInputs={form.secretInputs}
@@ -230,6 +263,7 @@ export function SettingsModal({ onClose, routes, restoreFocusTo }: Props) {
                   acpRoute={routes.routes.find((route) => route.id === "acp")}
                   ollamaTesting={ollamaTesting}
                   ollamaMessage={ollamaMessage}
+                  audioSettingsLocked={audioSettingsLocked}
                   ollamaMessageIsError={ollamaMessageIsError}
                   update={updateForm}
                   onTestOllama={() => {
@@ -263,7 +297,7 @@ export function SettingsModal({ onClose, routes, restoreFocusTo }: Props) {
                       : ""}
                   </span>
                 </button>
-              ) : speechModel.blocksSettingsSave ? (
+              ) : speechModelBlocksSave ? (
                 <p className="text-xs font-semibold text-warning" role="status">
                   {speechModel.checkingStatus
                     ? "音声認識データの準備状況を確認してから設定を保存してください"
@@ -295,7 +329,7 @@ export function SettingsModal({ onClose, routes, restoreFocusTo }: Props) {
                     void save();
                   }}
                   disabled={
-                    !loaded || routes.loading || speechModel.blocksSettingsSave
+                    !loaded || routes.loading || speechModelBlocksSave
                   }
                 >
                   保存
