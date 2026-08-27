@@ -1,8 +1,9 @@
 """Application state container."""
 
+import asyncio
 import os
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import override
 
 from app.core.protocols import ConversationState, SecretStore, SttStreamLike, TurnLike
@@ -47,6 +48,7 @@ class AppState(ConversationState):
     context_text: str = ""
     stt_initialized: bool = False
     stt_initializing: bool = False
+    audio_lifecycle_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
 
     @property
     @override

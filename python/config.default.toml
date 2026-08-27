@@ -38,9 +38,9 @@ info_enabled = true
 
 
 [stt]
-# STT バックエンド:
-#   "whisper"  = faster-whisper + webrtcvad（ローカル処理・高精度）
-#   "vosk"     = Vosk + webrtcvad（ローカル処理・軽量、アプリの音声設定からモデル取得可能）
+# STT バックエンド（VADエンジンは vad_engine で独立して選択）:
+#   "whisper"  = faster-whisper（ローカル処理・高精度）
+#   "vosk"     = Vosk（ローカル処理・軽量、アプリの音声設定からモデル取得可能）
 #   "deepgram" = Deepgram クラウド STT（要 DEEPGRAM_API_KEY 環境変数）
 #   "openai"   = OpenAI クラウド STT（要 OPENAI_API_KEY 環境変数）
 #   "xai"      = Grok / xAI クラウド STT（要 XAI_API_KEY 環境変数）
@@ -60,11 +60,13 @@ openai_model = "gpt-4o-transcribe"
 vosk_model_path = "vosk-model-small-ja-0.22"
 # 認識言語
 language = "ja"
-# Silero VAD 感度 (0.0〜1.0 / 高いほど検出しやすい) — stt_v2 では現在未使用
+# 声の検出方法: "silero"（高精度・Torch不要のint8 ONNX）/ "webrtc"（最軽量）
+vad_engine = "silero"
+# Silero VADの音声確率しきい値 (0.05〜0.95 / 高いほど雑音を除外)
 vad_sensitivity = 0.4
 # 発話後の無音でセグメント確定するまでの秒数 — VAD使用バックエンド
 silence_duration = 0.4
-# WebRTC VAD 積極度 (0〜3 / 高いほど非音声を積極的に除去) — ローカル/VAD使用バックエンド
+# WebRTC VAD 積極度 (0〜3 / 高いほど非音声を積極的に除去) — vad_engine = "webrtc" のみ
 vad_aggressiveness = 2
 # 推論デバイス — backend = "whisper" のみ: "cpu" / "cuda" / "auto"
 device = "auto"

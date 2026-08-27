@@ -40,10 +40,12 @@ function renderPanel(
     error?: string;
     replyEnabled?: boolean;
     replyAutoGenerate?: boolean;
+    managedRouteActionsLocked?: boolean;
   } = {},
 ) {
   const onReload = vi.fn();
   const onAssignmentChange = vi.fn();
+  const onRouteAction = vi.fn();
   const assignments: AiRouteDraftAssignments = {
     reply: null,
     info: null,
@@ -56,6 +58,7 @@ function renderPanel(
       assignments={assignments}
       loading={options.loading ?? false}
       manualReloadStatus={options.manualReloadStatus ?? "idle"}
+      managedRouteActionsLocked={options.managedRouteActionsLocked ?? false}
       error={options.error}
       replyEnabled={options.replyEnabled ?? true}
       replyAutoGenerate={options.replyAutoGenerate ?? false}
@@ -80,11 +83,11 @@ function renderPanel(
       onAssignmentChange={onAssignmentChange}
       onReplyEnabledChange={vi.fn()}
       onReplyAutoGenerateChange={vi.fn()}
-      onRouteAction={vi.fn()}
+      onRouteAction={onRouteAction}
       onReload={onReload}
     />,
   );
-  return { onReload, onAssignmentChange };
+  return { onReload, onAssignmentChange, onRouteAction };
 }
 
 describe("route metadata labels", () => {
@@ -218,6 +221,74 @@ describe("SupportMethodPanel", () => {
     expect(
       screen.getByRole("button", { name: "Codex CLIの入手方法を見る" }),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["sign_in", "ログイン"],
+    ["subscribe", "月額プランを申し込む"],
+    ["manage_billing", "支払いを確認"],
+  ] as const)(
+    "ignores the managed card %s action while managed route actions are locked",
+    (action, label) => {
+      const { onRouteAction } = renderPanel(
+        [
+          route({
+            id: "managed",
+            kind: "managed",
+            label: "Managed",
+            description: "Managed service",
+            data_location: "cloud",
+            readiness: "setup_required",
+            selectable: false,
+            action,
+          }),
+        ],
+        {},
+        { managedRouteActionsLocked: true },
+      );
+
+      const actionButton = screen.getByRole("button", { name: label });
+      expect(actionButton).toBeDisabled();
+      expect(screen.getByText("設定が必要")).toBeInTheDocument();
+      expect(screen.getByText("クラウド")).toBeInTheDocument();
+
+      fireEvent.click(actionButton);
+      expect(onRouteAction).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps an unrelated provider action available while managed route actions are locked", () => {
+    const codexRoute = route({
+      id: "codex",
+      kind: "subscription_app",
+      action: "login",
+    });
+    const { onRouteAction } = renderPanel(
+      [
+        route({
+          id: "managed",
+          kind: "managed",
+          label: "Managed",
+          description: "Managed service",
+          readiness: "setup_required",
+          selectable: false,
+          action: "subscribe",
+        }),
+        codexRoute,
+      ],
+      {},
+      { managedRouteActionsLocked: true },
+    );
+
+    expect(
+      screen.getByRole("button", { name: "月額プランを申し込む" }),
+    ).toBeDisabled();
+    const providerAction = screen.getByRole("button", { name: "ログイン" });
+    expect(providerAction).toBeEnabled();
+
+    fireEvent.click(providerAction);
+    expect(onRouteAction).toHaveBeenCalledOnce();
+    expect(onRouteAction).toHaveBeenCalledWith(codexRoute);
   });
 
   it("renders provider-specific API controls in known BYOK route cards", () => {

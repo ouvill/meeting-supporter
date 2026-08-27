@@ -9,6 +9,7 @@ import math
 import queue
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, cast, override
@@ -24,6 +25,7 @@ from app.core.types import HandleSpeechFn
 
 logger = logging.getLogger(__name__)
 _FRAME_MS = 30
+_PREROLL_MS = 150
 
 
 class _VoskModel(Protocol):
@@ -188,12 +190,14 @@ class VoskStage(PipelineStage):
     def _run(self) -> None:
         cfg = self._cfg
         silence_threshold = max(1, int(float(cfg.silence_duration) * 1000 / _FRAME_MS))
+        preroll: deque[bytes] = deque(maxlen=max(1, _PREROLL_MS // _FRAME_MS))
 
         speech_buf: list[bytes] = []
         silence_frames = 0
         in_speech = False
         voiced_frames = 0
         segment_frames = 0
+        prepended_samples = 0
 
         while not self._stop_event.is_set():
             try:
@@ -202,40 +206,52 @@ class VoskStage(PipelineStage):
                 continue
             if frame is None:
                 if in_speech:
-                    self._finalize_segment(cfg, speech_buf, voiced_frames, segment_frames)
+                    self._finalize_segment(cfg, speech_buf, voiced_frames, segment_frames, prepended_samples)
                 break
 
             if frame.is_speech:
+                if not in_speech:
+                    pre_speech = tuple(preroll)
+                    speech_buf.extend(pre_speech)
+                    prepended_samples = sum(len(pcm) // 2 for pcm in pre_speech)
+                    in_speech = True
+                    self._publisher.publish(SttInterimMsg(role=self._role, text="…"))
                 speech_buf.append(frame.pcm)
                 voiced_frames += 1
                 segment_frames += 1
                 silence_frames = 0
-                if not in_speech:
-                    in_speech = True
-                    self._publisher.publish(SttInterimMsg(role=self._role, text="…"))
             elif in_speech:
                 silence_frames += 1
                 speech_buf.append(frame.pcm)
                 segment_frames += 1
                 if silence_frames >= silence_threshold:
-                    self._finalize_segment(cfg, speech_buf, voiced_frames, segment_frames)
+                    self._finalize_segment(cfg, speech_buf, voiced_frames, segment_frames, prepended_samples)
                     self._publisher.publish(SttInterimMsg(role=self._role, text=""))
                     speech_buf.clear()
                     in_speech = False
                     silence_frames = 0
                     voiced_frames = 0
                     segment_frames = 0
+                    prepended_samples = 0
+
+            preroll.append(frame.pcm)
 
     def _finalize_segment(
-        self, cfg: SttConfig, speech_buf: list[bytes], voiced_frames: int, segment_frames: int
+        self,
+        cfg: SttConfig,
+        speech_buf: list[bytes],
+        voiced_frames: int,
+        segment_frames: int,
+        prepended_samples: int,
     ) -> None:
         if not speech_buf:
             return
         pcm = b"".join(speech_buf)
         audio_np = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32767.0
+        segment_audio_np = audio_np[prepended_samples:]
         voiced_ms = voiced_frames * _FRAME_MS
         voiced_ratio = voiced_frames / max(1, segment_frames)
-        rms_dbfs = self._rms_dbfs(audio_np)
+        rms_dbfs = self._rms_dbfs(segment_audio_np)
         if not self._should_transcribe(cfg, voiced_ms, voiced_ratio, rms_dbfs):
             return
         try:

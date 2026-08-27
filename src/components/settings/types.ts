@@ -22,6 +22,12 @@ export function isConnectionUsable(state: ConnectionUiState): boolean {
   );
 }
 
+export type VadEngine = "silero" | "webrtc";
+
+export function isVadEngine(value: unknown): value is VadEngine {
+  return value === "silero" || value === "webrtc";
+}
+
 export interface ReplyStyleFormItem {
   id: string;
   label: string;
@@ -40,6 +46,8 @@ export interface SettingsForm {
   sttOpenaiModel: string;
   sttVoskModelPath: string;
   sttLang: string;
+  sttVadEngine: VadEngine;
+  sttVadSensitivity: number;
   sttVad: number;
   sttSilence: number;
   replyFeatureEnabled: boolean;
@@ -53,6 +61,20 @@ export interface SettingsForm {
   recordingCleanupCutoffDate: string;
   recordingCleanupMaxMegabytes: number;
 }
+
+export const STT_FORM_FIELDS = [
+  "sttBackend",
+  "sttWhisperModel",
+  "sttDeepgramModel",
+  "sttOpenaiModel",
+  "sttVoskModelPath",
+  "sttLang",
+  "sttVadEngine",
+  "sttVadSensitivity",
+  "sttVad",
+  "sttSilence",
+] as const satisfies readonly (keyof SettingsForm)[];
+
 
 export interface SettingsFieldErrors {
   support?: string;

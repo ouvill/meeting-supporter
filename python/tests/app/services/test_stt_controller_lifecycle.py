@@ -3,14 +3,15 @@ import asyncio
 import queue
 import unittest
 from collections.abc import Callable, Coroutine
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Never, cast, override
 
 from app.audio.base import AudioFrame, RecordingResult
-from app.core.config import SttConfig
 from app.core.messages import OutgoingMessage
 from app.core.protocols import AudioPipelineLike, SttStreamLike
+from app.services.config_loader import ConfigLoader
 from app.services.stt_controller import SttController
 
 
@@ -60,9 +61,6 @@ class FakeSttStream:
     def shutdown(self) -> None:
         self.shutdown_called = True
 
-    def apply_config(self, cfg: SttConfig) -> None:  # pyright: ignore[reportUnusedParameter]
-        pass
-
 
 class HangingInitSttStream(FakeSttStream):
     @override
@@ -82,8 +80,10 @@ class FailingInitSttStream(FakeSttStream):
 
 
 class FakeAudioPipeline:
-    def __init__(self, role: str) -> None:
+    def __init__(self, role: str, *, fail_on_start: bool = False) -> None:
         self.role: str = role
+        self.fail_on_start: bool = fail_on_start
+        self.start_calls: int = 0
         self.started: bool = False
         self.stopped: bool = False
         self.flushed: bool = False
@@ -102,9 +102,14 @@ class FakeAudioPipeline:
         self.flushed = True
 
     def start(self, loop: asyncio.AbstractEventLoop) -> None:  # pyright: ignore[reportUnusedParameter]
+        self.start_calls += 1
+        if self.fail_on_start:
+            raise RuntimeError(f"{self.role} start failed")
         self.started = True
+        self.stopped = False
 
     def stop(self) -> None:
+        self.started = False
         self.stopped = True
 
     def start_recording(self, path: "Path") -> None:  # pyright: ignore[reportUnusedParameter]
@@ -123,6 +128,7 @@ class FakeState:
     stt_initializing: bool = False
     device_other: int | str | None = None
     device_self: int | str | None = None
+    audio_lifecycle_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     @property
     def is_running(self) -> bool:
@@ -574,15 +580,17 @@ class SttControllerLifecycleTest(unittest.IsolatedAsyncioTestCase):
 class AudioPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
     state: FakeState
     created_audios: list[FakeAudioPipeline]
+    broadcasts: list[dict[str, object]]
     controller: SttController
 
     @override
     async def asyncSetUp(self) -> None:
         self.state = FakeState()
         self.created_audios = []
+        self.broadcasts = []
 
-        async def broadcast(_msg: OutgoingMessage) -> None:
-            pass
+        async def broadcast(msg: OutgoingMessage) -> None:
+            self.broadcasts.append(cast(dict[str, object], msg.model_dump()))
 
         self.controller = SttController(
             state=self.state,
@@ -621,6 +629,258 @@ class AudioPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(len(new_audios) > 0)
         for a in new_audios:
             self.assertTrue(a.started)
+
+    async def test_config_change_reloads_complete_audio_subsystem(self) -> None:
+        await self.controller.start_level_monitors()
+        first_batch = list(self.created_audios)
+        old_other = FakeSttStream("other", prewarm=True)
+        old_self = FakeSttStream("self", prewarm=True)
+        self.state.stt_other = old_other
+        self.state.stt_self = old_self
+        self.state.stt_initialized = True
+        old = cast(ConfigLoader, cast(object, SimpleNamespace(stt_backend="deepgram", stt_config=object())))
+        new = cast(ConfigLoader, cast(object, SimpleNamespace(stt_backend="whisper", stt_config=object())))
+
+        await self.controller.on_config_changed(old, new)
+
+        self.assertTrue(old_other.shutdown_called)
+        self.assertTrue(old_self.shutdown_called)
+        self.assertTrue(all(audio.stopped for audio in first_batch))
+        new_audios = [audio for audio in self.created_audios if audio not in first_batch]
+        self.assertEqual({audio.role for audio in new_audios}, {"other", "self"})
+        self.assertTrue(all(audio.started for audio in new_audios))
+        self.assertIsNone(self.state.stt_other)
+        self.assertIsNone(self.state.stt_self)
+
+    async def test_config_change_is_deferred_without_touching_active_meeting_audio(self) -> None:
+        await self.controller.start_level_monitors()
+        first_batch = list(self.created_audios)
+        old_other = FakeSttStream("other", prewarm=True)
+        old_self = FakeSttStream("self", prewarm=True)
+        self.state.stt_other = old_other
+        self.state.stt_self = old_self
+        self.state.stt_initialized = True
+        self.state._is_running = True  # pyright: ignore[reportPrivateUsage]
+        old = cast(ConfigLoader, cast(object, SimpleNamespace(stt_backend="deepgram", stt_config=object())))
+        new = cast(ConfigLoader, cast(object, SimpleNamespace(stt_backend="whisper", stt_config=object())))
+
+        await self.controller.on_config_changed(old, new)
+
+        self.assertEqual(self.controller.pending_audio_reload_backend, "whisper")
+        self.assertEqual(self.controller.backend, "deepgram")
+        self.assertFalse(old_other.shutdown_called)
+        self.assertFalse(old_self.shutdown_called)
+        self.assertTrue(all(not audio.stopped for audio in first_batch))
+        self.assertEqual(self.created_audios, first_batch)
+
+        self.state._is_running = False  # pyright: ignore[reportPrivateUsage]
+        applied = await self.controller.apply_pending_audio_reload()
+
+        self.assertTrue(applied)
+        self.assertIsNone(self.controller.pending_audio_reload_backend)
+        self.assertEqual(self.controller.backend, "whisper")
+        self.assertTrue(old_other.shutdown_called)
+        self.assertTrue(old_self.shutdown_called)
+        self.assertTrue(all(audio.stopped for audio in first_batch))
+        replacements = [audio for audio in self.created_audios if audio not in first_batch]
+        self.assertEqual({audio.role for audio in replacements}, {"other", "self"})
+
+    async def test_failed_replacement_restores_prewarmed_state_and_retains_pending_reload(self) -> None:
+        created: list[FakeAudioPipeline] = []
+        replacement_mode = False
+
+        def make_audio(device: int | str | None, role: str) -> FakeAudioPipeline:
+            _ = device
+            pipeline = FakeAudioPipeline(role, fail_on_start=replacement_mode and role == "self")
+            created.append(pipeline)
+            return pipeline
+
+        async def broadcast(msg: OutgoingMessage) -> None:
+            self.broadcasts.append(cast(dict[str, object], msg.model_dump()))
+
+        controller = SttController(
+            state=self.state,
+            backend="deepgram",
+            make_audio=make_audio,
+            make_stt=_make_stt_factory([], prewarm=True),
+            get_input_devices=lambda: [],
+            broadcast=broadcast,
+        )
+        await controller.start_level_monitors()
+        old_other_audio = controller.audio_other
+        old_self_audio = controller.audio_self
+        old_other_stt = FakeSttStream("other", prewarm=True)
+        old_self_stt = FakeSttStream("self", prewarm=True)
+        self.state.stt_other = old_other_stt
+        self.state.stt_self = old_self_stt
+        self.state.stt_initialized = True
+        replacement_mode = True
+        old = cast(ConfigLoader, cast(object, SimpleNamespace(stt_backend="deepgram", stt_config=object())))
+        new = cast(ConfigLoader, cast(object, SimpleNamespace(stt_backend="whisper", stt_config=object())))
+
+        await controller.on_config_changed(old, new)
+
+        self.assertIs(controller.audio_other, old_other_audio)
+        self.assertIs(controller.audio_self, old_self_audio)
+        self.assertIs(self.state.stt_other, old_other_stt)
+        self.assertIs(self.state.stt_self, old_self_stt)
+        self.assertTrue(self.state.stt_initialized)
+        self.assertFalse(self.state.stt_initializing)
+        self.assertTrue(old_other_stt.stopped)
+        self.assertTrue(old_self_stt.stopped)
+        self.assertFalse(old_other_stt.shutdown_called)
+        self.assertFalse(old_self_stt.shutdown_called)
+        self.assertEqual(controller.backend, "deepgram")
+        self.assertEqual(controller.pending_audio_reload_backend, "whisper")
+        self.assertEqual(cast(FakeAudioPipeline, old_other_audio).start_calls, 2)
+        self.assertEqual(cast(FakeAudioPipeline, old_self_audio).start_calls, 2)
+        self.assertTrue(cast(FakeAudioPipeline, old_other_audio).started)
+        self.assertTrue(cast(FakeAudioPipeline, old_self_audio).started)
+        replacements = created[2:]
+        self.assertEqual({pipeline.role for pipeline in replacements}, {"other", "self"})
+        self.assertTrue(all(pipeline.stopped for pipeline in replacements))
+        self.assertTrue(any(message.get("type") == "error" for message in self.broadcasts))
+
+    async def test_pending_reload_marker_clears_only_after_successful_retry(self) -> None:
+        created: list[FakeAudioPipeline] = []
+        fail_replacement = False
+
+        def make_audio(device: int | str | None, role: str) -> FakeAudioPipeline:
+            _ = device
+            pipeline = FakeAudioPipeline(role, fail_on_start=fail_replacement and role == "self")
+            created.append(pipeline)
+            return pipeline
+
+        async def broadcast(msg: OutgoingMessage) -> None:
+            self.broadcasts.append(cast(dict[str, object], msg.model_dump()))
+
+        controller = SttController(
+            state=self.state,
+            backend="deepgram",
+            make_audio=make_audio,
+            make_stt=_make_stt_factory([], prewarm=True),
+            get_input_devices=lambda: [],
+            broadcast=broadcast,
+        )
+        await controller.start_level_monitors()
+        old_other_stt = FakeSttStream("other", prewarm=True)
+        old_self_stt = FakeSttStream("self", prewarm=True)
+        self.state.stt_other = old_other_stt
+        self.state.stt_self = old_self_stt
+        self.state.stt_initialized = True
+        self.state._is_running = True  # pyright: ignore[reportPrivateUsage]
+        old = cast(ConfigLoader, cast(object, SimpleNamespace(stt_backend="deepgram", stt_config=object())))
+        new = cast(ConfigLoader, cast(object, SimpleNamespace(stt_backend="whisper", stt_config=object())))
+        await controller.on_config_changed(old, new)
+
+        self.state._is_running = False  # pyright: ignore[reportPrivateUsage]
+        fail_replacement = True
+        first_applied = await controller.apply_pending_audio_reload()
+
+        self.assertFalse(first_applied)
+        self.assertEqual(controller.pending_audio_reload_backend, "whisper")
+        self.assertEqual(controller.backend, "deepgram")
+        self.assertIs(self.state.stt_other, old_other_stt)
+        self.assertIs(self.state.stt_self, old_self_stt)
+        self.assertTrue(self.state.stt_initialized)
+        self.assertFalse(old_other_stt.shutdown_called)
+        self.assertFalse(old_self_stt.shutdown_called)
+
+        fail_replacement = False
+        second_applied = await controller.apply_pending_audio_reload()
+
+        self.assertTrue(second_applied)
+        self.assertIsNone(controller.pending_audio_reload_backend)
+        self.assertEqual(controller.backend, "whisper")
+        self.assertTrue(old_other_stt.shutdown_called)
+        self.assertTrue(old_self_stt.shutdown_called)
+        self.assertIsNone(self.state.stt_other)
+        self.assertIsNone(self.state.stt_self)
+
+    async def test_failed_device_reload_gates_orphan_bound_stt_until_restored_device_rebuild(self) -> None:
+        class RestartQueueAudioPipeline(FakeAudioPipeline):
+            @override
+            def start(self, loop: asyncio.AbstractEventLoop) -> None:
+                if self.start_calls:
+                    self._stt_queue: queue.Queue[AudioFrame | None] = queue.Queue()
+                super().start(loop)
+
+        class QueueBoundSttStream(FakeSttStream):
+            def __init__(self, role: str, audio: RestartQueueAudioPipeline) -> None:
+                super().__init__(role, prewarm=True)
+                self.audio: RestartQueueAudioPipeline = audio
+                self.bound_queue: queue.Queue[AudioFrame | None] = audio.stt_queue
+
+        created: list[tuple[int | str | None, RestartQueueAudioPipeline]] = []
+        fail_replacement = False
+
+        def make_audio(device: int | str | None, role: str) -> RestartQueueAudioPipeline:
+            pipeline = RestartQueueAudioPipeline(
+                role,
+                fail_on_start=fail_replacement and role == "self",
+            )
+            created.append((device, pipeline))
+            return pipeline
+
+        async def broadcast(msg: OutgoingMessage) -> None:
+            self.broadcasts.append(cast(dict[str, object], msg.model_dump()))
+
+        controller = SttController(
+            state=self.state,
+            backend="deepgram",
+            make_audio=make_audio,
+            make_stt=_make_stt_factory([], prewarm=True),
+            get_input_devices=lambda: [],
+            broadcast=broadcast,
+        )
+        await controller.start_level_monitors()
+        old_other_audio = cast(RestartQueueAudioPipeline, controller.audio_other)
+        old_self_audio = cast(RestartQueueAudioPipeline, controller.audio_self)
+        old_other_stt = QueueBoundSttStream("other", old_other_audio)
+        old_self_stt = QueueBoundSttStream("self", old_self_audio)
+        self.state.stt_other = old_other_stt
+        self.state.stt_self = old_self_stt
+        self.state.stt_initialized = True
+
+        fail_replacement = True
+        await controller.set_device("self", 7)
+
+        self.assertIsNone(self.state.device_self)
+        self.assertEqual(controller.pending_audio_reload_backend, "deepgram")
+        self.assertIs(self.state.stt_other, old_other_stt)
+        self.assertIs(self.state.stt_self, old_self_stt)
+        self.assertIsNot(old_other_stt.bound_queue, old_other_audio.stt_queue)
+        self.assertIsNot(old_self_stt.bound_queue, old_self_audio.stt_queue)
+        self.assertFalse(await controller.apply_pending_audio_reload())
+        self.assertEqual(controller.pending_audio_reload_backend, "deepgram")
+        self.assertFalse(old_other_stt.started)
+        self.assertFalse(old_self_stt.started)
+
+        fail_replacement = False
+        self.assertTrue(await controller.apply_pending_audio_reload())
+
+        self.assertIsNone(controller.pending_audio_reload_backend)
+        self.assertIsNone(self.state.stt_other)
+        self.assertIsNone(self.state.stt_self)
+        self.assertTrue(old_other_stt.shutdown_called)
+        self.assertTrue(old_self_stt.shutdown_called)
+        self.assertEqual([device for device, _ in created[-2:]], [None, None])
+
+    async def test_device_change_is_rejected_during_meeting(self) -> None:
+        await self.controller.start_level_monitors()
+        first_batch = list(self.created_audios)
+        self.state._is_running = True  # pyright: ignore[reportPrivateUsage]
+
+        await self.controller.set_device("self", 1)
+
+        self.assertIsNone(self.state.device_self)
+        self.assertEqual(self.created_audios, first_batch)
+        self.assertTrue(
+            any(
+                message.get("type") == "error" and "会議中は音声デバイスを変更できません" in str(message.get("text"))
+                for message in self.broadcasts
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -1,11 +1,50 @@
 import { $, browser, expect } from "@wdio/globals";
-import { waitForBackendReady } from "./helpers/backend";
+import {
+  localBackendRequest,
+  waitForBackendReady,
+} from "./helpers/backend";
 import { expectDisplayedSurface } from "./helpers/displayedSurface";
-import { finishMeeting, hideAssistantWindow } from "./helpers/meetingLifecycle";
+import {
+  finishMeeting,
+  hideAssistantWindow,
+  startMeeting,
+} from "./helpers/meetingLifecycle";
 import { closeSettingsIfOpen, openSettings } from "./helpers/settings";
+
+type SttSnapshot = Record<string, unknown> & {
+  backend: string;
+  vad_engine: "silero" | "webrtc";
+};
+
+interface SettingsSnapshot {
+  stt: SttSnapshot;
+}
+
+interface SparseSettingsSnapshot {
+  stt: Record<string, unknown>;
+}
+
+const effectiveSttDefaults = {
+  backend: "whisper",
+  vad_engine: "silero",
+} as const;
+
+function withEffectiveSttValues(
+  settings: SparseSettingsSnapshot,
+): SettingsSnapshot {
+  return {
+    ...settings,
+    stt: {
+      ...effectiveSttDefaults,
+      ...settings.stt,
+    },
+  };
+}
 
 const waitOptions = { timeout: 20_000, interval: 200 };
 let originalWindowSize: { width: number; height: number } | null = null;
+let settingsSnapshot: SettingsSnapshot | null = null;
+let sttSettingsMutated = false;
 
 async function geminiCredentialInput() {
   const geminiCard = await $('[data-route-id="gemini"]');
@@ -21,6 +60,16 @@ async function geminiCredentialInput() {
   return input;
 }
 
+async function persistSttPatch(stt: Record<string, unknown>): Promise<void> {
+  if (!settingsSnapshot) throw new Error("STT settings snapshot is missing");
+  sttSettingsMutated = true;
+  await localBackendRequest({
+    path: "/api/settings",
+    method: "POST",
+    body: { stt },
+  });
+}
+
 async function cleanupState(): Promise<void> {
   const cleanupErrors: unknown[] = [];
   for (const cleanup of [
@@ -34,6 +83,15 @@ async function cleanupState(): Promise<void> {
           originalWindowSize.height,
         );
       }
+    },
+    async () => {
+      if (!sttSettingsMutated) return;
+      if (!settingsSnapshot) throw new Error("STT settings snapshot is missing");
+      await localBackendRequest({
+        path: "/api/settings",
+        method: "POST",
+        body: { stt: settingsSnapshot.stt },
+      });
     },
     async () => {
       await browser.tauri.switchWindow("main");
@@ -61,12 +119,22 @@ describe("Contextual settings credentials", () => {
     await finishMeeting(waitOptions);
     await hideAssistantWindow(waitOptions);
     originalWindowSize = await browser.getWindowSize();
+    const sparseSettingsSnapshot =
+      await localBackendRequest<SparseSettingsSnapshot>({
+        path: "/api/settings",
+      });
+    settingsSnapshot = withEffectiveSttValues(sparseSettingsSnapshot);
     await expectDisplayedSurface('[data-testid="setup-screen"]', waitOptions);
   });
 
   afterEach(async () => {
-    await cleanupState();
-    originalWindowSize = null;
+    try {
+      await cleanupState();
+    } finally {
+      originalWindowSize = null;
+      settingsSnapshot = null;
+      sttSettingsMutated = false;
+    }
   });
 
   it("shows managed pricing", async () => {
@@ -91,12 +159,8 @@ describe("Contextual settings credentials", () => {
     }
 
     const geminiCard = await $('[data-route-id="gemini"]');
-    const reply = await geminiCard.$(
-      './/button[normalize-space()="返答案"]',
-    );
-    const info = await geminiCard.$(
-      './/button[normalize-space()="会話メモ"]',
-    );
+    const reply = await geminiCard.$('.//button[normalize-space()="返答案"]');
+    const info = await geminiCard.$('.//button[normalize-space()="会話メモ"]');
     const minutes = await geminiCard.$(
       './/button[normalize-space()="要約・議事録"]',
     );
@@ -179,5 +243,58 @@ describe("Contextual settings credentials", () => {
         originalWindowSize.height,
       );
     }
+  });
+
+  it("offers Torch-free Silero controls when selected", async () => {
+    await persistSttPatch({ vad_engine: "silero" });
+    await browser.refresh();
+    await waitForBackendReady();
+    await expectDisplayedSurface('[data-testid="setup-screen"]', waitOptions);
+    await openSettings(waitOptions);
+    const audioCategory = await $(
+      '//button[.//span[normalize-space()="音声"]]',
+    );
+    await audioCategory.waitForClickable(waitOptions);
+    await audioCategory.click();
+
+    const vadEngine = await $('select[aria-label="声の検出方法"]');
+    await vadEngine.waitForDisplayed(waitOptions);
+    expect(await vadEngine.getValue()).toBe("silero");
+    const sileroOption = await $(
+      'select[aria-label="声の検出方法"] option[value="silero"]',
+    );
+    expect(await sileroOption.getText()).toBe("Silero VAD（高精度・おすすめ）");
+    await expect(
+      $('input[aria-label="Silero音声判定しきい値"]'),
+    ).toBeDisplayed();
+
+    await closeSettingsIfOpen({ discard: true, waitOptions });
+  });
+
+  it("locks audio settings while a meeting is active", async () => {
+    await persistSttPatch({ backend: "dummy" });
+    await browser.refresh();
+    await waitForBackendReady();
+    await expectDisplayedSurface('[data-testid="setup-screen"]', waitOptions);
+    await startMeeting(waitOptions);
+    await openSettings(waitOptions);
+    const audioCategory = await $(
+      '//button[.//span[normalize-space()="音声"]]',
+    );
+    await audioCategory.waitForClickable(waitOptions);
+    await audioCategory.click();
+
+    const lockNotice = await $(
+      '//*[contains(normalize-space(.), "会議中は音声認識の設定を変更できません")]',
+    );
+    await lockNotice.waitForDisplayed(waitOptions);
+    expect(
+      await $('select[aria-label="音声認識方式"]').isEnabled(),
+    ).toBe(false);
+    expect(
+      await $('select[aria-label="声の検出方法"]').isEnabled(),
+    ).toBe(false);
+
+    await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 });

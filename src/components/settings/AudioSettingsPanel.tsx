@@ -9,10 +9,11 @@ import {
 } from "./ApiConnectionControl";
 import { SpeechModelPreparationCard } from "./SpeechModelPreparationCard";
 import { FieldRow, SettingsCard, SettingsPage } from "./SettingsPrimitives";
-import type {
-  ConnectionUiState,
-  SettingsFieldErrors,
-  SettingsForm,
+import {
+  isVadEngine,
+  type ConnectionUiState,
+  type SettingsFieldErrors,
+  type SettingsForm,
 } from "./types";
 
 const CLOUD_STT = {
@@ -26,6 +27,7 @@ interface Props {
   errors: SettingsFieldErrors;
   speechModel: SpeechModelController;
   speechModelActionsDisabled?: boolean;
+  audioSettingsLocked?: boolean;
   managedStt: ManagedSttAvailability;
   onManageAccount: () => void;
   connectionStates: Record<ConnectionProvider, ConnectionUiState>;
@@ -51,6 +53,7 @@ export function AudioSettingsPanel({
   errors,
   speechModel,
   speechModelActionsDisabled = false,
+  audioSettingsLocked = false,
   managedStt,
   onManageAccount,
   connectionStates,
@@ -68,7 +71,9 @@ export function AudioSettingsPanel({
   update,
 }: Props) {
   const speechModelControlsDisabled =
-    speechModel.blocksSettingsSave || speechModelActionsDisabled;
+    audioSettingsLocked ||
+    speechModel.blocksSettingsSave ||
+    speechModelActionsDisabled;
   const cloudProvider =
     form.sttBackend in CLOUD_STT
       ? (form.sttBackend as keyof typeof CLOUD_STT)
@@ -81,6 +86,15 @@ export function AudioSettingsPanel({
       title="音声"
       description="会議の音声を文字にする方法と、発話の区切り方を設定します。端末内で処理する方法をおすすめします。"
     >
+      {audioSettingsLocked && (
+        <InlineNotice tone="warning">
+          会議中は音声認識の設定を変更できません。会議を終了してから変更してください。
+        </InlineNotice>
+      )}
+      <fieldset
+        disabled={audioSettingsLocked}
+        className="m-0 min-w-0 space-y-5 border-0 p-0"
+      >
       <SettingsCard title="聞き取り方法">
         <div className="space-y-4">
           <FieldRow
@@ -206,7 +220,7 @@ export function AudioSettingsPanel({
       {usesLocalSpeechModel && (
         <SpeechModelPreparationCard
           model={speechModel}
-          startDisabled={speechModelActionsDisabled}
+          startDisabled={speechModelActionsDisabled || audioSettingsLocked}
         />
       )}
       <SettingsCard
@@ -214,6 +228,26 @@ export function AudioSettingsPanel({
         description="話し終わりの検出を調整します。通常は変更する必要はありません。"
       >
         <div className="space-y-4">
+          <FieldRow
+            label="声の検出方法"
+            hint="SileroはTorchを使わず、同梱した約208 KBのONNXモデルを端末内で実行します"
+          >
+            <select
+              value={form.sttVadEngine}
+              disabled={audioSettingsLocked}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (isVadEngine(value)) {
+                  update("sttVadEngine", value);
+                }
+              }}
+              className="field"
+              aria-label="声の検出方法"
+            >
+              <option value="silero">Silero VAD（高精度・おすすめ）</option>
+              <option value="webrtc">WebRTC VAD（最軽量）</option>
+            </select>
+          </FieldRow>
           <FieldRow
             label="無音とみなす時間"
             hint="短いほど返答案を早く作り始めます"
@@ -223,6 +257,7 @@ export function AudioSettingsPanel({
                 type="range"
                 aria-label="無音判定（秒）"
                 value={form.sttSilence}
+                disabled={audioSettingsLocked}
                 min={0.1}
                 max={5}
                 step={0.1}
@@ -236,21 +271,51 @@ export function AudioSettingsPanel({
               </output>
             </div>
           </FieldRow>
-          <FieldRow label="声の検出感度">
-            <select
-              value={form.sttVad}
-              onChange={(event) => update("sttVad", Number(event.target.value))}
-              className="field"
-              aria-label="声の検出感度"
+          {form.sttVadEngine === "silero" ? (
+            <FieldRow
+              label="音声判定しきい値"
+              hint="低いほど小さな声を拾い、高いほど雑音を除外します"
             >
-              <option value={0}>低い</option>
-              <option value={1}>やや低い</option>
-              <option value={2}>標準</option>
-              <option value={3}>高い</option>
-            </select>
-          </FieldRow>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  aria-label="Silero音声判定しきい値"
+                  value={form.sttVadSensitivity}
+                  disabled={audioSettingsLocked}
+                  min={0.05}
+                  max={0.95}
+                  step={0.05}
+                  onChange={(event) =>
+                    update("sttVadSensitivity", Number(event.target.value))
+                  }
+                  className="min-w-0 flex-1 accent-primary"
+                />
+                <output className="w-12 text-right text-sm font-semibold tabular-nums text-ink">
+                  {Math.round(form.sttVadSensitivity * 100)}%
+                </output>
+              </div>
+            </FieldRow>
+          ) : (
+            <FieldRow label="声の検出感度">
+              <select
+                value={form.sttVad}
+                disabled={audioSettingsLocked}
+                onChange={(event) =>
+                  update("sttVad", Number(event.target.value))
+                }
+                className="field"
+                aria-label="声の検出感度"
+              >
+                <option value={0}>低い</option>
+                <option value={1}>やや低い</option>
+                <option value={2}>標準</option>
+                <option value={3}>高い</option>
+              </select>
+            </FieldRow>
+          )}
         </div>
       </SettingsCard>
+      </fieldset>
     </SettingsPage>
   );
 }

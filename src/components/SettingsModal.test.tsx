@@ -139,6 +139,7 @@ async function renderModal(
   initial = settings(),
   routes = routeCatalog(),
   onClose = vi.fn(),
+  audioSettingsLocked = false,
 ) {
   sdkMocks.getSettings.mockResolvedValueOnce({
     data: initial,
@@ -146,9 +147,15 @@ async function renderModal(
     request,
     response,
   });
-  render(<SettingsModal onClose={onClose} routes={routes} />);
+  const rendered = render(
+    <SettingsModal
+      onClose={onClose}
+      routes={routes}
+      audioSettingsLocked={audioSettingsLocked}
+    />,
+  );
   await screen.findByText("支援方法");
-  return { onClose };
+  return { ...rendered, onClose };
 }
 afterEach(() => vi.unstubAllGlobals());
 
@@ -825,6 +832,224 @@ describe("SettingsModal connection UX", () => {
     expect(reload.mock.invocationCallOrder[0]).toBeLessThan(
       saveAssignments.mock.invocationCallOrder[0]!,
     );
+  });
+
+  it("locks a managed billing route while managed STT is active without locking another route", async () => {
+    const managedRoute = route({
+      id: "managed",
+      kind: "managed",
+      label: "Managed",
+      description: "Managed service",
+      readiness: "setup_required",
+      selectable: false,
+      selected: false,
+      action: "manage_billing",
+    });
+    const codexRoute = route({
+      readiness: "setup_required",
+      action: "retry",
+    });
+    const reload = vi.fn();
+    const routes = routeCatalog({
+      routes: [managedRoute, codexRoute],
+      reload,
+    });
+
+    await renderModal(
+      settings({ stt: { backend: "managed", language: "ja" } }),
+      routes,
+      vi.fn(),
+      true,
+    );
+
+    const managedAction = screen.getByRole("button", {
+      name: "支払いを確認",
+    });
+    expect(managedAction).toBeDisabled();
+    expect(screen.getByText("Managed service")).toBeInTheDocument();
+
+    fireEvent.click(managedAction);
+    expect(reload).not.toHaveBeenCalled();
+
+    const unrelatedAction = screen.getByRole("button", {
+      name: "もう一度確認",
+    });
+    expect(unrelatedAction).toBeEnabled();
+    fireEvent.click(unrelatedAction);
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+  });
+
+  it("leaves managed route actions available when another STT backend is active", async () => {
+    const managedRoute = route({
+      id: "managed",
+      kind: "managed",
+      label: "Managed",
+      description: "Managed service",
+      readiness: "setup_required",
+      selectable: false,
+      selected: false,
+      action: "subscribe",
+    });
+
+    await renderModal(
+      settings({ stt: { backend: "whisper", language: "ja" } }),
+      routeCatalog({ routes: [managedRoute] }),
+      vi.fn(),
+      true,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "月額プランを申し込む" }),
+    ).toBeEnabled();
+  });
+
+  it("restores stale STT and active-provider drafts when the meeting lock engages", async () => {
+    const initial = settings({
+      stt: {
+        backend: "openai",
+        language: "ja",
+        openai_model: "whisper-1",
+      },
+      secrets: { OPENAI_API_KEY: true },
+    });
+    const routes = routeCatalog();
+    const onClose = vi.fn();
+    const rendered = await renderModal(initial, routes, onClose);
+
+    fireEvent.click(screen.getByRole("button", { name: /音声/ }));
+    fireEvent.change(await screen.findByLabelText("会議の言語"), {
+      target: { value: "en" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "OpenAI APIキーを変更",
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("OpenAI APIキー"), {
+      target: { value: "stale-active-provider-key" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /詳細設定/ }));
+    fireEvent.change(await screen.findByLabelText("OpenAIモデル"), {
+      target: { value: "gpt-4o-mini-transcribe" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /データとプライバシー/ }));
+    fireEvent.change(
+      await screen.findByLabelText("録音の最大合計容量（MB）"),
+      { target: { value: "64" } },
+    );
+
+    rendered.rerender(
+      <SettingsModal
+        onClose={onClose}
+        routes={routes}
+        audioSettingsLocked
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /音声/ }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("会議の言語")).toHaveValue("ja"),
+    );
+    expect(screen.queryByLabelText("OpenAI APIキー")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "OpenAI APIキーを変更" }),
+    ).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /詳細設定/ }));
+    expect(await screen.findByLabelText("OpenAIモデル")).toHaveValue(
+      "whisper-1",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /データとプライバシー/ }));
+    expect(
+      await screen.findByLabelText("録音の最大合計容量（MB）"),
+    ).toHaveValue(64);
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => expect(sdkMocks.saveSettings).toHaveBeenCalledOnce());
+    const body = sdkMocks.saveSettings.mock.calls[0]![0].body;
+    expect(body).not.toHaveProperty("stt");
+    expect(body).not.toHaveProperty("secrets");
+    expect(body.recording_retention).toEqual({
+      cutoff_date: null,
+      max_total_bytes: 64 * 1024 * 1024,
+    });
+  });
+
+  it("cancels an active STT credential deletion when the lock engages", async () => {
+    const initial = settings({
+      stt: { backend: "openai", language: "ja" },
+      secrets: { OPENAI_API_KEY: true },
+    });
+    const routes = routeCatalog();
+    const onClose = vi.fn();
+    const rendered = await renderModal(initial, routes, onClose);
+
+    fireEvent.click(screen.getByRole("button", { name: /音声/ }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "OpenAI APIキーを削除",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "OpenAI APIキーを削除予定にする",
+      }),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "OpenAI APIキーの削除を取り消す",
+      }),
+    ).toBeInTheDocument();
+
+    rendered.rerender(
+      <SettingsModal
+        onClose={onClose}
+        routes={routes}
+        audioSettingsLocked
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", {
+          name: "OpenAI APIキーの削除を取り消す",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(sdkMocks.saveSettings).toHaveBeenCalledOnce());
+    const body = sdkMocks.saveSettings.mock.calls[0]![0].body;
+    expect(body).not.toHaveProperty("delete_secrets");
+    expect(body).not.toHaveProperty("stt");
+  });
+
+  it("saves unrelated settings while locked speech status is pending", async () => {
+    const pendingSpeechStatus = new Promise<never>(() => {
+      // Intentionally unresolved to keep the speech-model status check pending.
+    });
+    sdkMocks.getSpeechStatus.mockReturnValue(pendingSpeechStatus);
+    await renderModal(settings(), routeCatalog(), vi.fn(), true);
+    await waitFor(() => expect(sdkMocks.getSpeechStatus).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: /データとプライバシー/ }));
+    fireEvent.change(
+      await screen.findByLabelText("録音の最大合計容量（MB）"),
+      { target: { value: "32" } },
+    );
+    const saveButton = screen.getByRole("button", { name: "保存" });
+    expect(saveButton).toBeEnabled();
+    fireEvent.click(saveButton);
+
+    await waitFor(() => expect(sdkMocks.saveSettings).toHaveBeenCalledOnce());
+    const body = sdkMocks.saveSettings.mock.calls[0]![0].body;
+    expect(body).not.toHaveProperty("stt");
+    expect(body.recording_retention).toEqual({
+      cutoff_date: null,
+      max_total_bytes: 32 * 1024 * 1024,
+    });
   });
 
   it("shows application and third-party license notices without a save action", async () => {

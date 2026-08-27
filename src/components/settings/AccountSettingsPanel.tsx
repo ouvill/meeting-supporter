@@ -28,6 +28,7 @@ import { SettingsCard, SettingsPage } from "./SettingsPrimitives";
 
 interface Props {
   offered: boolean;
+  managedActionsLocked?: boolean;
   onChanged: () => void;
 }
 
@@ -61,7 +62,11 @@ function quotaStatusLabel(entitlement: ManagedEntitlement): string {
   }
 }
 
-export function AccountSettingsPanel({ offered, onChanged }: Props) {
+export function AccountSettingsPanel({
+  offered,
+  managedActionsLocked = false,
+  onChanged,
+}: Props) {
   const [auth, setAuth] = useState<ManagedAuthStatus | null>(null);
   const [entitlement, setEntitlement] = useState<ManagedEntitlement | null>(
     null,
@@ -176,7 +181,7 @@ export function AccountSettingsPanel({ offered, onChanged }: Props) {
                 <Button
                   size="sm"
                   variant="quiet"
-                  disabled={busy}
+                  disabled={busy || managedActionsLocked}
                   onClick={() => void perform(logoutManagedAuth)}
                 >
                   <LogOut className="h-4 w-4" aria-hidden="true" />
@@ -201,7 +206,7 @@ export function AccountSettingsPanel({ offered, onChanged }: Props) {
                 <Button
                   size="md"
                   variant="primary"
-                  disabled={busy}
+                  disabled={busy || managedActionsLocked}
                   onClick={() => void perform(startManagedAuth)}
                 >
                   <LogIn className="h-4 w-4" aria-hidden="true" />
@@ -245,7 +250,7 @@ export function AccountSettingsPanel({ offered, onChanged }: Props) {
                     <Button
                       size="md"
                       variant="primary"
-                      disabled={busy}
+                      disabled={busy || managedActionsLocked}
                       onClick={() => void perform(openManagedCheckout)}
                     >
                       月額プランを申し込む
@@ -254,7 +259,7 @@ export function AccountSettingsPanel({ offered, onChanged }: Props) {
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={busy}
+                      disabled={busy || managedActionsLocked}
                       onClick={() => void perform(openManagedBillingPortal)}
                     >
                       支払い・解約を管理
@@ -288,7 +293,7 @@ export function AccountSettingsPanel({ offered, onChanged }: Props) {
                   <Button
                     size="sm"
                     variant="quiet"
-                    disabled={busy}
+                    disabled={busy || managedActionsLocked}
                     onClick={() => setConfirmingDeletion(true)}
                   >
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -303,7 +308,7 @@ export function AccountSettingsPanel({ offered, onChanged }: Props) {
                       <Button
                         size="sm"
                         variant="danger"
-                        disabled={busy}
+                        disabled={busy || managedActionsLocked}
                         onClick={() => void perform(deleteManagedAccount)}
                       >
                         削除を実行

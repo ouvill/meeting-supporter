@@ -33,6 +33,7 @@ interface ConnectionControlBindings {
   connectionEditingProvider: ConnectionProvider | null;
   connectionTestingProvider: ConnectionProvider | null;
   connectionTestMessages: Partial<Record<ConnectionProvider, string>>;
+  lockedConnectionProviders?: ReadonlySet<ConnectionProvider>;
   onBeginConnectionEdit: (provider: ConnectionProvider) => void;
   onCancelConnectionEdit: (provider: ConnectionProvider) => void;
   onSecretChange: (provider: ConnectionProvider, value: string) => void;
@@ -57,6 +58,7 @@ interface Props extends ConnectionControlBindings {
   onReplyEnabledChange: (enabled: boolean) => void;
   onReplyAutoGenerateChange: (enabled: boolean) => void;
   onRouteAction: (route: AiRouteReadModel) => void;
+  managedRouteActionsLocked: boolean;
   onReload: () => void;
 }
 
@@ -92,6 +94,14 @@ function routeActionLabel(action: AiRouteReadModel["action"]): string | null {
   return null;
 }
 
+const LOCKED_MANAGED_ROUTE_ACTIONS: Partial<
+  Record<AiRouteReadModel["action"], true>
+> = {
+  sign_in: true,
+  subscribe: true,
+  manage_billing: true,
+};
+
 function routeIcon(route: AiRouteReadModel) {
   if (route.id === "managed") return Sparkles;
   if (route.id === "acp") return Network;
@@ -116,6 +126,7 @@ function RouteCard({
   onAssignmentChange,
   onRouteAction,
   onReload,
+  routeActionLocked,
   connection,
   credentialError,
 }: {
@@ -128,6 +139,7 @@ function RouteCard({
   ) => void;
   onRouteAction: () => void;
   onReload: () => void;
+  routeActionLocked: boolean;
   connection: ConnectionControlBindings;
   credentialError?: string;
 }) {
@@ -139,6 +151,9 @@ function RouteCard({
           route.id as keyof typeof CONNECTION_PROVIDER_BY_ROUTE
         ]
       : null;
+  const providerLocked =
+    provider !== null &&
+    (connection.lockedConnectionProviders?.has(provider) ?? false);
   const selectionOffered =
     route.selectable &&
     (route.readiness === "ready" ||
@@ -225,7 +240,12 @@ function RouteCard({
           )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {actionLabel && (
-              <Button size="sm" variant="primary" onClick={onRouteAction}>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={onRouteAction}
+                disabled={providerLocked || routeActionLocked}
+              >
                 {actionLabel}
                 {route.action !== "retry" && route.action !== "view_usage" && (
                   <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -261,8 +281,9 @@ function RouteCard({
               editing={connection.connectionEditingProvider === provider}
               testing={connection.connectionTestingProvider === provider}
               disabled={
-                connection.connectionTestingProvider !== null &&
-                connection.connectionTestingProvider !== provider
+                providerLocked ||
+                (connection.connectionTestingProvider !== null &&
+                  connection.connectionTestingProvider !== provider)
               }
               testMessage={connection.connectionTestMessages[provider] ?? null}
               onBeginEdit={() => connection.onBeginConnectionEdit(provider)}
@@ -299,6 +320,8 @@ export function SupportMethodPanel({
   connectionEditingProvider,
   connectionTestingProvider,
   connectionTestMessages,
+  lockedConnectionProviders,
+  managedRouteActionsLocked,
   onBeginConnectionEdit,
   onCancelConnectionEdit,
   onSecretChange,
@@ -329,6 +352,7 @@ export function SupportMethodPanel({
     connectionEditingProvider,
     connectionTestingProvider,
     connectionTestMessages,
+    lockedConnectionProviders,
     onBeginConnectionEdit,
     onCancelConnectionEdit,
     onSecretChange,
@@ -338,23 +362,32 @@ export function SupportMethodPanel({
   };
   const renderRoutes = (items: AiRouteReadModel[]) => (
     <div className="space-y-2.5">
-      {items.map((route) => (
-        <RouteCard
-          key={route.id}
-          route={route}
-          assignments={assignments}
-          reloading={isManualReloading}
-          connection={connection}
-          credentialError={
-            Object.values(assignments).includes(route.id)
-              ? credentialError
-              : undefined
-          }
-          onAssignmentChange={onAssignmentChange}
-          onRouteAction={() => onRouteAction(route)}
-          onReload={onReload}
-        />
-      ))}
+      {items.map((route) => {
+        const routeActionLocked =
+          managedRouteActionsLocked &&
+          route.id === "managed" &&
+          LOCKED_MANAGED_ROUTE_ACTIONS[route.action] === true;
+        return (
+          <RouteCard
+            key={route.id}
+            route={route}
+            assignments={assignments}
+            reloading={isManualReloading}
+            connection={connection}
+            credentialError={
+              Object.values(assignments).includes(route.id)
+                ? credentialError
+                : undefined
+            }
+            onAssignmentChange={onAssignmentChange}
+            routeActionLocked={routeActionLocked}
+            onRouteAction={() => {
+              if (!routeActionLocked) onRouteAction(route);
+            }}
+            onReload={onReload}
+          />
+        );
+      })}
     </div>
   );
   return (

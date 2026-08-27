@@ -97,6 +97,19 @@
           "sha256": "860e3d7a86b84e6a7012c7a635fc64df475cebc6cce34dfeb73a5982ec58176c"
         }
       ]
+    },
+    {
+      "name": "silero-vad-int8-onnx",
+      "version": "k2-fsa-c36d490aff5a",
+      "license": "MIT",
+      "source": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.int8.onnx",
+      "license_files": [
+        {
+          "name": "LICENSE",
+          "url": "https://raw.githubusercontent.com/snakers4/silero-vad/867c2aa692646a1f1de3e94a15c9dd9f614c0acb/LICENSE",
+          "sha256": "2e63e9a38b6e8fc0c7bc37ce174caca1862870856c6daf5697cfb785e925520b"
+        }
+      ]
     }
   ]
 }

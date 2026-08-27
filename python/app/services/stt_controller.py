@@ -56,6 +56,8 @@ class SttController:
         self._broadcast: OutgoingBroadcastFn = broadcast
         self._init_timeout_seconds: float | None = init_timeout_seconds
         self._init_generation: int = 0
+        self._audio_lifecycle_lock: asyncio.Lock = cast(asyncio.Lock, getattr(state, "audio_lifecycle_lock"))
+        self._pending_audio_reload_backend: str | None = None
 
         self._audio_other: AudioPipelineLike | None = None
         self._audio_self: AudioPipelineLike | None = None
@@ -71,6 +73,14 @@ class SttController:
     def audio_self(self) -> AudioPipelineLike | None:
         """The "self" audio pipeline (user mic)."""
         return self._audio_self
+
+    @property
+    def backend(self) -> str:
+        return self._backend
+
+    @property
+    def pending_audio_reload_backend(self) -> str | None:
+        return self._pending_audio_reload_backend
 
     async def start_level_monitors(self) -> None:
         """Create and start AudioPipeline instances for both devices.
@@ -105,42 +115,132 @@ class SttController:
 
     # ── Config hot-reload ─────────────────────────────────────────────────────
 
-    async def on_config_changed(self, old: "ConfigLoader", new: "ConfigLoader") -> None:
-        """Apply STT config changes at runtime via pipeline hot-swap where possible."""
+    async def on_config_changed(
+        self,
+        old: "ConfigLoader",
+        new: "ConfigLoader",
+        *,
+        audio_lifecycle_lock_held: bool = False,
+    ) -> None:
+        """Reload audio after a saved STT config change, or defer until meeting stop."""
         if new.stt_backend == old.stt_backend and new.stt_config == old.stt_config:
             return
 
-        if self._state.stt_other is not None and self._state.stt_self is not None:
-            self._state.stt_other.apply_config(new.stt_config)
-            self._state.stt_self.apply_config(new.stt_config)
-            self._backend = new.stt_backend
+        if audio_lifecycle_lock_held:
+            await self._on_config_changed_with_lock_held(new)
             return
 
-        await self.reinitialize(
-            backend=new.stt_backend,
-            make_audio=self._make_audio,
-            make_stt=self._make_stt,
-        )
+        async with self._audio_lifecycle_lock:
+            await self._on_config_changed_with_lock_held(new)
 
-    async def reinitialize(
-        self,
-        *,
-        backend: str,
-        make_audio: Callable[[int | str | None, str], AudioPipelineLike],
-        make_stt: Callable[[AudioPipelineLike, str], SttStreamLike],
-    ) -> None:
-        """Swap factories and restart audio + STT pipelines."""
-        was_running = self._state.is_running
-        if was_running:
-            await self.stop_meeting()
-        await self.shutdown_stt()
-        self.stop_level_monitors()
-        self._backend = backend
-        self._make_audio = make_audio
-        self._make_stt = make_stt
-        await self.start_level_monitors()
-        if was_running:
-            await self._broadcast(StatusMsg(text="音声認識の設定を変更しました。会議を再開してください"))
+    async def _on_config_changed_with_lock_held(self, new: "ConfigLoader") -> None:
+        """Apply or register the audio reload while the lifecycle mutex is held."""
+        self._pending_audio_reload_backend = new.stt_backend
+        if self._state.is_running:
+            return
+        _ = await self._reload_audio_subsystem(backend=new.stt_backend)
+
+    async def apply_pending_audio_reload(self) -> bool:
+        """Apply a reload deferred during a meeting.
+
+        The lifecycle coordinator calls this while holding ``audio_lifecycle_lock``
+        and while there is no active meeting session.
+        """
+        backend = self._pending_audio_reload_backend
+        if backend is None:
+            return True
+        if self._state.is_running:
+            return False
+        return await self._reload_audio_subsystem(backend=backend)
+
+    async def _reload_audio_subsystem(self, *, backend: str) -> bool:
+        """Transactionally replace stopped-state audio/STT runtime objects."""
+        # A stopped pipeline may recreate its STT queue when restoration restarts
+        # it.  Keep the gate set throughout the transaction so no caller can
+        # reuse an STT stream that is still bound to the pipeline's old queue.
+        self._pending_audio_reload_backend = self._pending_audio_reload_backend or backend
+        loop = asyncio.get_running_loop()
+        old_backend = self._backend
+        old_other = self._audio_other
+        old_self = self._audio_self
+        old_stt_other = self._state.stt_other
+        old_stt_self = self._state.stt_self
+        old_stt_initialized = self._state.stt_initialized
+        old_stt_initializing = self._state.stt_initializing
+
+        try:
+            for stream in (old_stt_other, old_stt_self):
+                if stream is not None:
+                    stream.stop()
+        except Exception:
+            logger.exception("STT stream stop failed before audio subsystem reload")
+            await self._broadcast(ErrorMsg(text="音声認識の設定変更に失敗したため、以前の設定を維持しました。"))
+            return False
+
+        replacements: list[AudioPipelineLike] = []
+        try:
+            for pipeline in (old_other, old_self):
+                if pipeline is not None:
+                    pipeline.stop()
+
+            new_other = self._make_audio(self._state.device_other, "other")
+            replacements.append(new_other)
+            new_self = self._make_audio(self._state.device_self, "self")
+            replacements.append(new_self)
+            new_other.start(loop)
+            new_self.start(loop)
+        except Exception:
+            logger.exception("Audio subsystem reload failed; restoring previous pipelines")
+            for pipeline in reversed(replacements):
+                try:
+                    pipeline.stop()
+                except Exception as stop_error:
+                    logger.warning("Replacement AudioPipeline stop failed: %s", stop_error)
+
+            restore_errors: list[Exception] = []
+            for pipeline in (old_other, old_self):
+                if pipeline is not None:
+                    try:
+                        pipeline.start(loop)
+                    except Exception as restore_error:
+                        restore_errors.append(restore_error)
+                        logger.exception("Previous AudioPipeline restart failed")
+
+            self._audio_other = old_other
+            self._audio_self = old_self
+            self._state.stt_other = old_stt_other
+            self._state.stt_self = old_stt_self
+            self._state.stt_initialized = old_stt_initialized
+            self._state.stt_initializing = old_stt_initializing
+            self._backend = old_backend
+            if restore_errors:
+                await self._broadcast(
+                    ErrorMsg(text="音声認識の設定変更に失敗し、以前の音声入力も再開できませんでした。")
+                )
+            else:
+                await self._broadcast(ErrorMsg(text="音声認識の設定変更に失敗したため、以前の設定を復元しました。"))
+            return False
+
+        try:
+            await self.shutdown_stt()
+        except Exception:
+            logger.exception("STT shutdown notification failed after audio subsystem reload")
+        finally:
+            for attr, stream in (("stt_other", old_stt_other), ("stt_self", old_stt_self)):
+                if stream is not None and getattr(self._state, attr) is stream:
+                    try:
+                        if stream.supports_prewarm():
+                            stream.shutdown()
+                    except Exception as shutdown_error:
+                        logger.warning("Previous STT stream shutdown failed: %s", shutdown_error)
+                    setattr(self._state, attr, None)
+            self._state.stt_initialized = False
+            self._state.stt_initializing = False
+            self._audio_other = new_other
+            self._audio_self = new_self
+            self._backend = backend
+            self._pending_audio_reload_backend = None
+        return True
 
     # ── Device management ─────────────────────────────────────────────────────
 
@@ -154,21 +254,37 @@ class SttController:
         )
 
     async def set_device(self, role: str, raw: int | str | None) -> None:
-        if raw is None:
-            device: int | str | None = None
-        else:
-            try:
-                device = int(raw)
-            except (ValueError, TypeError):
-                device = str(raw)
+        async with self._audio_lifecycle_lock:
+            if self._state.is_running:
+                await self._broadcast(
+                    ErrorMsg(text="会議中は音声デバイスを変更できません。会議を終了してから変更してください。")
+                )
+                return
 
-        if role == "other":
-            self._state.device_other = device
-        elif role == "self":
-            self._state.device_self = device
+            if raw is None:
+                device: int | str | None = None
+            else:
+                try:
+                    device = int(raw)
+                except (ValueError, TypeError):
+                    device = str(raw)
 
-        await self.broadcast_devices()
-        await self.start_level_monitors()
+            if role == "other":
+                previous_device = self._state.device_other
+                self._state.device_other = device
+            elif role == "self":
+                previous_device = self._state.device_self
+                self._state.device_self = device
+            else:
+                return
+
+            reload_backend = self._pending_audio_reload_backend or self._backend
+            if not await self._reload_audio_subsystem(backend=reload_backend):
+                if role == "other":
+                    self._state.device_other = previous_device
+                else:
+                    self._state.device_self = previous_device
+            await self.broadcast_devices()
 
     # ── STT prewarm ───────────────────────────────────────────────────────────
 

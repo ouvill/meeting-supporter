@@ -44,6 +44,8 @@
 
 既定はWhisperです。modelの利用規約は各backendの提供元に従い、cloud backendの利用料金は各提供元で確認してください。
 
+VADエンジンはSTT backendとは独立して、Silero VADまたはWebRTC VADから選択します。
+
 OpenAI、Grok / xAI、Deepgramは「音声」の「聞き取り方法」から選択します。クラウド方式を選ぶと、同じ画面のprovider固有controlでAPIキーの入力、保存状態、接続確認、変更、削除予定の指定を行えます。provider固有modelは詳細設定に残ります。OpenAIのcredential draftと状態は音声認識と返答支援で共有し、保存済みAPIキーの値は再表示しません。
 
 ## AIの利用方法
@@ -154,6 +156,10 @@ workflowは公開を自動化しません。draftを公開する前に対象OS�
 
 「端末内・軽量」のVosk音声認識データは、同じ画面から日本語（約48MB）または英語（約40MB）をダウンロードできます。進捗表示、キャンセル、失敗時の再試行に対応し、取得したデータはAppData配下の`models/speech`へ保存されます。既存のVosk modelを使う上級者は、詳細設定の`vosk_model_path`で展開済みディレクトリを指定できます。Ollamaの既定endpointは`http://localhost:11434/v1`です。
 
+声の検出は既定でSilero VADを使用します。Torchは導入せず、同梱した約208KBのint8 ONNX modelをONNX Runtimeで直接実行します。処理は端末内で完結し、最小負荷を優先する場合は音声設定からWebRTC VADへ切り替えられます。Silero VAD modelの利用条件はMIT Licenseです。
+
+音声デバイス、VAD、音声認識方式の設定は会議中には変更できず、進行中の会議は開始時のaudio runtimeを使い続けます。会議停止中にこれらの変更を保存すると、アプリ本体を再起動せずに音声subsystem全体を新設定で再生成します。stage単位のhot-swapは行わず、再生成に失敗した場合は変更前のaudio runtimeへ戻します。会議中に外部からconfig変更通知を受けた場合も、その会議の終了後まで再読み込みを保留します。
+
 ## Architecture and product authority
 
 - [Documentation index](./doc/README.md)
@@ -176,7 +182,7 @@ workflowは公開を自動化しません。draftを公開する前に対象OS�
 | UI        | React 19, TypeScript, Vite, Tailwind CSS |
 | Desktop   | Tauri 2                                  |
 | Backend   | Python 3.12–3.14, FastAPI, WebSocket     |
-| Audio     | soundcard                                |
+| Audio     | soundcard / Silero VAD / WebRTC VAD     |
 | Local STT | faster-whisper / Vosk                    |
 
 ## Contributing

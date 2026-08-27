@@ -2,21 +2,25 @@
 """Tests for MeetingLifecycleCoordinator — start/stop orchestration order."""
 
 import asyncio
+import queue
 import tempfile
 import unittest
-from collections.abc import Sequence
+from collections.abc import Callable, Coroutine, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast, override
+from typing import Never, cast, override
 
-from app.core.protocols import ConversationState, TurnLike
+from app.audio.base import AudioFrame, RecordingResult
+from app.core.messages import OutgoingMessage
+from app.core.protocols import AudioPipelineLike, ConversationState, SttStreamLike, TurnLike
 from app.meetings.history_models import MeetingRecord, RecordingAsset
 from app.meetings.lifecycle import MeetingLifecycleCoordinator
 from app.meetings.models import MeetingSession
 from app.meetings.repository import MeetingHistoryRepository
 from app.meetings.service import MeetingHistoryService
 from app.meetings.sqlite_repository import SqliteMeetingHistoryRepository
+from app.services.stt_controller import SttController
 
 
 async def _cancel_replies() -> None:
@@ -42,6 +46,13 @@ class FakeConversationState(ConversationState):
     context_text: str = ""
     _ai_note: str = ""
     current_session: object | None = None
+    audio_lifecycle_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    stt_other: SttStreamLike | None = None
+    stt_self: SttStreamLike | None = None
+    stt_initialized: bool = False
+    stt_initializing: bool = False
+    device_other: int | str | None = None
+    device_self: int | str | None = None
 
     @property
     @override
@@ -81,6 +92,12 @@ class RecordingSttController:
     last_session_already_started: bool | None = None
     audio_other: object | None = None
     audio_self: object | None = None
+    pending_reload: bool = False
+    reload_success: bool = True
+    reload_attempts: int = 0
+    reload_applied: bool = False
+    reload_saw_cleared_state: bool = False
+    state: FakeConversationState | None = None
 
     async def start_meeting(self, _ws: object, *, session_already_started: bool = False) -> bool:
         self.started = True
@@ -89,6 +106,106 @@ class RecordingSttController:
 
     async def stop_meeting(self) -> None:
         self.stopped = True
+
+    async def apply_pending_audio_reload(self) -> bool:
+        if not self.pending_reload:
+            return True
+        self.reload_attempts += 1
+        self.reload_applied = True
+        self.reload_saw_cleared_state = self.state is not None and self.state.current_session is None
+        if self.reload_success:
+            self.pending_reload = False
+            return True
+        return False
+
+
+class RestartingQueueAudioPipeline:
+    """Audio fake matching the real restart contract: start replaces its STT queue."""
+
+    def __init__(
+        self,
+        device: int | str | None,
+        role: str,
+        *,
+        fail_on_start: bool,
+        events: list[str],
+    ) -> None:
+        self.device: int | str | None = device
+        self.role: str = role
+        self.fail_on_start: bool = fail_on_start
+        self.events: list[str] = events
+        self.start_calls: int = 0
+        self._stt_queue: queue.Queue[AudioFrame | None] = queue.Queue()
+        self._recording_queue: queue.Queue[AudioFrame | None] = queue.Queue()
+
+    @property
+    def stt_queue(self) -> queue.Queue[AudioFrame | None]:
+        return self._stt_queue
+
+    @property
+    def recording_queue(self) -> queue.Queue[AudioFrame | None]:
+        return self._recording_queue
+
+    def flush_stt_queue(self) -> None:
+        return None
+
+    def start(self, loop: asyncio.AbstractEventLoop) -> None:
+        _ = loop
+        if self.start_calls:
+            self._stt_queue = queue.Queue()
+        self.start_calls += 1
+        self.events.append(f"audio.start:{self.device}:{self.role}")
+        if self.fail_on_start:
+            raise RuntimeError(f"{self.role} replacement failed")
+
+    def stop(self) -> None:
+        self.events.append(f"audio.stop:{self.device}:{self.role}")
+
+    def start_recording(self, path: Path) -> None:
+        _ = path
+
+    def stop_recording(self) -> RecordingResult | None:
+        return None
+
+
+class QueueBoundPrewarmedSttStream:
+    """Prewarmed STT fake that detects starts after its source queue was replaced."""
+
+    on_ready: Callable[[], Coroutine[Never, Never, None]] | None = None
+    on_error: Callable[[Exception], Coroutine[Never, Never, None]] | None = None
+
+    def __init__(
+        self,
+        audio: RestartingQueueAudioPipeline,
+        role: str,
+        events: list[str],
+    ) -> None:
+        self.audio: RestartingQueueAudioPipeline = audio
+        self.role: str = role
+        self.events: list[str] = events
+        self.bound_queue: queue.Queue[AudioFrame | None] = audio.stt_queue
+        self.start_calls: int = 0
+        self.shutdown_called: bool = False
+
+    def supports_prewarm(self) -> bool:
+        return True
+
+    def initialize(self, loop: asyncio.AbstractEventLoop) -> None:
+        _ = loop
+
+    def start(self, loop: asyncio.AbstractEventLoop) -> None:
+        _ = loop
+        self.start_calls += 1
+        self.events.append(f"stt.start:{self.role}")
+        if self.bound_queue is not self.audio.stt_queue:
+            raise AssertionError(f"{self.role} STT started on an orphaned queue")
+
+    def stop(self) -> None:
+        self.events.append(f"stt.stop:{self.role}")
+
+    def shutdown(self) -> None:
+        self.shutdown_called = True
+        self.events.append(f"stt.shutdown:{self.role}")
 
 
 # ── Recording fakes ────────────────────────────────────────────────────────────
@@ -404,19 +521,35 @@ class MeetingLifecycleCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             reset_info_note_updater=_reset_info_note_updater,
         )
 
+        reload_waiting = asyncio.Event()
+        reload_entered = asyncio.Event()
+        reload_saw_session: list[object | None] = []
+
+        async def config_reload() -> None:
+            reload_waiting.set()
+            async with state.audio_lifecycle_lock:
+                reload_saw_session.append(state.current_session)
+                reload_entered.set()
+
         stop_task = asyncio.create_task(coordinator.stop_meeting())
         await asyncio.sleep(0)
         self.assertTrue(history.flush_started.is_set())
 
         self.assertTrue(stt.stopped)
         self.assertFalse(stop_task.done())
+        reload_task = asyncio.create_task(config_reload())
+        _ = await reload_waiting.wait()
+        self.assertFalse(reload_entered.is_set())
         self.assertEqual(["flush_started"], history.events)
 
         history.release_flush.set()
         await stop_task
+        await reload_task
 
         self.assertEqual(["flush_started", "flush_finished", "complete:session-flush"], history.events)
         self.assertIsNone(state.current_session)
+        self.assertTrue(reload_entered.is_set())
+        self.assertEqual(reload_saw_session, [None])
         session_info_msgs = [m for m in messages if getattr(m, "type", None) == "session_info"]
         self.assertEqual(1, len(session_info_msgs))
 
@@ -455,6 +588,187 @@ class MeetingLifecycleCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             "録音の保存または削除に失敗しました。会議履歴から削除して再試行してください。",
             [getattr(message, "text", None) for message in self.messages],
         )
+
+    async def test_stop_applies_pending_reload_only_after_session_is_cleared(self) -> None:
+        ws = FakeWs()
+        await self.coordinator.start_meeting(ws)
+        self.stt.state = self.state
+        self.stt.pending_reload = True
+
+        await self.coordinator.stop_meeting()
+
+        self.assertTrue(self.stt.reload_applied)
+        self.assertTrue(self.stt.reload_saw_cleared_state)
+        self.assertIsNone(self.state.current_session)
+
+    async def test_failed_pending_reload_retries_before_start_and_blocks_until_success(self) -> None:
+        await self.coordinator.start_meeting(FakeWs())
+        self.stt.state = self.state
+        self.stt.pending_reload = True
+        self.stt.reload_success = False
+
+        await self.coordinator.stop_meeting()
+
+        self.assertEqual(self.stt.reload_attempts, 1)
+        self.assertTrue(self.stt.pending_reload)
+        self.assertTrue(self.stt.reload_saw_cleared_state)
+        self.assertIsNone(self.state.current_session)
+
+        self.stt.started = False
+        self.recording.started = False
+        await self.coordinator.start_meeting(FakeWs())
+
+        self.assertEqual(self.stt.reload_attempts, 2)
+        self.assertTrue(self.stt.pending_reload)
+        self.assertFalse(self.stt.started)
+        self.assertFalse(self.recording.started)
+        self.assertIsNone(self.state.current_session)
+
+        self.stt.reload_success = True
+        await self.coordinator.start_meeting(FakeWs())
+
+        self.assertEqual(self.stt.reload_attempts, 3)
+        self.assertFalse(self.stt.pending_reload)
+        self.assertTrue(self.stt.started)
+        self.assertTrue(self.recording.started)
+        self.assertIsInstance(self.state.current_session, MeetingSession)
+
+    async def test_device_reload_failure_never_starts_orphan_bound_prewarmed_stt(self) -> None:
+        events: list[str] = []
+        created_audio: list[RestartingQueueAudioPipeline] = []
+        created_stt: list[QueueBoundPrewarmedSttStream] = []
+        fail_replacement = False
+
+        def make_audio(device: int | str | None, role: str) -> RestartingQueueAudioPipeline:
+            pipeline = RestartingQueueAudioPipeline(
+                device,
+                role,
+                fail_on_start=fail_replacement and role == "self",
+                events=events,
+            )
+            created_audio.append(pipeline)
+            events.append(f"audio.make:{device}:{role}")
+            return pipeline
+
+        def make_stt(audio: AudioPipelineLike, role: str) -> QueueBoundPrewarmedSttStream:
+            stream = QueueBoundPrewarmedSttStream(
+                cast(RestartingQueueAudioPipeline, audio),
+                role,
+                events,
+            )
+            created_stt.append(stream)
+            events.append(f"stt.make:{role}")
+            return stream
+
+        async def broadcast(msg: OutgoingMessage) -> None:
+            self.messages.append(cast(dict[str, object], msg.model_dump()))
+
+        controller = SttController(
+            state=self.state,
+            backend="whisper",
+            make_audio=make_audio,
+            make_stt=make_stt,
+            get_input_devices=lambda: [],
+            broadcast=broadcast,
+        )
+        await controller.start_level_monitors()
+        old_other_audio = cast(RestartingQueueAudioPipeline, controller.audio_other)
+        old_self_audio = cast(RestartingQueueAudioPipeline, controller.audio_self)
+        old_other_stt = QueueBoundPrewarmedSttStream(old_other_audio, "other", events)
+        old_self_stt = QueueBoundPrewarmedSttStream(old_self_audio, "self", events)
+        self.state.stt_other = old_other_stt
+        self.state.stt_self = old_self_stt
+        self.state.stt_initialized = True
+
+        fail_replacement = True
+        await controller.set_device("self", 7)
+
+        self.assertIsNone(self.state.device_self)
+        self.assertEqual(controller.pending_audio_reload_backend, "whisper")
+        self.assertIsNot(old_other_stt.bound_queue, old_other_audio.stt_queue)
+        self.assertIsNot(old_self_stt.bound_queue, old_self_audio.stt_queue)
+
+        recording = FakeRecordingService(events=events)
+        coordinator = MeetingLifecycleCoordinator(
+            state=self.state,
+            stt_controller=controller,
+            broadcast=broadcast,
+            history=self.history,
+            cancel_replies=_cancel_replies,
+            reset_reply_cancel_results=_reset_reply_cancel_results,
+            reset_info_note_updater=_reset_info_note_updater,
+            recording=recording,  # pyright: ignore[reportArgumentType]
+        )
+
+        await coordinator.start_meeting(FakeWs())
+
+        self.assertIsNone(self.state.current_session)
+        self.assertFalse(recording.started)
+        self.assertEqual(old_other_stt.start_calls, 0)
+        self.assertEqual(old_self_stt.start_calls, 0)
+        self.assertEqual(controller.pending_audio_reload_backend, "whisper")
+
+        fail_replacement = False
+        await coordinator.start_meeting(FakeWs())
+
+        self.assertIsNone(controller.pending_audio_reload_backend)
+        self.assertTrue(old_other_stt.shutdown_called)
+        self.assertTrue(old_self_stt.shutdown_called)
+        self.assertEqual(old_other_stt.start_calls, 0)
+        self.assertEqual(old_self_stt.start_calls, 0)
+        self.assertEqual([pipeline.device for pipeline in created_audio[-2:]], [None, None])
+        replacement_started = max(
+            index for index, event in enumerate(events) if event in {"audio.start:None:other", "audio.start:None:self"}
+        )
+        recording_started = events.index("recording.start")
+        first_new_stt = next(index for index, event in enumerate(events) if event == "stt.make:other")
+        self.assertLess(replacement_started, recording_started)
+        self.assertLess(recording_started, first_new_stt)
+        self.assertEqual(len(created_stt), 2)
+        self.assertIs(created_stt[0].audio, created_audio[-2])
+        self.assertIs(created_stt[1].audio, created_audio[-1])
+
+    async def test_start_serializes_against_config_reload(self) -> None:
+        reset_entered = asyncio.Event()
+        release_reset = asyncio.Event()
+        reload_waiting = asyncio.Event()
+        reload_entered = asyncio.Event()
+
+        async def blocking_reset() -> None:
+            reset_entered.set()
+            _ = await release_reset.wait()
+
+        async def broadcast(msg: object) -> None:
+            self.messages.append(cast(dict[str, object], msg))
+
+        coordinator = MeetingLifecycleCoordinator(
+            state=self.state,
+            stt_controller=self.stt,  # pyright: ignore[reportArgumentType]
+            broadcast=broadcast,
+            history=self.history,
+            cancel_replies=_cancel_replies,
+            reset_reply_cancel_results=_reset_reply_cancel_results,
+            reset_info_note_updater=blocking_reset,
+            recording=self.recording,  # pyright: ignore[reportArgumentType]
+        )
+
+        async def config_reload() -> None:
+            reload_waiting.set()
+            async with self.state.audio_lifecycle_lock:
+                reload_entered.set()
+
+        start_task = asyncio.create_task(coordinator.start_meeting(FakeWs()))
+        _ = await reset_entered.wait()
+        reload_task = asyncio.create_task(config_reload())
+        _ = await reload_waiting.wait()
+        self.assertFalse(reload_entered.is_set())
+
+        release_reset.set()
+        await start_task
+        await reload_task
+
+        self.assertTrue(reload_entered.is_set())
+        self.assertIsInstance(self.state.current_session, MeetingSession)
 
 
 class MeetingLifecycleCoordinatorDraftFailureTest(unittest.IsolatedAsyncioTestCase):

@@ -366,7 +366,11 @@ async def _on_config_changed(_event: ConfigChanged) -> None:
         state.config = new_config
         if context_dir_changed:
             state.context_text = load_context_files(new_config.context_dir)
-        await stt_controller.on_config_changed(old_config, new_config)
+        await stt_controller.on_config_changed(
+            old_config,
+            new_config,
+            audio_lifecycle_lock_held=_event.audio_lifecycle_lock_held,
+        )
 
         if prepared_bundle is not None:
             old_bundle = bundle

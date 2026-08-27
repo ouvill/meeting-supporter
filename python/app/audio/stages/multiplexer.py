@@ -10,7 +10,7 @@ class Multiplexer(PipelineStage):
     """Copies each AudioFrame from in_q into all out_queues.
 
     Sentinel (None) is forwarded to every out_queue before the stage exits.
-    Hot-swap stop via _stop_event does not emit a sentinel.
+    Immediate subsystem stop via _stop_event does not emit a sentinel.
 
     *drop_new_at_indices* — a set of output queue indices that should use the
     drop-new policy (``put_or_drop``) instead of the default drop-oldest

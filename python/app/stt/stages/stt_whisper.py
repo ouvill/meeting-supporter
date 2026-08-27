@@ -8,6 +8,7 @@ import os
 import queue
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, cast, override
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 _FRAME_MS = 30
+_PREROLL_MS = 150
 _MODEL_BIN_FILENAME = "model.bin"
 _CUDA_RUNTIME_ERROR_MARKERS = (
     "cuda failed",
@@ -418,12 +420,15 @@ class WhisperStage(PipelineStage):
     def _run(self) -> None:
         cfg = self._cfg
         silence_threshold = max(1, int(float(cfg.silence_duration) * 1000 / _FRAME_MS))
+        preroll: deque[bytes] = deque(maxlen=max(1, _PREROLL_MS // _FRAME_MS))
 
         speech_buf: list[bytes] = []
         silence_frames = 0
         in_speech = False
         voiced_frames = 0
         segment_frames = 0
+        prepended_frames = 0
+        prepended_samples = 0
 
         self._run_token += 1
         run_token = self._run_token
@@ -437,36 +442,45 @@ class WhisperStage(PipelineStage):
                 break
 
             if frame.is_speech:
+                if not in_speech:
+                    pre_speech = tuple(preroll)
+                    speech_buf.extend(pre_speech)
+                    prepended_frames = len(pre_speech)
+                    prepended_samples = sum(len(pcm) // 2 for pcm in pre_speech)
+                    in_speech = True
+                    self._publisher.publish(SttInterimMsg(role=self._role, text="…"))
                 speech_buf.append(frame.pcm)
                 voiced_frames += 1
                 segment_frames += 1
                 silence_frames = 0
-                if not in_speech:
-                    in_speech = True
-                    self._publisher.publish(SttInterimMsg(role=self._role, text="…"))
             elif in_speech:
                 silence_frames += 1
                 speech_buf.append(frame.pcm)
                 segment_frames += 1
                 if silence_frames >= silence_threshold:
                     audio_np = np.frombuffer(b"".join(speech_buf), dtype=np.int16).astype(np.float32) / 32767.0
+                    segment_audio_np = audio_np[prepended_samples:]
                     voiced_ms = voiced_frames * _FRAME_MS
                     voiced_ratio = voiced_frames / max(1, segment_frames)
-                    rms_dbfs = self._rms_dbfs(audio_np)
+                    rms_dbfs = self._rms_dbfs(segment_audio_np)
                     audio = AudioEvidence(
                         voiced_ms=voiced_ms,
                         voiced_ratio=voiced_ratio,
                         rms_dbfs=rms_dbfs,
-                        duration_ms=segment_frames * _FRAME_MS,
+                        duration_ms=(prepended_frames + segment_frames) * _FRAME_MS,
                     )
                     speech_buf.clear()
                     in_speech = False
                     silence_frames = 0
                     voiced_frames = 0
                     segment_frames = 0
+                    prepended_frames = 0
+                    prepended_samples = 0
                     if not self._stop_event.is_set() and self._should_enqueue(cfg, audio):
                         self._enqueue_audio(audio_np, audio, run_token)
                     self._publisher.publish(SttInterimMsg(role=self._role, text=""))
+
+            preroll.append(frame.pcm)
 
     # ── Helpers ------------------------------------------------------------------
 

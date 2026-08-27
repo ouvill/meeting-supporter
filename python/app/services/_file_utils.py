@@ -42,3 +42,32 @@ def atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> None
         except OSError:
             pass
         raise
+
+
+def atomic_write_bytes(path: Path, content: bytes) -> None:
+    """Write *content* to *path* atomically without text transformation."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = tempfile.NamedTemporaryFile(
+        mode="wb",
+        dir=path.parent,
+        prefix=path.name + ".",
+        suffix=".tmp",
+        delete=False,
+    )
+    tmp_path = Path(tmp.name)
+    try:
+        _ = tmp.write(content)
+        tmp.flush()
+        os.fsync(tmp.fileno())
+        tmp.close()
+        os.replace(tmp_path, path)
+    except OSError:
+        try:
+            tmp.close()
+        except OSError:
+            pass
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise

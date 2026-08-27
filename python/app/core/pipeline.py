@@ -75,8 +75,15 @@ class Pipeline[T]:
         self._input_queues: list[queue.Queue[T]] = list(input_queues) if input_queues else []
 
     def start(self) -> None:
-        for stage in self._stages:
-            stage.start()
+        started: list[Stage] = []
+        try:
+            for stage in self._stages:
+                stage.start()
+                started.append(stage)
+        except Exception:
+            for stage in reversed(started):
+                stage.stop()
+            raise
 
     def stop(self, *, timeout: float | None = None, inject_sentinels: bool = True) -> None:
         if inject_sentinels:
@@ -93,14 +100,6 @@ class Pipeline[T]:
     @property
     def stages(self) -> list[Stage]:
         return list(self._stages)
-
-    def replace_stage(self, index: int, stage: Stage) -> None:
-        """Replace a stage in-place while the pipeline is running.
-
-        The caller is responsible for stopping the old stage and starting the
-        new one; this helper only mutates the internal stage list.
-        """
-        self._stages[index] = stage
 
     @staticmethod
     def _drain(q: queue.Queue[T]) -> None:

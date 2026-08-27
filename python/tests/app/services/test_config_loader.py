@@ -136,6 +136,15 @@ class FromSettingsStoreSttTest(unittest.TestCase):
         self.assertEqual("openai", loader.stt_config.backend)
         self.assertEqual("gpt-4o-mini-transcribe", loader.stt_config.openai_model)
 
+    def test_silero_is_the_default_vad_without_changing_explicit_webrtc(self) -> None:
+        default_loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=cast(TomlTable, {})))
+        webrtc_loader = ConfigLoader.from_settings_store(
+            _dummy_settings_store(config=cast(TomlTable, {"stt": {"vad_engine": "webrtc"}}))
+        )
+
+        self.assertEqual("silero", default_loader.stt_config.vad_engine)
+        self.assertEqual("webrtc", webrtc_loader.stt_config.vad_engine)
+
     def test_legacy_hallucination_blocklist_maps_to_suspicious_phrases(self) -> None:
         config: TomlTable = cast(TomlTable, {"stt": {"hallucination_phrase_blocklist": ["旧フレーズ"]}})
         store = _dummy_settings_store(config=config)
@@ -181,6 +190,65 @@ class FromSettingsStoreSttTest(unittest.TestCase):
         self.assertEqual(0.95, loader.stt_config.decode_no_speech_threshold)
         self.assertEqual(-8.5, loader.stt_config.decode_log_prob_threshold)
         self.assertEqual(8.0, loader.stt_config.decode_compression_ratio_threshold)
+
+    def test_rejects_persisted_numbers_outside_postable_ranges(self) -> None:
+        cases: tuple[tuple[str, TomlTable, str], ...] = (
+            (
+                "audio sample rate",
+                _toml_table(stt={"vad_engine": "webrtc"}, audio={"sample_rate": 192_001}),
+                "audio.sample_rate",
+            ),
+            ("audio session length", _toml_table(audio={"max_session_seconds": 61}), "audio.max_session_seconds"),
+            ("VAD sensitivity", _toml_table(stt={"vad_sensitivity": 0.049}), "stt.vad_sensitivity"),
+            ("silence duration", _toml_table(stt={"silence_duration": 5.01}), "stt.silence_duration"),
+            ("VAD aggressiveness", _toml_table(stt={"vad_aggressiveness": 4}), "stt.vad_aggressiveness"),
+            ("minimum voiced time", _toml_table(stt={"min_voiced_ms": -1}), "stt.min_voiced_ms"),
+            ("minimum voiced ratio", _toml_table(stt={"min_voiced_ratio": 1.01}), "stt.min_voiced_ratio"),
+            (
+                "decode no-speech threshold",
+                _toml_table(stt={"decode_no_speech_threshold": 1.01}),
+                "stt.decode_no_speech_threshold",
+            ),
+            (
+                "decode compression threshold",
+                _toml_table(stt={"decode_compression_ratio_threshold": 0.0}),
+                "stt.decode_compression_ratio_threshold",
+            ),
+            ("hard minimum voiced time", _toml_table(stt={"hard_min_voiced_ms": -1}), "stt.hard_min_voiced_ms"),
+            (
+                "hard no-speech threshold",
+                _toml_table(stt={"hard_no_speech_threshold": 1.01}),
+                "stt.hard_no_speech_threshold",
+            ),
+            (
+                "hard compression threshold",
+                _toml_table(stt={"hard_compression_ratio_threshold": 0.0}),
+                "stt.hard_compression_ratio_threshold",
+            ),
+            ("soft minimum voiced time", _toml_table(stt={"soft_min_voiced_ms": -1}), "stt.soft_min_voiced_ms"),
+            (
+                "soft minimum voiced ratio",
+                _toml_table(stt={"soft_min_voiced_ratio": 1.01}),
+                "stt.soft_min_voiced_ratio",
+            ),
+            (
+                "legacy no-speech threshold",
+                _toml_table(stt={"no_speech_threshold": 1.01}),
+                "stt.soft_no_speech_threshold",
+            ),
+            (
+                "legacy compression threshold",
+                _toml_table(stt={"compression_ratio_threshold": 0.0}),
+                "stt.soft_compression_ratio_threshold",
+            ),
+            ("drop score threshold", _toml_table(stt={"drop_score_threshold": 1.01}), "stt.drop_score_threshold"),
+            ("temperature", _toml_table(stt={"temperature": -0.01}), "stt.temperature"),
+        )
+
+        for name, config, field_name in cases:
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(ValueError, field_name):
+                    _ = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
 
 
 class AiRouteConfigurationTest(unittest.TestCase):

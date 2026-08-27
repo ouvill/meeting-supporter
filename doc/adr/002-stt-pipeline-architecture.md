@@ -57,9 +57,9 @@ Multiplexer 自身も `threading.Event` で個別停止する。
 
 停止には 2 つの機構を用途で使い分ける。
 
-**`threading.Event` — 個別ステージの停止（ホットスワップ用）**
+**`threading.Event` — 会議停止・subsystem再読み込み時のstage停止**
 
-デバイス変更・エンジン切り替えなど、パイプラインの一部だけを再起動するケース。下流を止めずに特定ステージだけを停止する。
+通常の会議終了では、`SttPipeline`は共有queueへsentinelを注入せず、`Pipeline.stop(..., inject_sentinels=False)`で各stageの`threading.Event`を設定して待機を解除する。共有`stt_queue`は`AudioPipeline`が所有するため、STT側からsentinelを入れてはならない。設定再読み込みでsubsystemを停止する場合も、各stageは下流のsentinelを待ち続けず個別に停止できる。
 
 ```python
 class PipelineStage(ABC):
@@ -85,9 +85,9 @@ def _run(self) -> None:
         # フレーム処理...
 ```
 
-**sentinel `None` — パイプライン全体のシャットダウン**
+**sentinel `None` — AudioPipelineのEOF・全体シャットダウン**
 
-会議終了など、全ステージを順番に停止するケース。Multiplexer が `None` を受け取ったら Qa・Qb 両方に転送することで、下流全体に伝播する。
+sentinel伝播は通常の会議停止には使わない。音声入力のEOFまたは`AudioPipeline`全体のシャットダウンで`None`をQ1へ入れ、MultiplexerがQa・Qbへ転送することで、所有する下流全体へ終了を伝える。
 
 ```
 CaptureStage → None → Q1
@@ -128,16 +128,13 @@ app/stt/
 └── audio_source.py      # AudioSource protocol, SoundcardSource (変更なし)
 ```
 
-### エンジン切り替えの動作
+### 音声設定変更時の再読み込み
 
-各ステージは独立して停止・再起動できるため、変更範囲を最小化できる。
+無停止のstage hot-swapは行わない。会議中はfrontendで音声device、VAD、STT設定をロックし、`AppState`がactiveの間にconfig変更通知を受けても、`SttController`は現在のaudio runtimeを維持して再読み込みを保留する。会議ライフサイクルの完了後、または会議停止中の保存時に、`AppState`の共通asyncio lifecycle mutexの下でSTTとaudio monitor pairを含む音声subsystem全体を新設定から再生成する。
 
-| 変更内容 | 停止・再起動するステージ | 継続するステージ |
-|---------|----------------------|----------------|
-| 音声デバイス変更 | `CaptureStage` | VAD, STT, 音量計算 (キュー経由で継続) |
-| VAD エンジン変更 | `VadStage` | 音声取得, STT |
-| STT バックエンド変更 | `WhisperStage` → `VoskStage` / `DeepgramStage` | 音声取得, VAD |
-| 話者分離 ON/OFF | `DiarizationStage` | 全ステージ継続 |
+再読み込みはtransactionalに行う。replacement pairの両方が起動するまでは旧pipeline pairとbackendをrollback可能な状態で保持し、片方だけ起動したreplacementは失敗時に停止して旧pair/backendを復元する。完全なpairが起動した場合だけ新runtimeをcommitする。
+
+このreloadはTauri、FastAPI、frontend processを終了しない。一方、旧queue、VAD recurrent state、進行中STT segmentは新runtimeへ引き継がない。stage単位の差し替えやqueue handoffは行わず、rollbackにも一時的な音声subsystem停止を伴う。
 
 ### VolumeStage と AudioLevelMonitor の統合
 
@@ -163,9 +160,10 @@ flowchart LR
 
 ### VAD の設計
 
-`VadStage` はエンジンをコンストラクタで受け取り、差し替え可能にする。
-**フレームはフィルタせず全量通過させ、`is_speech` フラグを付与するだけ**にとどめる。
-各 STT バックエンドが `is_speech` の遷移（False→True, True→False）を見て、プリロールバッファ・終末バッファ・KeepAlive・Finalize 等を自律的に制御する。
+`VadStage` は選択されたエンジンをコンストラクタで受け取る。
+**フレームは保留・フィルタせず、1入力につき1出力として`is_speech`を付与する**。各STTバックエンドが`is_speech`の遷移を見て、プリロールバッファ・終末バッファ・KeepAlive・Finalize等を制御する。
+
+Sileroは512 sampleの最初の完全なwindowがthreshold以上なら直ちに発話開始とする。threshold未満が約100ms（4 window）続いた場合に発話終了とする。WhisperとVoskは直前150msをプリロールとしてsegment先頭へ追加する。
 
 ```python
 @dataclass
@@ -177,15 +175,17 @@ class AudioFrame:
 class VadEngine(Protocol):
     def is_speech(self, frame: bytes, sample_rate: int) -> bool: ...
 
-class WebRtcVadEngine:  ...  # webrtcvad ライブラリ使用 (MVP)
-class SileroVadEngine:  ...  # Silero VAD (将来オプション)
+class WebRtcVadEngine: ...  # webrtcvad、最小CPU負荷
+class SileroVadEngine: ...  # ONNX Runtime + 同梱int8 ONNX、既定
 ```
+
+Silero VADはTorchやsherpa-onnxを依存にせず、k2-fsaが配布する16kHz専用int8 ONNX model（約208KB）をONNX Runtimeで直接実行する。modelはSHA-256を固定して配布物へ同梱し、起動時に検証する。ONNXの確率・recurrent stateは個数、shape、dtype、有限値を検証し、不正な出力ではstateをresetしてfail closedにする。
 
 **各バックエンドの `is_speech` 活用例**
 
-- `WhisperStage`: `False→True` でプリロールバッファ（直前 300ms）を先頭に追加しセグメント開始。`True→False` が一定時間継続したらセグメントを確定して推論キューへ。
-- `DeepgramStage`: `False→True` でプリロールバッファを送信開始。`True→False` で `{"type": "Finalize"}` を送信。`is_speech=False` が続く間は KeepAlive を 3 秒ごとに送信。
-- `RemoteStage`: `is_speech=True` フレームのみ送信するか、全量送るかをリモートサーバーの仕様に応じて選択。
+- `WhisperStage` / `VoskStage`: `False→True`でプリロールバッファ（直前150ms）を先頭に追加してsegmentを開始する。プリロールは音声gateのvoiced frame数には含めない。
+- `DeepgramStage` / `OpenAIStage` / `XaiStage`: backend固有のプリロールとFinalizeを制御する。
+- `ManagedSttStage` / `RemoteStage`: server側のsegment仕様に従い全frameを送る。
 
 ### キューの満杯ポリシー
 

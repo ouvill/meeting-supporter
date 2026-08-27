@@ -12,6 +12,7 @@ interface Props {
   ollamaTesting: boolean;
   ollamaMessage: string;
   ollamaMessageIsError: boolean;
+  audioSettingsLocked?: boolean;
   update: <K extends keyof SettingsForm>(
     key: K,
     value: SettingsForm[K],
@@ -26,6 +27,7 @@ export function AdvancedSettingsPanel({
   ollamaTesting,
   ollamaMessage,
   ollamaMessageIsError,
+  audioSettingsLocked = false,
   update,
   onTestOllama,
 }: Props) {
@@ -35,6 +37,11 @@ export function AdvancedSettingsPanel({
       description="model識別子、endpoint、command、runtime診断を安全に管理する方向けの設定です。"
     >
       {error && <InlineNotice tone="danger">{error}</InlineNotice>}
+      {audioSettingsLocked && (
+        <InlineNotice tone="warning">
+          会議中は音声認識のmodel設定を変更できません。
+        </InlineNotice>
+      )}
       {(form.sttBackend === "deepgram" || form.sttBackend === "openai") && (
         <SettingsCard
           title="クラウド音声認識モデル"
@@ -45,6 +52,7 @@ export function AdvancedSettingsPanel({
               <input
                 type="text"
                 value={form.sttDeepgramModel}
+                disabled={audioSettingsLocked}
                 onChange={(event) =>
                   update("sttDeepgramModel", event.target.value)
                 }
@@ -56,6 +64,7 @@ export function AdvancedSettingsPanel({
             <FieldRow label="OpenAI model識別子">
               <select
                 value={form.sttOpenaiModel}
+                disabled={audioSettingsLocked}
                 onChange={(event) =>
                   update("sttOpenaiModel", event.target.value)
                 }
@@ -122,6 +131,7 @@ export function AdvancedSettingsPanel({
             <input
               type="text"
               value={form.sttVoskModelPath}
+              disabled={audioSettingsLocked}
               onChange={(event) =>
                 update("sttVoskModelPath", event.target.value)
               }

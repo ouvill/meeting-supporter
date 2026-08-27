@@ -96,6 +96,8 @@ class _DummyConfig:
         whisper_model="base",
         language="ja",
         device="cpu",
+        vad_engine="silero",
+        vad_sensitivity=0.4,
         vad_aggressiveness=2,
         silence_duration=1.0,
         min_voiced_ms=0,
