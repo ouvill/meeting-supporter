@@ -259,8 +259,12 @@ fn wait_for_backend_health(
 
 /// AppImage launchers may inject `PYTHONHOME` and `PYTHONPATH` for their own
 /// runtime. Those paths must not leak into the separately managed uv environment.
-fn clear_inherited_python_runtime(command: &mut Command) {
-    command.env_remove("PYTHONHOME").env_remove("PYTHONPATH");
+/// Force UTF-8 stdio so non-ASCII log messages survive Windows pipes and PTYs.
+fn configure_python_runtime(command: &mut Command) {
+    command
+        .env_remove("PYTHONHOME")
+        .env_remove("PYTHONPATH")
+        .env("PYTHONIOENCODING", "utf-8");
 }
 
 /// FastAPI サーバーを起動する。
@@ -290,7 +294,7 @@ pub fn start_backend(app: &AppHandle) -> Result<BackendProcess, AppError> {
         let mut wrap = CommandWrap::with_new(&paths.uv, |cmd| {
             cmd.env("UV_PROJECT_ENVIRONMENT", &paths.venv_dir)
                 .env_remove("VIRTUAL_ENV");
-            clear_inherited_python_runtime(cmd);
+            configure_python_runtime(cmd);
             cmd
                 // Ignore an untrusted parent override. Only the canonical result from the
                 // platform-aware trusted installer/PATH discovery may cross this boundary.
@@ -562,13 +566,13 @@ mod tests {
     }
 
     #[test]
-    fn backend_command_clears_inherited_python_runtime() {
+    fn backend_command_sanitizes_and_uses_utf8_python_runtime() {
         let mut command = Command::new("uv");
         command
             .env("PYTHONHOME", "/appimage/runtime")
             .env("PYTHONPATH", "/appimage/runtime/lib");
 
-        clear_inherited_python_runtime(&mut command);
+        configure_python_runtime(&mut command);
 
         for key in ["PYTHONHOME", "PYTHONPATH"] {
             let override_value = command
@@ -581,6 +585,16 @@ mod tests {
                 "{key} must be removed from the backend environment"
             );
         }
+
+        let stdio_encoding = command
+            .get_envs()
+            .find(|(name, _)| *name == std::ffi::OsStr::new("PYTHONIOENCODING"))
+            .and_then(|(_, value)| value);
+        assert_eq!(
+            stdio_encoding,
+            Some(std::ffi::OsStr::new("utf-8")),
+            "backend Python stdio must use UTF-8"
+        );
     }
 
     #[test]

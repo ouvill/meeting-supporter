@@ -1,4 +1,5 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "./";
 
 @theme {
   --font-sans:
@@ -29,8 +30,7 @@
   --color-danger: #c23d4b;
   --color-danger-soft: #fff0f1;
 
-  --shadow-card:
-    0 1px 2px rgb(10 37 64 / 0.08), 0 1px 4px rgb(10 37 64 / 0.04);
+  --shadow-card: 0 1px 2px rgb(10 37 64 / 0.08), 0 1px 4px rgb(10 37 64 / 0.04);
   --shadow-raised: 0 8px 24px rgb(10 37 64 / 0.12);
   --shadow-overlay: 0 24px 64px rgb(10 37 64 / 0.22);
   --shadow-sticky: 0 -8px 24px rgb(10 37 64 / 0.08);
@@ -128,12 +128,7 @@ body {
   min-width: 320px;
   font-size: 14px;
   line-height: 1.55;
-  background: linear-gradient(
-    180deg,
-    #f9fbff 0%,
-    #f6f9fc 35%,
-    #f6f9fc 100%
-  );
+  background: linear-gradient(180deg, #f9fbff 0%, #f6f9fc 35%, #f6f9fc 100%);
   color: var(--color-ink);
 }
 
