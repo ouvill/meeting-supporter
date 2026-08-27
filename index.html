@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/startup.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
@@ -12,7 +13,17 @@
     <title>会議支援AI</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main class="startup-fallback" role="status" aria-live="polite">
+        <div class="startup-fallback__card">
+          <div class="startup-fallback__spinner" aria-hidden="true"></div>
+          <p class="startup-fallback__title">準備しています…</p>
+          <p class="startup-fallback__message">
+            初回起動の準備を進めています。このまま少しお待ちください。
+          </p>
+        </div>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
