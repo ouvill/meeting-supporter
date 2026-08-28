@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """会議支援AI — FastAPI + WebSocket サーバー (Tauri サイドカー版)"""
 
-import asyncio
 import logging
 import os
 import secrets
@@ -30,17 +29,11 @@ logger = logging.getLogger(__name__)
 
 # ── アプリ依存のインポート ─────────────────────────────────────────────────────
 from app.agents.codex_app_server import CodexAppServer
-from app.agents.codex_runtime import CodexInfoAgentRuntime, CodexMinutesAgentRuntime, CodexReplyAgentRuntime
-from app.agents.factory import AgentBundle, AgentRouteError, build_agents
-from app.agents.managed_runtime import ManagedReplyAgentRuntime, probe_managed_route_status
-from app.agents.models import ReplyAgentDefinition
-from app.agents.route_catalog import RouteCatalog
+from app.agents.managed_runtime import probe_managed_route_status
 from app.api import ai_runtimes, websocket
-from app.audio import AudioPipeline, SoundcardSource
-from app.core.config import RouteDefinition
+from app.audio import SoundcardSource
 from app.core.event_bus import EventBus
 from app.core.events import ConfigChanged
-from app.core.protocols import AudioPipelineLike
 from app.core.state import AppState
 from app.core.types import InputDevice
 from app.lifespan import create_lifespan
@@ -49,6 +42,7 @@ from app.meetings.models import Turn, _new_utterance_id
 from app.meetings.recording import RecordingService
 from app.meetings.service import MeetingHistoryService
 from app.meetings.sqlite_repository import SqliteMeetingHistoryRepository
+from app.runtime_composition import RuntimeCompositionCoordinator
 from app.services.broadcast import BroadcastManager
 from app.services.config_loader import ConfigLoader
 from app.services.context_loader import ensure_default_context_directory, load_context_files
@@ -62,7 +56,6 @@ from app.services.stt_controller import SttController
 from app.services.usage_logger import UsageLogger
 from app.services.vosk_model_manager import VoskModelManager
 from app.services.whisper_model_manager import WhisperModelManager
-from app.stt import SttPipeline, build_pipeline
 
 # ── 設定 ─────────────────────────────────────────────────────────────────────
 
@@ -109,85 +102,26 @@ managed_route_status = (
 codex_route_status = partial(ai_runtimes.probe_codex_route_status, codex)
 
 
-async def _info_route_ready() -> bool:
-    route = await RouteCatalog(
-        providers=state.config.providers,
-        routes=state.config.routes,
-        assignments=state.config.ai_assignments,
-        secret_store=secret_store,
-        managed_status=managed_route_status,
-        codex_status=codex_route_status,
-    ).read_assigned_route("info")
-    return route is not None and route.readiness == "ready" and route.selectable and "info" in route.capabilities
-
-
-def _build_managed_reply_runtime(
-    _route: RouteDefinition,
-    definition: ReplyAgentDefinition,
-) -> ManagedReplyAgentRuntime:
-    return ManagedReplyAgentRuntime(
-        session_store=managed_session_store,
-        instruction=definition.instruction,
-    )
-
-
-def _build_codex_reply_runtime(
-    route: RouteDefinition,
-    _definition: ReplyAgentDefinition,
-) -> CodexReplyAgentRuntime:
-    model = route.model
-    if not model:
-        raise AgentRouteError(
-            code="CODEX_MODEL_NOT_CONFIGURED",
-            message="Codex経路のモデル設定が空です。設定を確認してください。",
-        )
-    return CodexReplyAgentRuntime(peer=codex, model=model)
-
-
-def _build_codex_info_runtime(route: RouteDefinition) -> CodexInfoAgentRuntime:
-    model = route.model
-    if not model:
-        raise AgentRouteError(
-            code="CODEX_MODEL_NOT_CONFIGURED",
-            message="Codex経路のモデル設定が空です。設定を確認してください。",
-        )
-    return CodexInfoAgentRuntime(peer=codex, model=model)
-
-
-def _build_codex_minutes_runtime(route: RouteDefinition) -> CodexMinutesAgentRuntime:
-    model = route.model
-    if not model:
-        raise AgentRouteError(
-            code="CODEX_MODEL_NOT_CONFIGURED",
-            message="Codex経路のモデル設定が空です。設定を確認してください。",
-        )
-    return CodexMinutesAgentRuntime(peer=codex, model=model)
-
-
-# ── エージェント ──────────────────────────────────────────────────────────────
-
-
 async def _replace_ai_note(old_str: str, new_str: str) -> str:
     return await conversation_orchestrator.replace_ai_note(old_str, new_str)
 
 
-bundle: AgentBundle = build_agents(
+async def _handle_speech(role: str, text: str) -> None:
+    await conversation_orchestrator.handle_speech(role, text)
+
+
+runtime_composition = RuntimeCompositionCoordinator(
+    config=config,
     state=state,
-    providers=config.providers,
-    routes=config.routes,
-    assignments=config.ai_assignments,
     secret_store=secret_store,
-    context_dir=config.context_dir,
+    broadcast_manager=broadcast_manager,
+    managed_session_store=managed_session_store,
+    codex=codex,
     usage_logger=usage_logger,
-    mcp_servers=config.mcp_servers,
-    reply_agent_definitions=config.reply_agent_definitions,
     replace_ai_note=_replace_ai_note,
-    external_reply_factories={
-        "managed": _build_managed_reply_runtime,
-        "codex": _build_codex_reply_runtime,
-    },
-    external_info_factories={"codex": _build_codex_info_runtime},
-    external_minutes_factories={"codex": _build_codex_minutes_runtime},
+    handle_speech=_handle_speech,
+    managed_status=managed_route_status,
+    codex_status=codex_route_status,
 )
 
 # ── デバイス一覧 ──────────────────────────────────────────────────────────────
@@ -197,7 +131,7 @@ def get_input_devices() -> list[InputDevice]:
     default_ids: set[str] = set()
     for role in ("other", "self"):
         try:
-            source = SoundcardSource(None, role, config.stt_config.sample_rate)
+            source = SoundcardSource(None, role, runtime_composition.config.stt_config.sample_rate)
             default_ids.add(str(source.device_id))
         except Exception as error:
             logger.warning("既定音声デバイスの解決に失敗しました (%s): %s", role, error)
@@ -216,35 +150,13 @@ def get_input_devices() -> list[InputDevice]:
     return result
 
 
-# ── STT ファクトリ ────────────────────────────────────────────────────────────
-
-
-def _make_audio(device: int | str | None, role: str) -> AudioPipeline:
-    cfg = config.stt_config
-    source = SoundcardSource(device, role, cfg.sample_rate)
-    return AudioPipeline(source, role, broadcast_manager.broadcast)
-
-
-def _make_stt(audio: AudioPipelineLike, role: str) -> SttPipeline:
-    cfg = config.stt_config
-    return build_pipeline(
-        audio.stt_queue,
-        role,
-        cfg,
-        broadcast_manager.broadcast,
-        _handle_speech,
-        managed_session_store,
-        lambda: state.current_session.id if state.current_session is not None else None,
-    )
-
-
 # ── STT コントローラー ─────────────────────────────────────────────────────────
 
 stt_controller = SttController(
     state=state,
-    backend=config.stt_backend,
-    make_audio=_make_audio,
-    make_stt=_make_stt,
+    backend=runtime_composition.config.stt_backend,
+    make_audio=runtime_composition.make_audio,
+    make_stt=runtime_composition.make_stt,
     get_input_devices=get_input_devices,
     broadcast=broadcast_manager.broadcast,
 )
@@ -264,15 +176,15 @@ def _turn_factory(speaker: str, text: str, speaker_id: str | None = None) -> Tur
 conversation_orchestrator = ConversationOrchestrator(
     state=state,
     broadcast=broadcast_manager.broadcast,
-    reply_agents=bundle.reply_agent_specs,
-    info_runtime=bundle.info_runtime,
+    reply_agents=runtime_composition.bundle.reply_agent_specs,
+    info_runtime=runtime_composition.bundle.info_runtime,
     turn_factory=_turn_factory,
-    info_readiness=_info_route_ready,
-    info_enabled=config.agent_settings["info_enabled"],
-    agent_settings=config.agent_settings,
+    info_readiness=runtime_composition.info_route_ready,
+    info_enabled=runtime_composition.config.agent_settings["info_enabled"],
+    agent_settings=runtime_composition.config.agent_settings,
     history_service=history_service,
     usage_logger=usage_logger,
-    usage_budget=config.usage_budget,
+    usage_budget=runtime_composition.config.usage_budget,
 )
 
 
@@ -294,97 +206,14 @@ meeting_lifecycle = MeetingLifecycleCoordinator(
 )
 
 
-async def _handle_speech(role: str, text: str) -> None:
-    await conversation_orchestrator.handle_speech(role, text)
-
-
-_config_change_lock = asyncio.Lock()
-
-
-async def _enter_info_runtime(bundle_to_start: AgentBundle) -> None:
-    if bundle_to_start.info_runtime is not None:
-        _ = await bundle_to_start.info_runtime.__aenter__()
-
-
-async def _exit_info_runtime(bundle_to_stop: AgentBundle) -> None:
-    if bundle_to_stop.info_runtime is not None:
-        _ = await bundle_to_stop.info_runtime.__aexit__(None, None, None)
-
-
-async def _on_config_changed(_event: ConfigChanged) -> None:
-    global config, bundle
-    async with _config_change_lock:
-        old_config = config
-        new_config = old_config.reload()
-        ensure_default_context_directory(
-            context_dir=new_config.context_dir,
-            user_data_dir=new_config.user_data_dir,
-        )
-        context_dir_changed = new_config.context_dir != old_config.context_dir
-        composition_changed = (
-            new_config.routes != old_config.routes
-            or new_config.ai_assignments != old_config.ai_assignments
-            or new_config.providers != old_config.providers
-            or new_config.ollama_base_url != old_config.ollama_base_url
-            or new_config.context_dir != old_config.context_dir
-            or new_config.mcp_servers != old_config.mcp_servers
-            or new_config.reply_agent_definitions != old_config.reply_agent_definitions
-        )
-
-        prepared_bundle: AgentBundle | None = None
-        if composition_changed:
-            try:
-                prepared_bundle = build_agents(
-                    state=state,
-                    providers=new_config.providers,
-                    routes=new_config.routes,
-                    assignments=new_config.ai_assignments,
-                    secret_store=secret_store,
-                    context_dir=new_config.context_dir,
-                    usage_logger=usage_logger,
-                    mcp_servers=new_config.mcp_servers,
-                    reply_agent_definitions=new_config.reply_agent_definitions,
-                    replace_ai_note=_replace_ai_note,
-                    external_reply_factories={
-                        "managed": _build_managed_reply_runtime,
-                        "codex": _build_codex_reply_runtime,
-                    },
-                    external_minutes_factories={"codex": _build_codex_minutes_runtime},
-                    external_info_factories={"codex": _build_codex_info_runtime},
-                )
-                await _enter_info_runtime(prepared_bundle)
-            except (ValueError, RuntimeError) as error:
-                if prepared_bundle is not None:
-                    await _exit_info_runtime(prepared_bundle)
-                logger.warning("AI設定の適用に失敗したため、現在の実行構成を維持します: %s", error)
-                return
-
-        # Configuration and runtime bundles change together only after the next
-        # bundle is fully ready. Codex stays shared; this never creates another
-        # app-server process when assignments change.
-        config = new_config
-        state.config = new_config
-        if context_dir_changed:
-            state.context_text = load_context_files(new_config.context_dir)
-        await stt_controller.on_config_changed(
-            old_config,
-            new_config,
-            audio_lifecycle_lock_held=_event.audio_lifecycle_lock_held,
-        )
-
-        if prepared_bundle is not None:
-            old_bundle = bundle
-            bundle = prepared_bundle
-            await conversation_orchestrator.update_agents(
-                info_runtime=bundle.info_runtime,
-                reply_agent_specs=bundle.reply_agent_specs,
-            )
-            await _exit_info_runtime(old_bundle)
-
-        await conversation_orchestrator.on_config_changed(new_config)
-
-
-event_bus.subscribe(ConfigChanged, _on_config_changed)
+event_bus.subscribe(
+    ConfigChanged,
+    partial(
+        runtime_composition.on_config_changed,
+        stt_controller=stt_controller,
+        conversation_orchestrator=conversation_orchestrator,
+    ),
+)
 
 
 # ── FastAPI アプリ ─────────────────────────────────────────────────────────────
@@ -401,7 +230,7 @@ app = create_app(
         codex=codex,
         history_service=history_service,
         user_data_dir=_user_data_dir,
-        get_minutes_runtime=lambda: bundle.minutes_runtime,
+        get_minutes_runtime=lambda: runtime_composition.bundle.minutes_runtime,
         vosk_model_manager=vosk_model_manager,
         whisper_model_manager=whisper_model_manager,
         codex_status=codex_route_status,
@@ -412,16 +241,16 @@ app = create_app(
         broadcast_manager=broadcast_manager,
         stt_controller=stt_controller,
         conversation_orchestrator=conversation_orchestrator,
-        get_stt_backend=lambda: config.stt_backend,
+        get_stt_backend=lambda: runtime_composition.config.stt_backend,
         get_input_devices=get_input_devices,
-        load_context_files=lambda: load_context_files(config.context_dir),
+        load_context_files=lambda: load_context_files(runtime_composition.config.context_dir),
         meeting_lifecycle=meeting_lifecycle,
     ),
     lifespan=create_lifespan(
-        get_bundle=lambda: bundle,
+        get_bundle=lambda: runtime_composition.bundle,
         codex=codex,
         stt_controller=stt_controller,
-        config=config,
+        config=runtime_composition.config,
         state=state,
         vosk_model_manager=vosk_model_manager,
         history_repository=history_repository,

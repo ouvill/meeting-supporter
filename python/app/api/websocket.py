@@ -44,7 +44,7 @@ from app.core.messages import (
 from app.core.state import AppState
 from app.core.types import InputDevice
 from app.meetings.lifecycle import MeetingLifecycleCoordinator
-from app.meetings.models import session_info_msg
+from app.meetings.models import MeetingSession, session_info_msg
 from app.services.broadcast import BroadcastManager
 from app.services.conversation_orchestrator import ConversationOrchestrator
 from app.services.stt_controller import SttController
@@ -212,8 +212,8 @@ def create_router(
             )
         session_ai_note = state.current_session.ai_note if state.current_session else ""
         await broadcast_manager.reply(ws, AiNoteUpdatedMsg(text=session_ai_note))
-        if state.current_session is not None:
-            await broadcast_manager.reply(ws, session_info_msg(state.current_session))
+        if isinstance(session := state.current_session, MeetingSession):
+            await broadcast_manager.reply(ws, session_info_msg(session))
 
         try:
             while True:

@@ -29,6 +29,22 @@ class TurnLike(Protocol):
     def speaker_id(self) -> str | None: ...
 
 
+class MeetingSessionLike(Protocol):
+    """Session shape retained by the process-wide application state."""
+
+    @property
+    def id(self) -> str: ...
+
+    @property
+    def is_active(self) -> bool: ...
+
+    @property
+    def turns(self) -> Sequence[TurnLike]: ...
+
+    @property
+    def ai_note(self) -> str: ...
+
+
 class StreamLike(Protocol):
     def stream_text(self, *, delta: bool) -> AsyncIterator[str]: ...
 
@@ -58,7 +74,11 @@ class ConversationState(Protocol):
     @property
     def ai_note(self) -> str: ...
 
-    current_session: object | None
+    @property
+    def current_session(self) -> object | None: ...
+
+    @current_session.setter
+    def current_session(self, value: MeetingSessionLike | None) -> None: ...
 
 
 # ── Audio pipeline protocol ───────────────────────────────────────────────────
@@ -174,6 +194,7 @@ __all__ = [
     "AudioPipelineLike",
     "ConversationState",
     "LifecycledAgentLike",
+    "MeetingSessionLike",
     "SecretRollbackError",
     "SecretSnapshotError",
     "SecretSnapshot",

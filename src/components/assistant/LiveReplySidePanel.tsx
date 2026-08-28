@@ -18,11 +18,7 @@ import type {
   Turn,
 } from "../../types";
 import { hideCurrentWindow } from "../../platform/tauriWindow";
-import {
-  useAiRoutes,
-  type AiRouteReadiness,
-  type AiUseCaseRouteStatus,
-} from "../../hooks/useAiRoutes";
+import { useAiRoutes, type AiUseCaseRouteStatus } from "../../hooks/useAiRoutes";
 import {
   ASSISTANT_ALWAYS_ON_TOP_KEY,
   useAlwaysOnTop,
@@ -30,8 +26,7 @@ import {
 } from "../../hooks/useAlwaysOnTop";
 import { AlwaysOnTopControl } from "../window/AlwaysOnTopControl";
 import { Button, InlineNotice } from "../ui";
-
-export type ReplyReadiness = AiRouteReadiness | "unknown";
+import type { ReplyReadiness } from "../meeting/types";
 
 interface Props {
   state: SocketState;

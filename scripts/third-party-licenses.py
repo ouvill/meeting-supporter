@@ -484,14 +484,14 @@ def python_packages(policy: dict[str, Any]) -> list[Package]:
 
 def provisioned_packages(policy: dict[str, Any]) -> list[Package]:
     packages: list[Package] = []
-    runtime_source = (ROOT / "src-tauri" / "src" / "paths.rs").read_text(
+    runtime_source = (ROOT / "src-tauri" / "src" / "paths" / "uv.rs").read_text(
         encoding="utf-8"
     )
     runtime_uv_version = re.search(
         r'^const UV_VERSION: &str = "([^"]+)";$', runtime_source, re.MULTILINE
     )
     if not runtime_uv_version:
-        raise RuntimeError("src-tauri/src/paths.rs does not declare UV_VERSION")
+        raise RuntimeError("src-tauri/src/paths/uv.rs does not declare UV_VERSION")
     for artifact in policy["provisioned_artifacts"]:
         if artifact["name"] == "uv" and artifact["version"] != runtime_uv_version.group(
             1

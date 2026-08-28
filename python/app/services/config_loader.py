@@ -4,13 +4,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypeGuard, TypeVar, cast
-
-from app.core.types import TomlTable
-
-logger = logging.getLogger(__name__)
-
-_T = TypeVar("_T")
+from typing import Protocol, TypeGuard, TypeVar, cast
 
 from platformdirs import user_data_path
 from pydantic_ai.mcp import load_mcp_toolsets
@@ -39,7 +33,17 @@ from app.core.config import (
     _read_agent_settings,
     normalize_audio_stt_config,
 )
+from app.core.types import TomlTable
 from app.services.settings_store import SettingsStore
+
+logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+
+
+class _ConfigGetter(Protocol):
+    def __call__(self, section: str, key: str, default: _T) -> _T: ...
+
 
 _PROVIDER_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
@@ -318,6 +322,78 @@ def _get_str(table: object, key: str, default: str) -> str:
     return default
 
 
+def _load_effective_audio_stt_config(
+    cfg: TomlTable,
+    cfg_get: _ConfigGetter,
+    *,
+    stt_backend: str,
+) -> EffectiveAudioSttConfig:
+    """Load and normalize the coupled audio/STT effective values."""
+
+    sample_rate = cfg_get("audio", "sample_rate", 16000)
+    legacy_min_voiced_ms = cfg_get("stt", "min_voiced_ms", 240)
+    legacy_min_voiced_ratio = cfg_get("stt", "min_voiced_ratio", 0.35)
+    legacy_min_rms_dbfs = cfg_get("stt", "min_rms_dbfs", -45.0)
+    legacy_no_speech_threshold = cfg_get("stt", "no_speech_threshold", 0.6)
+    legacy_log_prob_threshold = cfg_get("stt", "log_prob_threshold", -1.0)
+    legacy_compression_ratio_threshold = cfg_get("stt", "compression_ratio_threshold", 2.4)
+    legacy_phrases = cfg_get(
+        "stt",
+        "hallucination_phrase_blocklist",
+        list(DEFAULT_SUSPICIOUS_PHRASES),
+    )
+    stt_config = SttConfig(
+        backend=stt_backend,
+        whisper_model=cfg_get("stt", "whisper_model", "large-v3-turbo"),
+        deepgram_model=cfg_get("stt", "deepgram_model", "nova-3"),
+        openai_model=cfg_get("stt", "openai_model", "gpt-4o-transcribe"),
+        vosk_model_path=cfg_get("stt", "vosk_model_path", "vosk-model-small-ja-0.22"),
+        language=cfg_get("stt", "language", "ja"),
+        vad_engine=_parse_vad_engine(cfg_get("stt", "vad_engine", "silero")),
+        vad_sensitivity=cfg_get("stt", "vad_sensitivity", 0.4),
+        silence_duration=cfg_get("stt", "silence_duration", 0.8),
+        vad_aggressiveness=cfg_get("stt", "vad_aggressiveness", 2),
+        device=cfg_get("stt", "device", "auto"),
+        remote_url=_get_str(cfg.get("remote_stt"), "url", "ws://localhost:8001/ws/stt"),
+        remote_token=_get_str(cfg.get("remote_stt"), "token", ""),
+        sample_rate=sample_rate,
+        chunk_size=1,
+        min_voiced_ms=legacy_min_voiced_ms,
+        min_voiced_ratio=legacy_min_voiced_ratio,
+        min_rms_dbfs=legacy_min_rms_dbfs,
+        decode_no_speech_threshold=cfg_get("stt", "decode_no_speech_threshold", 1.0),
+        decode_log_prob_threshold=cfg_get("stt", "decode_log_prob_threshold", -10.0),
+        decode_compression_ratio_threshold=cfg_get("stt", "decode_compression_ratio_threshold", 10.0),
+        hard_min_voiced_ms=cfg_get("stt", "hard_min_voiced_ms", 120),
+        hard_no_speech_threshold=cfg_get("stt", "hard_no_speech_threshold", 0.85),
+        hard_logprob_threshold=cfg_get("stt", "hard_logprob_threshold", -2.0),
+        hard_compression_ratio_threshold=cfg_get("stt", "hard_compression_ratio_threshold", 3.5),
+        soft_min_voiced_ms=cfg_get("stt", "soft_min_voiced_ms", legacy_min_voiced_ms),
+        soft_min_voiced_ratio=cfg_get("stt", "soft_min_voiced_ratio", legacy_min_voiced_ratio),
+        soft_min_rms_dbfs=cfg_get("stt", "soft_min_rms_dbfs", legacy_min_rms_dbfs),
+        soft_no_speech_threshold=cfg_get("stt", "soft_no_speech_threshold", legacy_no_speech_threshold),
+        soft_logprob_threshold=cfg_get("stt", "soft_logprob_threshold", legacy_log_prob_threshold),
+        soft_compression_ratio_threshold=cfg_get(
+            "stt",
+            "soft_compression_ratio_threshold",
+            legacy_compression_ratio_threshold,
+        ),
+        drop_score_threshold=cfg_get("stt", "drop_score_threshold", 0.65),
+        temperature=cfg_get("stt", "temperature", 0.0),
+        suspicious_phrases=_parse_str_tuple(
+            cfg_get("stt", "suspicious_phrases", legacy_phrases),
+            "stt.suspicious_phrases",
+        ),
+    )
+    return _validate_effective_audio_stt_ranges(
+        normalize_audio_stt_config(
+            stt_config,
+            audio_sample_rate=sample_rate,
+            audio_max_session_seconds=cfg_get("audio", "max_session_seconds", 55),
+        )
+    )
+
+
 @dataclass
 class ConfigLoader:
     settings_store: SettingsStore
@@ -375,86 +451,21 @@ class ConfigLoader:
         )
         ai_assignments, routes = _parse_ai_config(cfg)
 
-        # STT
         stt_backend = cfg_get("stt", "backend", "whisper")
-        sample_rate = cfg_get("audio", "sample_rate", 16000)
-
-        legacy_min_voiced_ms = cfg_get("stt", "min_voiced_ms", 240)
-        legacy_min_voiced_ratio = cfg_get("stt", "min_voiced_ratio", 0.35)
-        legacy_min_rms_dbfs = cfg_get("stt", "min_rms_dbfs", -45.0)
-        legacy_no_speech_threshold = cfg_get("stt", "no_speech_threshold", 0.6)
-        legacy_log_prob_threshold = cfg_get("stt", "log_prob_threshold", -1.0)
-        legacy_compression_ratio_threshold = cfg_get("stt", "compression_ratio_threshold", 2.4)
-        legacy_phrases = cfg_get(
-            "stt",
-            "hallucination_phrase_blocklist",
-            list(DEFAULT_SUSPICIOUS_PHRASES),
-        )
-        remote_url = _get_str(cfg.get("remote_stt"), "url", "ws://localhost:8001/ws/stt")
-        remote_token = _get_str(cfg.get("remote_stt"), "token", "")
-        stt_config = SttConfig(
-            backend=stt_backend,
-            whisper_model=cfg_get("stt", "whisper_model", "large-v3-turbo"),
-            deepgram_model=cfg_get("stt", "deepgram_model", "nova-3"),
-            openai_model=cfg_get("stt", "openai_model", "gpt-4o-transcribe"),
-            vosk_model_path=cfg_get("stt", "vosk_model_path", "vosk-model-small-ja-0.22"),
-            language=cfg_get("stt", "language", "ja"),
-            vad_engine=_parse_vad_engine(cfg_get("stt", "vad_engine", "silero")),
-            vad_sensitivity=cfg_get("stt", "vad_sensitivity", 0.4),
-            silence_duration=cfg_get("stt", "silence_duration", 0.8),
-            vad_aggressiveness=cfg_get("stt", "vad_aggressiveness", 2),
-            device=cfg_get("stt", "device", "auto"),
-            remote_url=remote_url,
-            remote_token=remote_token,
-            sample_rate=sample_rate,
-            chunk_size=1,
-            min_voiced_ms=legacy_min_voiced_ms,
-            min_voiced_ratio=legacy_min_voiced_ratio,
-            min_rms_dbfs=legacy_min_rms_dbfs,
-            decode_no_speech_threshold=cfg_get("stt", "decode_no_speech_threshold", 1.0),
-            decode_log_prob_threshold=cfg_get("stt", "decode_log_prob_threshold", -10.0),
-            decode_compression_ratio_threshold=cfg_get("stt", "decode_compression_ratio_threshold", 10.0),
-            hard_min_voiced_ms=cfg_get("stt", "hard_min_voiced_ms", 120),
-            hard_no_speech_threshold=cfg_get("stt", "hard_no_speech_threshold", 0.85),
-            hard_logprob_threshold=cfg_get("stt", "hard_logprob_threshold", -2.0),
-            hard_compression_ratio_threshold=cfg_get("stt", "hard_compression_ratio_threshold", 3.5),
-            soft_min_voiced_ms=cfg_get("stt", "soft_min_voiced_ms", legacy_min_voiced_ms),
-            soft_min_voiced_ratio=cfg_get("stt", "soft_min_voiced_ratio", legacy_min_voiced_ratio),
-            soft_min_rms_dbfs=cfg_get("stt", "soft_min_rms_dbfs", legacy_min_rms_dbfs),
-            soft_no_speech_threshold=cfg_get("stt", "soft_no_speech_threshold", legacy_no_speech_threshold),
-            soft_logprob_threshold=cfg_get("stt", "soft_logprob_threshold", legacy_log_prob_threshold),
-            soft_compression_ratio_threshold=cfg_get(
-                "stt",
-                "soft_compression_ratio_threshold",
-                legacy_compression_ratio_threshold,
-            ),
-            drop_score_threshold=cfg_get("stt", "drop_score_threshold", 0.65),
-            temperature=cfg_get("stt", "temperature", 0.0),
-            suspicious_phrases=_parse_str_tuple(
-                cfg_get("stt", "suspicious_phrases", legacy_phrases),
-                "stt.suspicious_phrases",
-            ),
-        )
-
-        usage_budget = UsageBudgetConfig(
-            meeting_limit_jpy=float(cfg_get("usage_budget", "meeting_limit_jpy", 0.0)),
-            monthly_limit_jpy=float(cfg_get("usage_budget", "monthly_limit_jpy", 0.0)),
-        )
-
-        # Audio/STT values are normalized together so lifecycle comparisons use
-        # one canonical representation; unsupported ranges and VAD/rate pairs fail at load.
-        max_session_seconds = cfg_get("audio", "max_session_seconds", 55)
-        effective_audio_stt = _validate_effective_audio_stt_ranges(
-            normalize_audio_stt_config(
-                stt_config,
-                audio_sample_rate=sample_rate,
-                audio_max_session_seconds=max_session_seconds,
-            )
+        effective_audio_stt = _load_effective_audio_stt_config(
+            cfg,
+            cfg_get,
+            stt_backend=stt_backend,
         )
         stt_config = effective_audio_stt.stt
         sample_rate = effective_audio_stt.audio_sample_rate
         max_session_seconds = effective_audio_stt.audio_max_session_seconds
         chunk_size = effective_audio_stt.audio_chunk_size
+
+        usage_budget = UsageBudgetConfig(
+            meeting_limit_jpy=float(cfg_get("usage_budget", "meeting_limit_jpy", 0.0)),
+            monthly_limit_jpy=float(cfg_get("usage_budget", "monthly_limit_jpy", 0.0)),
+        )
 
         # MCP servers
         mcp_config_path = user_data_dir / "mcp.json"

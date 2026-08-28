@@ -1,8 +1,10 @@
-import { readFileSync } from "node:fs";
+import { lstatSync, readFileSync, readlinkSync } from "node:fs";
+import { posix, win32 } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const ALLOWED_TOP_LEVEL = new Set([
   ".envrc.example",
+  ".omp",
   ".github",
   ".gitignore",
   ".python-version",
@@ -84,26 +86,89 @@ const CONTENT_RULES = [
 
 const CONTENT_SCAN_EXCLUSIONS = new Set(["scripts/check-public-boundary.mjs"]);
 const violations = new Set();
+const PATH_SEMANTICS = [posix, win32];
+
+function isAbsoluteLink(linkText) {
+  return PATH_SEMANTICS.some((pathApi) => pathApi.isAbsolute(linkText));
+}
+
+function isOutsideRepository(path, linkText) {
+  return PATH_SEMANTICS.some((pathApi) => {
+    const target = pathApi.normalize(
+      pathApi.join(pathApi.dirname(path), linkText),
+    );
+    return target === ".." || target.startsWith(`..${pathApi.sep}`);
+  });
+}
 
 function report(path, rule) {
   violations.add(`${path}\0${rule}`);
 }
 
-const listed = spawnSync("git", ["ls-files", "-z"], {
-  encoding: "buffer",
-  windowsHide: true,
-});
+function gitLsFileRecords(args) {
+  const listed = spawnSync("git", ["ls-files", "-z", ...args], {
+    encoding: "buffer",
+    windowsHide: true,
+  });
 
-if (listed.status !== 0 || listed.error) {
-  console.error("git-ls-files: command-failed");
-  process.exit(1);
+  if (listed.status !== 0 || listed.error) {
+    console.error("git-ls-files: command-failed");
+    process.exit(1);
+  }
+
+  const output = listed.stdout.toString("utf8");
+  if (output !== "" && !output.endsWith("\0")) {
+    console.error("git-ls-files: output-parse-failed");
+    process.exit(1);
+  }
+
+  return output.split("\0").filter(Boolean);
 }
 
-const files = listed.stdout
-  .toString("utf8")
-  .split("\0")
-  .filter(Boolean)
-  .map((path) => path.replaceAll("\\", "/"));
+function gitLsFiles(args) {
+  return gitLsFileRecords(args).map((path) => path.replaceAll("\\", "/"));
+}
+
+function gitIndexEntries() {
+  const entries = [];
+
+  for (const record of gitLsFileRecords(["--stage"])) {
+    const match = /^([0-7]{6}) [0-9a-f]+ ([0-3])\t(.+)$/s.exec(record);
+    if (match === null) {
+      console.error("git-ls-files: output-parse-failed");
+      process.exit(1);
+    }
+
+    entries.push({
+      mode: match[1],
+      stage: Number(match[2]),
+      path: match[3].replaceAll("\\", "/"),
+    });
+  }
+
+  return entries;
+}
+
+const indexEntries = gitIndexEntries();
+const trackedSymlinks = new Set(
+  indexEntries
+    .filter(({ mode, stage }) => mode === "120000" && stage === 0)
+    .map(({ path }) => path),
+);
+for (const { path, stage } of indexEntries) {
+  if (stage !== 0) {
+    report(path, "unmerged-index-entry");
+  }
+}
+
+const deleted = new Set(gitLsFiles(["--deleted"]));
+const files = [
+  ...new Set(
+    gitLsFiles(["--cached", "--others", "--exclude-standard"]).filter(
+      (path) => !deleted.has(path),
+    ),
+  ),
+].sort();
 
 for (const path of files) {
   const topLevel = path.split("/", 1)[0];
@@ -121,23 +186,51 @@ for (const path of files) {
     }
   }
 
-  if (CONTENT_SCAN_EXCLUSIONS.has(path)) {
-    continue;
-  }
-
-  let buffer;
+  let stats;
   try {
-    buffer = readFileSync(path);
+    stats = lstatSync(path);
   } catch {
     report(path, "file-read-error");
     continue;
   }
 
-  if (buffer.includes(0)) {
+  let text;
+  if (stats.isSymbolicLink() || trackedSymlinks.has(path)) {
+    try {
+      text = stats.isSymbolicLink()
+        ? readlinkSync(path, "utf8")
+        : readFileSync(path, "utf8");
+    } catch {
+      report(path, "file-read-error");
+      continue;
+    }
+
+    if (isAbsoluteLink(text)) {
+      report(path, "absolute-symlink-target");
+    } else if (isOutsideRepository(path, text)) {
+      report(path, "external-symlink-target");
+    }
+  } else if (stats.isFile()) {
+    let buffer;
+    try {
+      buffer = readFileSync(path);
+    } catch {
+      report(path, "file-read-error");
+      continue;
+    }
+
+    if (buffer.includes(0)) {
+      continue;
+    }
+    text = buffer.toString("utf8");
+  } else {
     continue;
   }
 
-  const text = buffer.toString("utf8");
+  if (CONTENT_SCAN_EXCLUSIONS.has(path)) {
+    continue;
+  }
+
   for (const [rule, pattern] of CONTENT_RULES) {
     if (pattern.test(text)) {
       report(path, rule);
@@ -154,4 +247,4 @@ if (violations.size > 0) {
   process.exit(1);
 }
 
-console.log(`Public boundary check passed (${files.length} tracked files).`);
+console.log(`Public boundary check passed (${files.length} working-tree files).`);

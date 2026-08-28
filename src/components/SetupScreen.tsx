@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import {
   ChevronDown,
   FileText,
@@ -7,13 +7,9 @@ import {
   Mic2,
   Settings,
   Sparkles,
-  Trash2,
-  Upload,
   Volume2,
 } from "lucide-react";
 import type {
-  Device,
-  DeviceId,
   MeetingContextInput,
   ReferenceDocumentInput,
   SendFn,
@@ -23,8 +19,14 @@ import type {
   AiRoutesReloadStatus,
   AiUseCaseRouteStatus,
 } from "../hooks/useAiRoutes";
-import { levelToPercent } from "../utils/audioLevel";
-import { Button, StickyActionBar, Tooltip } from "./ui";
+import {
+  AudioPreparation,
+  SystemAudioTestControl,
+} from "./setup/AudioPreparation";
+import { DeviceSelect } from "./setup/DeviceSelect";
+import { ReferenceDocuments } from "./setup/ReferenceDocuments";
+import { contextWithFallback } from "./setup/setupUtils";
+import { Button, StickyActionBar } from "./ui";
 
 interface Props {
   state: SocketState;
@@ -39,7 +41,6 @@ interface Props {
 
 const MEETING_TYPES = ["商談", "面接", "1on1", "定例", "相談", "その他"];
 const ROLE_PRESETS = ["進行役", "提案する側", "聞き手", "意思決定者", "参加者"];
-const ACCEPTED_REFERENCE_EXTENSIONS = [".md", ".markdown", ".txt", ".docx"];
 
 const DEFAULT_MEETING_CONTEXT: MeetingContextInput = {
   scenario: "",
@@ -51,74 +52,6 @@ const DEFAULT_MEETING_CONTEXT: MeetingContextInput = {
   constraints: "",
   customInstructions: "",
 };
-
-function createDocumentId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto)
-    return crypto.randomUUID();
-  return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function extensionOf(name: string): string {
-  const index = name.lastIndexOf(".");
-  return index >= 0 ? name.slice(index).toLowerCase() : "";
-}
-
-function bufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
-async function fileToReference(file: File): Promise<ReferenceDocumentInput> {
-  const extension = extensionOf(file.name);
-  if (!ACCEPTED_REFERENCE_EXTENSIONS.includes(extension)) {
-    return {
-      id: createDocumentId(),
-      name: file.name,
-      mimeType: file.type || "application/octet-stream",
-      sizeBytes: file.size,
-      status: "failed",
-      error: "この形式のファイルは追加できません",
-    };
-  }
-
-  if (extension === ".docx") {
-    return {
-      id: createDocumentId(),
-      name: file.name,
-      mimeType:
-        file.type ||
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      sizeBytes: file.size,
-      contentBase64: bufferToBase64(await file.arrayBuffer()),
-      status: "queued",
-      error: null,
-    };
-  }
-
-  return {
-    id: createDocumentId(),
-    name: file.name,
-    mimeType: file.type || "text/plain",
-    sizeBytes: file.size,
-    text: await file.text(),
-    status: "parsed",
-    error: null,
-  };
-}
-
-function contextWithFallback(
-  context: MeetingContextInput,
-): MeetingContextInput {
-  return {
-    ...context,
-    scenario: context.scenario.trim() || "会議",
-    userRole: context.userRole.trim() || "参加者",
-    objective: context.objective.trim() || "目的未設定",
-    tone: context.tone?.trim() || "簡潔で自然",
-  };
-}
 
 export function SetupScreen({
   state,
@@ -134,8 +67,6 @@ export function SetupScreen({
     DEFAULT_MEETING_CONTEXT,
   );
   const [references, setReferences] = useState<ReferenceDocumentInput[]>([]);
-  const [dragActive, setDragActive] = useState(false);
-  const [referenceMessage, setReferenceMessage] = useState("");
   const monitors = state.devices.filter((device) => device.is_monitor);
   const mics = state.devices.filter((device) => !device.is_monitor);
   const needsAudioPreparation = ["local", "whisper", "vosk"].includes(
@@ -178,21 +109,6 @@ export function SetupScreen({
     value: MeetingContextInput[K],
   ) {
     setMeetingContext((current) => ({ ...current, [key]: value }));
-  }
-
-  async function addReferenceFiles(files: FileList | File[]) {
-    const incoming = Array.from(files);
-    if (!incoming.length) return;
-    const documents = await Promise.all(incoming.map(fileToReference));
-    setReferences((current) => [...current, ...documents]);
-    const failed = documents.filter(
-      (document) => document.status === "failed",
-    ).length;
-    setReferenceMessage(
-      failed
-        ? `${failed}件は追加できませんでした`
-        : `${documents.length}件を追加しました`,
-    );
   }
 
   function startMeeting() {
@@ -490,97 +406,10 @@ export function SetupScreen({
               />
             </div>
 
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-ink">参考資料</p>
-                  <p className="mt-0.5 text-xs text-ink-muted">
-                    文書またはテキストを追加できます
-                  </p>
-                </div>
-                {referenceMessage && (
-                  <span className="text-xs text-ink-muted" aria-live="polite">
-                    {referenceMessage}
-                  </span>
-                )}
-              </div>
-              <label
-                onDragEnter={(event) => {
-                  event.preventDefault();
-                  setDragActive(true);
-                }}
-                onDragOver={(event) => event.preventDefault()}
-                onDragLeave={(event) => {
-                  event.preventDefault();
-                  setDragActive(false);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  setDragActive(false);
-                  void addReferenceFiles(event.dataTransfer.files);
-                }}
-                className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-4 text-center text-xs font-medium transition-colors motion-reduce:transition-none ${
-                  dragActive
-                    ? "border-primary bg-primary-soft text-primary"
-                    : "border-line-strong bg-paper text-ink-muted hover:border-primary/45 hover:text-primary"
-                }`}
-              >
-                <Upload aria-hidden="true" size={16} />
-                ドロップするか、ファイルを選ぶ
-                <input
-                  type="file"
-                  multiple
-                  accept=".md,.markdown,.txt,.docx"
-                  className="sr-only"
-                  onChange={(event) => {
-                    if (event.currentTarget.files)
-                      void addReferenceFiles(event.currentTarget.files);
-                    event.currentTarget.value = "";
-                  }}
-                />
-              </label>
-              {references.length > 0 && (
-                <ul className="mt-2 space-y-1.5" aria-label="追加した資料">
-                  {references.map((document) => (
-                    <li
-                      key={document.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-line bg-paper px-3 py-2 text-xs"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-ink">
-                          {document.name}
-                        </p>
-                        <p
-                          className={
-                            document.status === "failed"
-                              ? "text-danger"
-                              : "text-ink-muted"
-                          }
-                        >
-                          {document.status === "failed"
-                            ? document.error
-                            : "追加済み"}
-                        </p>
-                      </div>
-                      <Tooltip content={`${document.name}を削除`}>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setReferences((current) =>
-                              current.filter((item) => item.id !== document.id),
-                            )
-                          }
-                          aria-label={`${document.name}を削除`}
-                          className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-surface hover:text-danger motion-reduce:transition-none"
-                        >
-                          <Trash2 aria-hidden="true" size={15} />
-                        </button>
-                      </Tooltip>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <ReferenceDocuments
+              references={references}
+              onChange={setReferences}
+            />
           </div>
         </details>
 
@@ -712,311 +541,3 @@ function Area({ label, value, placeholder, onChange }: FieldProps) {
   );
 }
 
-type IconComponent = typeof Mic2;
-
-interface DeviceSelectProps {
-  label: string;
-  icon: IconComponent;
-  value: DeviceId;
-  monitors: Device[];
-  mics: Device[];
-  primary: "monitors" | "mics";
-  disabled: boolean;
-  level: number;
-  onChange: (value: DeviceId) => void;
-}
-
-function DeviceSelect({
-  label,
-  icon: Icon,
-  value,
-  monitors,
-  mics,
-  primary,
-  disabled,
-  level,
-  onChange,
-}: DeviceSelectProps) {
-  const selectId = useId();
-  const first = primary === "monitors" ? monitors : mics;
-  const second = primary === "monitors" ? mics : monitors;
-  const firstLabel = primary === "monitors" ? "スピーカー" : "マイク";
-  const secondLabel = primary === "monitors" ? "マイク" : "スピーカー";
-  const defaultDevice =
-    first.find((device) => device.is_default) ??
-    second.find((device) => device.is_default);
-  const defaultLabel = primary === "monitors" ? "既定スピーカー" : "既定マイク";
-  const defaultOptionLabel = defaultDevice
-    ? `${defaultLabel}（${defaultDevice.name}）`
-    : defaultLabel;
-  const color = primary === "monitors" ? "bg-cue" : "bg-positive";
-
-  function handleChange(rawValue: string) {
-    if (!rawValue) {
-      onChange(null);
-      return;
-    }
-    const numericValue = Number(rawValue);
-    onChange(Number.isNaN(numericValue) ? rawValue : numericValue);
-  }
-
-  return (
-    <div className="rounded-xl bg-paper p-3">
-      <div className="mb-2 flex items-center gap-2">
-        <Icon
-          aria-hidden="true"
-          size={15}
-          className={primary === "monitors" ? "text-cue" : "text-positive"}
-        />
-        <label htmlFor={selectId} className="text-sm font-semibold text-ink">
-          {label}
-        </label>
-        <AudioLevelMeter level={level} color={color} />
-      </div>
-      <select
-        id={selectId}
-        value={value === null || value === undefined ? "" : String(value)}
-        onChange={(event) => handleChange(event.target.value)}
-        disabled={disabled}
-        className="field text-sm"
-      >
-        <option value="">{defaultOptionLabel}</option>
-        {first.length > 0 && (
-          <optgroup label={firstLabel}>
-            {first.map((device) => (
-              <option key={String(device.index)} value={String(device.index)}>
-                {device.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-        {second.length > 0 && (
-          <optgroup label={secondLabel}>
-            {second.map((device) => (
-              <option key={String(device.index)} value={String(device.index)}>
-                {device.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-      </select>
-    </div>
-  );
-}
-
-type SystemAudioTestStatus = "idle" | "playing" | "played" | "error";
-
-interface SystemAudioPlayback {
-  context: AudioContext;
-  oscillator: OscillatorNode;
-}
-
-function SystemAudioTestControl() {
-  const playbackRef = useRef<SystemAudioPlayback | null>(null);
-  const [status, setStatus] = useState<SystemAudioTestStatus>("idle");
-
-  useEffect(
-    () => () => {
-      const playback = playbackRef.current;
-      playbackRef.current = null;
-      if (!playback) return;
-      playback.oscillator.onended = null;
-      try {
-        playback.oscillator.stop();
-      } catch {
-        // The oscillator may already have ended.
-      }
-      void playback.context.close().catch(() => undefined);
-    },
-    [],
-  );
-
-  async function playTestSound() {
-    if (playbackRef.current) return;
-    setStatus("playing");
-
-    let context: AudioContext | null = null;
-    try {
-      if (typeof window.AudioContext !== "function") {
-        setStatus("error");
-        return;
-      }
-
-      const audioContext = new window.AudioContext();
-      context = audioContext;
-      const oscillator = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-      playbackRef.current = { context: audioContext, oscillator };
-
-      oscillator.type = "sine";
-      oscillator.connect(gain);
-      gain.connect(audioContext.destination);
-      await audioContext.resume();
-
-      const startAt = audioContext.currentTime + 0.02;
-      const stopAt = startAt + 0.7;
-      oscillator.frequency.setValueAtTime(523.25, startAt);
-      oscillator.frequency.linearRampToValueAtTime(659.25, startAt + 0.35);
-      gain.gain.setValueAtTime(0, startAt);
-      gain.gain.linearRampToValueAtTime(0.14, startAt + 0.04);
-      gain.gain.setValueAtTime(0.14, stopAt - 0.1);
-      gain.gain.linearRampToValueAtTime(0, stopAt);
-
-      oscillator.onended = () => {
-        if (playbackRef.current?.context !== audioContext) return;
-        playbackRef.current = null;
-        void audioContext.close().catch(() => undefined);
-        setStatus("played");
-      };
-      oscillator.start(startAt);
-      oscillator.stop(stopAt);
-    } catch {
-      playbackRef.current = null;
-      if (context) void context.close().catch(() => undefined);
-      setStatus("error");
-    }
-  }
-
-  return (
-    <div className="-mt-1 rounded-xl border border-line bg-surface px-3 py-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-ink">相手側の音声をテスト</p>
-          <p className="mt-0.5 text-xs leading-5 text-ink-muted">
-            この端末の既定の出力から短い音を流します。
-          </p>
-        </div>
-        <Button
-          variant="quiet"
-          size="sm"
-          onClick={() => void playTestSound()}
-          disabled={status === "playing"}
-          className="shrink-0"
-        >
-          <Volume2 aria-hidden="true" className="size-3.5" />
-          {status === "playing" ? "再生中…" : "テスト音を再生"}
-        </Button>
-      </div>
-      {status === "played" && (
-        <p
-          role="status"
-          aria-live="polite"
-          className="mt-1 text-xs leading-5 text-positive"
-        >
-          相手側の音量バーが動いたか確認してください。
-        </p>
-      )}
-      {status === "error" && (
-        <p
-          role="status"
-          aria-live="polite"
-          className="mt-1 text-xs leading-5 text-danger"
-        >
-          テスト音を再生できませんでした。端末の音量設定を確認してください。
-        </p>
-      )}
-    </div>
-  );
-}
-
-function AudioLevelMeter({ level, color }: { level: number; color: string }) {
-  return (
-    <div
-      className="ml-auto h-1.5 w-24 overflow-hidden rounded-full bg-line"
-      aria-label={`入力レベル ${Math.round(levelToPercent(level))}%`}
-      role="meter"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(levelToPercent(level))}
-    >
-      <div
-        className={`h-full rounded-full ${color} transition-[width] duration-75 motion-reduce:transition-none`}
-        style={{ width: `${levelToPercent(level)}%` }}
-      />
-    </div>
-  );
-}
-
-interface AudioPreparationProps {
-  initialized: boolean;
-  initializing: boolean;
-  initRequested: boolean;
-  failed: boolean;
-  onInit: () => void;
-  onShutdown: () => void;
-}
-
-function AudioPreparation({
-  initialized,
-  initializing,
-  initRequested,
-  failed,
-  onInit,
-  onShutdown,
-}: AudioPreparationProps) {
-  const preparing = initializing || initRequested;
-
-  if (initialized) {
-    return (
-      <div
-        className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-positive/20 bg-positive-soft px-3 py-2.5"
-        aria-live="polite"
-      >
-        <p className="text-xs font-semibold text-positive">
-          音声認識を使えます
-        </p>
-        <button
-          type="button"
-          onClick={onShutdown}
-          className="rounded-lg px-2 py-1 text-xs font-medium text-ink-muted hover:bg-surface hover:text-danger"
-        >
-          やり直す
-        </button>
-      </div>
-    );
-  }
-
-  if (preparing) {
-    return (
-      <div
-        className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-warning/20 bg-warning-soft px-3 py-2.5"
-        aria-live="polite"
-      >
-        <span className="flex items-center gap-2 text-xs font-semibold text-warning">
-          <span
-            className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-warning border-t-transparent motion-reduce:animate-none"
-            aria-hidden="true"
-          />
-          音声認識を準備しています…
-        </span>
-        <button
-          type="button"
-          onClick={onShutdown}
-          className="rounded-lg px-2 py-1 text-xs font-medium text-ink-muted hover:bg-surface hover:text-danger"
-        >
-          キャンセル
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-3 space-y-2" aria-live="polite">
-      {failed && (
-        <p className="rounded-xl border border-danger/20 bg-danger-soft px-3 py-2 text-xs font-medium text-danger">
-          音声認識を準備できませんでした。もう一度お試しください。
-        </p>
-      )}
-      <p className="text-xs leading-5 text-ink-muted">
-        初回は必要なデータの読み込みに時間がかかる場合があります。
-      </p>
-      <button
-        type="button"
-        onClick={onInit}
-        className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2.5 text-xs font-bold text-ink transition-colors hover:border-primary/45 hover:bg-primary-soft hover:text-primary motion-reduce:transition-none"
-      >
-        音声認識を使えるようにする
-      </button>
-    </div>
-  );
-}
