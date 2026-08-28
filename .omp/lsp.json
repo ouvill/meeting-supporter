@@ -1,0 +1,26 @@
+{
+  "servers": {
+    "typescript-language-server": {
+      "rootMarkers": ["package.json"]
+    },
+    "basedpyright": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "python",
+        "basedpyright-langserver",
+        "--stdio"
+      ],
+      "rootMarkers": ["package.json"]
+    },
+    "rust-analyzer": {
+      "rootMarkers": ["package.json"],
+      "settings": {
+        "rust-analyzer": {
+          "linkedProjects": ["src-tauri/Cargo.toml"]
+        }
+      }
+    }
+  }
+}
