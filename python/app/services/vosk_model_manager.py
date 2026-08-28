@@ -529,9 +529,9 @@ class VoskModelManager:
             stt["language"] = language
             stt["vosk_model_path"] = str(model_path)
             # The sectioned TOML writer needs the parsed AI hierarchy normalized
-            # back to its dotted tables; reuse the settings API's canonical path so
+            # back to its dotted tables; reuse the canonical serialization path so
             # a managed model update cannot discard existing route configuration.
-            from app.api.settings import flatten_ai_tables
+            from app.services.settings_serialization import flatten_ai_tables
 
             flatten_ai_tables(config)
             config["stt"] = stt

@@ -13,7 +13,7 @@ from typing import Never, cast, override
 
 from app.audio.base import AudioFrame, RecordingResult
 from app.core.messages import OutgoingMessage
-from app.core.protocols import AudioPipelineLike, ConversationState, SttStreamLike, TurnLike
+from app.core.protocols import AudioPipelineLike, SttStreamLike, TurnLike
 from app.meetings.history_models import MeetingRecord, RecordingAsset
 from app.meetings.lifecycle import MeetingLifecycleCoordinator
 from app.meetings.models import MeetingSession
@@ -39,7 +39,7 @@ async def _reset_info_note_updater() -> None:
 
 
 @dataclass
-class FakeConversationState(ConversationState):
+class FakeConversationState:
     _turns: list[TurnLike] = field(default_factory=list)
     active_suggestion_target_id: str | None = None
     _is_running: bool = False
@@ -55,17 +55,14 @@ class FakeConversationState(ConversationState):
     device_self: int | str | None = None
 
     @property
-    @override
     def turns(self) -> Sequence[TurnLike]:
         return tuple(self._turns)
 
     @property
-    @override
     def is_running(self) -> bool:
         return self._is_running
 
     @property
-    @override
     def ai_note(self) -> str:
         session = cast(MeetingSession | None, self.current_session)
         return session.ai_note if session else self._ai_note

@@ -3,15 +3,11 @@
 import json
 import urllib.error
 import urllib.request
-from dataclasses import replace
-from datetime import UTC, date, datetime
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
-from app.agents.models import ReplyAgentDefinition
 from app.agents.route_catalog import (
     CodexStatusProvider,
     ManagedStatusProvider,
@@ -20,185 +16,35 @@ from app.agents.route_catalog import (
     RouteCatalogResponse,
     route_supports,
 )
-from app.core.config import (
-    SECRET_KEYS,
-    AgentSettingKey,
-    AiRouteAssignments,
-    DataLocation,
-    EffectiveAudioSttConfig,
-    ProviderKind,
-    RouteCapability,
-    SecretKey,
-    UsageBudgetConfig,
-    normalize_audio_stt_config,
-    patch_agent_settings,
+from app.api.settings_models import (
+    ConnectionProvider,
+    ConnectionTestRequest,
+    ConnectionTestResponse,
+    OllamaModelsResponse,
+    RouteAssignmentsUpdate,
+    SaveSettingsResponse,
+    SettingsConflictResponse,
+    SettingsResponse,
+    SettingsSaveRequest,
 )
-from app.core.config import (
-    AgentSettings as RuntimeAgentSettings,
-)
+from app.core.config import AiRouteAssignments, RouteCapability
 from app.core.event_bus import EventBus
 from app.core.events import ConfigChanged
-from app.core.protocols import SecretRollbackError, TransactionalSecretStore
-from app.core.types import TomlTable, TomlValue
+from app.core.protocols import TransactionalSecretStore
+from app.services.settings_service import (
+    AudioSettingsLockedError,
+    SettingsPatchError,
+    SettingsValidationError,
+    build_settings_response_data,
+    write_ai_assignments,
+)
+from app.services.settings_service import (
+    save_settings as persist_settings,
+)
 from app.services.settings_store import SettingsStore
-from app.services.usage_logger import UsageLogger, UsageSummary
 
 if TYPE_CHECKING:
     from app.core.state import AppState
-
-# ── TOML safe accessor helpers ─────────────────────────────────────────────────
-
-
-def _toml_str(val: object, default: str) -> str:
-    """Return ``val`` if it is a ``str``, else ``default``."""
-    return val if isinstance(val, str) else default
-
-
-def _toml_number(val: object, default: float) -> float:
-    """Return ``val`` if it is numeric, else ``default``."""
-    return float(val) if isinstance(val, (int, float)) and not isinstance(val, bool) else default
-
-
-def _toml_int(val: object, default: int) -> int:
-    """Return ``val`` if it is an ``int`` (but not ``bool``), else ``default``."""
-    return val if isinstance(val, int) and not isinstance(val, bool) else default
-
-
-def _toml_bool(val: object, default: bool) -> bool:
-    """Return ``val`` if it is a ``bool``, else ``default``."""
-    return val if isinstance(val, bool) else default
-
-
-def _toml_table(val: object) -> TomlTable | None:
-    """Return ``val`` if it is a ``dict[str, object]`` (coerced to TomlTable), else ``None``."""
-    if not isinstance(val, dict):
-        return None
-    result: TomlTable = {}
-    for k, v in val.items():  # pyright: ignore[reportUnknownVariableType]
-        if isinstance(v, (str, int, float, bool, list, dict)):
-            result[str(k)] = cast("TomlValue", v)  # pyright: ignore[reportUnknownArgumentType]
-    return result
-
-
-def _toml_date(val: object) -> date | None:
-    """Parse a stored ISO date, treating malformed values as disabled."""
-    if not isinstance(val, str):
-        return None
-    try:
-        return date.fromisoformat(val)
-    except ValueError:
-        return None
-
-
-# ── Request body models ────────────────────────────────────────────────────────
-
-
-class OllamaConfigPayload(BaseModel):
-    """Ollama configuration — base_url for now."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    base_url: str | None = None
-
-
-class AcpConfigPayload(BaseModel):
-    """ACP process command, represented as argv without shell evaluation."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    command: list[str] | None = None
-
-    @field_validator("command")
-    @classmethod
-    def validate_command(cls, command: list[str] | None) -> list[str] | None:
-        if command is None:
-            return None
-        if len(command) > 32:
-            raise ValueError("ACP command must contain at most 32 arguments")
-        if any(not argument.strip() for argument in command):
-            raise ValueError("ACP command arguments must not be empty")
-        return command
-
-
-class AgentSettingsPayload(BaseModel):
-    """Non-reply agent flags that the client may send as a patch."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    info_enabled: StrictBool | None = None
-
-
-class ReplyStyleEnabledPatch(BaseModel):
-    """One entry in a ``reply.styles`` patch array."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    id: str
-    enabled: StrictBool
-
-
-class ReplySettingsPayload(BaseModel):
-    """Reply feature settings and style enablement patches."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    enabled: StrictBool | None = None
-    auto_generate: StrictBool | None = None
-    default_style: str | None = None
-    styles: list[ReplyStyleEnabledPatch] | None = None
-
-
-class SecretsPayload(BaseModel):
-    """API key values the client may send to persist.
-
-    Only non-empty strings will be saved; ``None`` / missing means "no update".
-    """
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    GEMINI_API_KEY: str | None = None
-    OPENAI_API_KEY: str | None = None
-    XAI_API_KEY: str | None = None
-    ANTHROPIC_API_KEY: str | None = None
-    GOOGLE_CLOUD_PROJECT: str | None = None
-    GOOGLE_APPLICATION_CREDENTIALS: str | None = None
-    DEEPGRAM_API_KEY: str | None = None
-
-
-class RecordingRetentionSettings(BaseModel):
-    """Saved inputs for a user-requested recording cleanup; never auto-runs."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    cutoff_date: date | None = None
-    max_total_bytes: int | None = Field(default=None, gt=0)
-
-    @field_validator("max_total_bytes", mode="before")
-    @classmethod
-    def zero_disables_capacity(cls, value: object) -> object:
-        """Accept the UI's zero value as the disabled state."""
-        return None if value == 0 else value
-
-
-type ConnectionProvider = Literal["openai", "deepgram", "xai", "gemini", "anthropic"]
-
-
-class ConnectionTestRequest(BaseModel):
-    """A non-persistent provider credential check."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    provider: ConnectionProvider
-    api_key: str | None = None
-
-
-class ConnectionTestResponse(BaseModel):
-    """Credential-check result without exposing stored or draft secret material."""
-
-    ok: bool
-    status: Literal["verified", "invalid", "unavailable"]
-    message: str
-
 
 _CONNECTION_ENDPOINTS: dict[ConnectionProvider, tuple[str, str, dict[str, str]]] = {
     "openai": ("OPENAI_API_KEY", "https://api.openai.com/v1/models", {"Authorization": "Bearer {api_key}"}),
@@ -246,545 +92,6 @@ def _connection_test_response(
     return ConnectionTestResponse(ok=False, status="unavailable", message="サービスに接続できませんでした。")
 
 
-class SttSettingsPatch(BaseModel):
-    """Typed patch surface for persisted ``[stt]`` settings."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    backend: str | None = None
-    whisper_model: str | None = None
-    deepgram_model: str | None = None
-    openai_model: str | None = None
-    vosk_model_path: str | None = None
-    language: str | None = None
-    vad_engine: Literal["silero", "webrtc"] | None = None
-    vad_sensitivity: float | None = Field(default=None, ge=0.05, le=0.95)
-    silence_duration: float | None = Field(default=None, ge=0.1, le=5.0)
-    vad_aggressiveness: int | None = Field(default=None, ge=0, le=3)
-    device: str | None = None
-    min_voiced_ms: int | None = Field(default=None, ge=0)
-    min_voiced_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
-    min_rms_dbfs: float | None = None
-    decode_no_speech_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
-    decode_log_prob_threshold: float | None = None
-    decode_compression_ratio_threshold: float | None = Field(default=None, gt=0.0)
-    hard_min_voiced_ms: int | None = Field(default=None, ge=0)
-    hard_no_speech_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
-    hard_logprob_threshold: float | None = None
-    hard_compression_ratio_threshold: float | None = Field(default=None, gt=0.0)
-    soft_min_voiced_ms: int | None = Field(default=None, ge=0)
-    soft_min_voiced_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
-    soft_min_rms_dbfs: float | None = None
-    soft_no_speech_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
-    soft_logprob_threshold: float | None = None
-    soft_compression_ratio_threshold: float | None = Field(default=None, gt=0.0)
-    drop_score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
-    temperature: float | None = Field(default=None, ge=0.0)
-    suspicious_phrases: list[str] | None = None
-
-    @field_validator(
-        "vad_sensitivity",
-        "silence_duration",
-        "vad_aggressiveness",
-        "min_voiced_ms",
-        "min_voiced_ratio",
-        "min_rms_dbfs",
-        "decode_no_speech_threshold",
-        "decode_log_prob_threshold",
-        "decode_compression_ratio_threshold",
-        "hard_min_voiced_ms",
-        "hard_no_speech_threshold",
-        "hard_logprob_threshold",
-        "hard_compression_ratio_threshold",
-        "soft_min_voiced_ms",
-        "soft_min_voiced_ratio",
-        "soft_min_rms_dbfs",
-        "soft_no_speech_threshold",
-        "soft_logprob_threshold",
-        "soft_compression_ratio_threshold",
-        "drop_score_threshold",
-        "temperature",
-        mode="before",
-    )
-    @classmethod
-    def reject_coerced_numeric_values(cls, value: object) -> object:
-        if isinstance(value, (bool, str)):
-            raise ValueError("must be a JSON number")
-        return value
-
-
-_LEGACY_STT_KEYS: dict[str, str] = {
-    "no_speech_threshold": "soft_no_speech_threshold",
-    "log_prob_threshold": "soft_logprob_threshold",
-    "compression_ratio_threshold": "soft_compression_ratio_threshold",
-    "hallucination_phrase_blocklist": "suspicious_phrases",
-}
-
-
-def _canonical_stt_section(section: TomlTable | None) -> TomlTable:
-    """Filter persisted STT data to the typed API and map supported legacy keys."""
-    if section is None:
-        return {}
-    canonical_fields = SttSettingsPatch.model_fields
-    normalized = {key: value for key, value in section.items() if key in canonical_fields}
-    for legacy_key, canonical_key in _LEGACY_STT_KEYS.items():
-        if canonical_key not in normalized and legacy_key in section:
-            normalized[canonical_key] = section[legacy_key]
-    return normalized
-
-
-class AudioSettingsPatch(BaseModel):
-    """Typed patch surface for persisted ``[audio]`` settings."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    sample_rate: int | None = Field(default=None, gt=0, le=192_000)
-    max_session_seconds: int | None = Field(default=None, gt=0, le=60)
-
-    @field_validator("sample_rate", "max_session_seconds", mode="before")
-    @classmethod
-    def reject_coerced_numeric_values(cls, value: object) -> object:
-        if isinstance(value, (bool, str)):
-            raise ValueError("must be a JSON number")
-        return value
-
-
-class SettingsSaveRequest(BaseModel):
-    """Request body for ``POST /api/settings``.
-
-    Each field is optional; only provided fields are processed.
-    """
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    ollama: OllamaConfigPayload | None = None
-    acp: AcpConfigPayload | None = None
-    agents: AgentSettingsPayload | None = None
-    reply: ReplySettingsPayload | None = None
-    secrets: SecretsPayload | None = None
-    stt: SttSettingsPatch | None = None
-    audio: AudioSettingsPatch | None = None
-    context: dict[str, object] | None = None
-    usage_budget: UsageBudgetConfig | None = None
-    recording_retention: RecordingRetentionSettings | None = None
-    delete_secrets: list[SecretKey] | None = None
-
-
-# ── Response models ────────────────────────────────────────────────────────────
-
-
-class AgentSettings(BaseModel):
-    """Non-reply agent settings returned in the settings response."""
-
-    info_enabled: bool
-
-
-class SecretsStatus(BaseModel):
-    """Boolean presence indicators — never leak actual secret values."""
-
-    GEMINI_API_KEY: bool = False
-    OPENAI_API_KEY: bool = False
-    XAI_API_KEY: bool = False
-    ANTHROPIC_API_KEY: bool = False
-    GOOGLE_CLOUD_PROJECT: bool = False
-    GOOGLE_APPLICATION_CREDENTIALS: bool = False
-    DEEPGRAM_API_KEY: bool = False
-
-
-class ReplyStyleSettings(BaseModel):
-    id: str
-    label: str
-    enabled: bool
-    priority: int
-
-
-class ReplySettings(BaseModel):
-    """Reply feature settings returned in the settings response."""
-
-    enabled: bool
-    auto_generate: bool
-    default_style: str
-    styles: list[ReplyStyleSettings]
-
-
-class UsageSummaryResponse(BaseModel):
-    input_tokens: int = 0
-    output_tokens: int = 0
-    estimated_cost_jpy: float = 0.0
-    request_count: int = 0
-
-
-def _usage_summary_response(summary: UsageSummary) -> UsageSummaryResponse:
-    return UsageSummaryResponse(
-        input_tokens=summary.input_tokens,
-        output_tokens=summary.output_tokens,
-        estimated_cost_jpy=summary.estimated_cost_jpy,
-        request_count=summary.request_count,
-    )
-
-
-class UsageSettingsResponse(BaseModel):
-    budget: UsageBudgetConfig
-    current_meeting: UsageSummaryResponse
-    current_month: UsageSummaryResponse
-    billing_mode: str
-
-
-class ProviderSummary(BaseModel):
-    """Provider metadata safe for Settings UI display."""
-
-    id: str
-    label: str
-    kind: ProviderKind
-    data_location: DataLocation
-    base_url: str | None = None
-    models: list[str] | None = None
-    experimental: bool = False
-    api_key_configured: bool | None = None
-
-
-class OllamaConfig(BaseModel):
-    """Ollama configuration returned in settings response."""
-
-    base_url: str
-
-
-class AcpConfig(BaseModel):
-    """ACP runtime configuration safe for Advanced Settings."""
-
-    command: list[str]
-    runtime: Literal["acp"] = "acp"
-    capabilities: list[Literal["reply"]] = ["reply"]
-
-
-class SettingsResponse(BaseModel):
-    """Full settings object returned to the frontend."""
-
-    ollama: OllamaConfig
-    acp: AcpConfig
-    stt: TomlTable = {}
-    audio: TomlTable = {}
-    agents: AgentSettings
-    reply: ReplySettings
-    secrets: SecretsStatus
-    data_dir: str
-    context_dir: str
-    providers: list[ProviderSummary]
-    usage: UsageSettingsResponse
-    recording_retention: RecordingRetentionSettings
-
-
-class SaveSettingsResponse(BaseModel):
-    """Response from a successful POST /api/settings."""
-
-    ok: bool
-    settings: SettingsResponse
-
-
-class SettingsConflictDetail(BaseModel):
-    code: Literal["AUDIO_SETTINGS_LOCKED"]
-    message: str
-
-
-class SettingsConflictResponse(BaseModel):
-    """Structured response returned when audio settings are locked."""
-
-    detail: SettingsConflictDetail
-
-
-class RouteAssignmentsUpdate(BaseModel):
-    """Full replacement of schema-v2 use-case route assignments."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    reply: str | None
-    info: str | None
-    minutes: str | None
-
-
-class OllamaModelsResponse(BaseModel):
-    """Response from GET /api/settings/ollama/models."""
-
-    ok: bool
-    base_url: str
-    models: list[str]
-    message: str | None = None
-
-
-# ── Internal helpers ───────────────────────────────────────────────────────────
-
-
-def _reply_style_settings(definitions: list[ReplyAgentDefinition]) -> list[ReplyStyleSettings]:
-    return [
-        ReplyStyleSettings(
-            id=d.id,
-            label=d.label,
-            enabled=d.enabled,
-            priority=d.priority,
-        )
-        for d in definitions
-    ]
-
-
-def _provider_summaries(state: "AppState") -> list[ProviderSummary]:
-    return [
-        ProviderSummary(
-            id=p.id,
-            label=p.label,
-            kind=p.kind,
-            data_location=p.data_location,
-            base_url=p.base_url,
-            models=p.models,
-            experimental=p.experimental,
-            api_key_configured=state.secret_store.status(p.key_ref) if p.key_ref else None,
-        )
-        for p in state.config.providers
-    ]
-
-
-def _existing_reply_style_tables(cfg: TomlTable) -> list[TomlTable]:
-    """Return configured ``reply.styles`` entries."""
-    reply = _toml_table(cfg.get("reply"))
-    raw = reply.get("styles") if reply is not None else None
-    if not isinstance(raw, list):
-        return []
-    tables: list[TomlTable] = []
-    for entry in raw:
-        tbl = _toml_table(entry)
-        if tbl is not None and isinstance(tbl.get("id"), str):
-            tables.append(tbl)
-    return tables
-
-
-def _fallback_reply_style_tables(definitions: list[ReplyAgentDefinition]) -> list[TomlTable]:
-    return [
-        {
-            "id": d.id,
-            "label": d.label,
-            "enabled": d.enabled,
-            "priority": d.priority,
-            "instruction": d.instruction,
-        }
-        for d in definitions
-    ]
-
-
-def _apply_reply_style_enabled_patch(
-    *,
-    cfg: TomlTable,
-    definitions: list[ReplyAgentDefinition],
-    patch: dict[str, bool],
-) -> list[TomlTable] | str:
-    tables = _existing_reply_style_tables(cfg) or _fallback_reply_style_tables(definitions)
-    by_id: dict[str, TomlTable] = {}
-    for table in tables:
-        eid = table.get("id")
-        if isinstance(eid, str):
-            by_id[eid] = table
-    unknown_ids = sorted(set(patch) - set(by_id))
-    if unknown_ids:
-        return f"未知の reply.styles id です: {', '.join(unknown_ids)}"
-    for entry_id, enabled in patch.items():
-        by_id[entry_id]["enabled"] = enabled
-    return tables
-
-
-def _build_settings_response(
-    *,
-    state: "AppState",
-    store: SettingsStore,
-    merged_agent_settings: RuntimeAgentSettings | None = None,
-    ollama_override: OllamaConfig | None = None,
-    reply_style_tables: list[TomlTable] | None = None,
-) -> SettingsResponse:
-    """Build a SettingsResponse from current state and config store.
-
-    Parameters
-    ----------
-    state:
-        The application state (LLM config, agent settings, etc.).
-    store:
-        The settings store (for config file data such as stt/audio).
-    merged_agent_settings:
-        Optional overridden agent settings (e.g. after a save patch).
-        Falls back to ``state.config.agent_settings`` when ``None``.
-    ollama_override:
-        Optional Ollama config override. Falls back to config file, then state.config.
-    reply_style_tables:
-        Optional reply style table overrides (e.g. after saving patched tables).
-        Falls back to target ``reply.styles`` from the config file, then to
-        ``state.config.reply_agent_definitions``.
-    """
-    cfg = store.load_config()
-    stt_section = _toml_table(cfg.get("stt"))
-    audio_section = _toml_table(cfg.get("audio"))
-    usage_budget_section = _toml_table(cfg.get("usage_budget"))
-    recording_retention_section = _toml_table(cfg.get("recording_retention"))
-
-    # Ollama: override → config file → state.config fallback
-    if ollama_override is not None:
-        ollama = ollama_override
-    else:
-        ollama_section = _toml_table(cfg.get("ollama"))
-        if ollama_section is not None:
-            base_url = _toml_str(ollama_section.get("base_url"), state.config.ollama_base_url)
-            ollama = OllamaConfig(base_url=base_url)
-        else:
-            ollama = OllamaConfig(base_url=state.config.ollama_base_url)
-
-    # Reply styles: override → target config → state.config definitions
-    if reply_style_tables is not None:
-        reply_styles = [
-            ReplyStyleSettings(
-                id=_toml_str(t.get("id"), ""),
-                label=_toml_str(t.get("label"), ""),
-                enabled=_toml_bool(t.get("enabled"), True),
-                priority=_toml_int(t.get("priority"), 100),
-            )
-            for t in reply_style_tables
-            if isinstance(t.get("id"), str)
-        ]
-    else:
-        cfg_reply_styles = _existing_reply_style_tables(cfg)
-        if cfg_reply_styles:
-            reply_styles = [
-                ReplyStyleSettings(
-                    id=_toml_str(entry.get("id"), ""),
-                    label=_toml_str(entry.get("label"), ""),
-                    enabled=_toml_bool(entry.get("enabled"), True),
-                    priority=_toml_int(entry.get("priority"), 100),
-                )
-                for entry in cfg_reply_styles
-                if isinstance(entry.get("id"), str)
-            ]
-        else:
-            reply_styles = _reply_style_settings(state.config.reply_agent_definitions)
-
-    agent_settings = merged_agent_settings if merged_agent_settings is not None else state.config.agent_settings
-    reply_section = _toml_table(cfg.get("reply"))
-    default_style = _toml_str(reply_section.get("default_style"), "standard") if reply_section else "standard"
-
-    usage_budget = UsageBudgetConfig(
-        meeting_limit_jpy=_toml_number(
-            usage_budget_section.get("meeting_limit_jpy"), state.config.usage_budget.meeting_limit_jpy
-        )
-        if usage_budget_section is not None
-        else state.config.usage_budget.meeting_limit_jpy,
-        monthly_limit_jpy=_toml_number(
-            usage_budget_section.get("monthly_limit_jpy"), state.config.usage_budget.monthly_limit_jpy
-        )
-        if usage_budget_section is not None
-        else state.config.usage_budget.monthly_limit_jpy,
-    )
-    recording_retention = RecordingRetentionSettings(
-        cutoff_date=_toml_date(recording_retention_section.get("cutoff_date"))
-        if recording_retention_section is not None
-        else None,
-        max_total_bytes=(
-            value if (value := _toml_int(recording_retention_section.get("max_total_bytes"), 0)) > 0 else None
-        )
-        if recording_retention_section is not None
-        else None,
-    )
-    usage_logger = UsageLogger(state.config.user_data_dir / "usage.jsonl")
-    current_session = state.current_session
-    current_meeting_id = current_session.id if current_session is not None else None
-    current_meeting_summary = (
-        usage_logger.summarize(meeting_id=current_meeting_id)
-        if current_meeting_id
-        else usage_logger.summarize(meeting_id="")
-    )
-    current_month_summary = usage_logger.summarize(month=datetime.now(UTC))
-    reply_route = state.config.ai_assignments.reply
-    billing_mode = (
-        "unassigned"
-        if reply_route is None
-        else "external_subscription"
-        if reply_route in ("codex", "acp")
-        else "local"
-        if reply_route == "ollama"
-        else "byok"
-    )
-
-    ai_section = _toml_table(cfg.get("ai"))
-    route_section = _toml_table(ai_section.get("routes")) if ai_section is not None else None
-    acp_section = _toml_table(route_section.get("acp")) if route_section is not None else None
-    raw_acp_command = acp_section.get("command") if acp_section is not None else None
-    if isinstance(raw_acp_command, list) and all(isinstance(item, str) for item in raw_acp_command):
-        acp_command = cast(list[str], raw_acp_command)
-    else:
-        acp_route = next((route for route in state.config.routes if route.id == "acp"), None)
-        acp_command = list(acp_route.command or ()) if acp_route is not None else []
-
-    return SettingsResponse(
-        ollama=ollama,
-        acp=AcpConfig(command=acp_command),
-        stt=_canonical_stt_section(stt_section),
-        audio=audio_section if audio_section is not None else {},
-        agents=AgentSettings(info_enabled=agent_settings["info_enabled"]),
-        reply=ReplySettings(
-            enabled=agent_settings["reply_enabled"],
-            auto_generate=agent_settings["reply_auto_generate"],
-            default_style=default_style,
-            styles=reply_styles,
-        ),
-        providers=_provider_summaries(state),
-        secrets=SecretsStatus(**{k: v for k, v in state.secret_store.status_all().items() if k in SECRET_KEYS}),
-        data_dir=str(state.config.user_data_dir),
-        context_dir=str(state.config.context_dir),
-        usage=UsageSettingsResponse(
-            budget=usage_budget,
-            current_meeting=_usage_summary_response(current_meeting_summary),
-            current_month=_usage_summary_response(current_month_summary),
-            billing_mode=billing_mode,
-        ),
-        recording_retention=recording_retention,
-    )
-
-
-def _merge_ollama_from_body(
-    body_ollama: OllamaConfigPayload | None,
-    state: "AppState",
-) -> OllamaConfig | None:
-    """Build an ``OllamaConfig`` override from the request body, if base_url was provided."""
-    if body_ollama is None:
-        return None
-    raw = body_ollama.model_dump(exclude_none=True)
-    if not raw:
-        return None
-    base_url = _toml_str(raw.get("base_url"), state.config.ollama_base_url)
-    return OllamaConfig(base_url=base_url)
-
-
-def _merged_audio_stt_config(body: SettingsSaveRequest, state: "AppState") -> EffectiveAudioSttConfig:
-    """Merge a sparse request into the current normalized runtime settings."""
-
-    candidate_stt = replace(state.config.stt_config)
-    if body.stt is not None:
-        stt_patch: dict[str, object] = body.stt.model_dump(exclude_none=True)
-        for field_name, value in stt_patch.items():
-            if field_name == "suspicious_phrases":
-                if not isinstance(value, list):
-                    raise ValueError("stt.suspicious_phrases must be a list of strings")
-                suspicious_phrases = cast("list[str]", value)
-                value = tuple(suspicious_phrases)
-            setattr(candidate_stt, field_name, value)
-
-    sample_rate = state.config.audio_sample_rate
-    max_session_seconds = state.config.audio_max_session_seconds
-    if body.audio is not None:
-        if body.audio.sample_rate is not None:
-            sample_rate = body.audio.sample_rate
-        if body.audio.max_session_seconds is not None:
-            max_session_seconds = body.audio.max_session_seconds
-
-    return normalize_audio_stt_config(
-        candidate_stt,
-        audio_sample_rate=sample_rate,
-        audio_max_session_seconds=max_session_seconds,
-    )
-
-
 def _route_catalog(
     *,
     state: "AppState",
@@ -802,60 +109,6 @@ def _route_catalog(
         codex_status=codex_status,
         ollama_status=ollama_status,
     )
-
-
-def flatten_ai_tables(
-    cfg: TomlTable,
-    assignments: AiRouteAssignments | None = None,
-) -> None:
-    """Convert nested parsed AI tables to dotted sections for the TOML writer."""
-
-    raw_ai = cfg.pop("ai", None)
-    ai = cast(TomlTable, raw_ai) if isinstance(raw_ai, dict) else {}
-    raw_assignments = ai.get("assignments")
-    existing_assignments = cast(TomlTable, raw_assignments) if isinstance(raw_assignments, dict) else {}
-    raw_routes = ai.get("routes")
-    route_tables = cast(dict[str, object], raw_routes) if isinstance(raw_routes, dict) else {}
-
-    cfg["ai"] = {"schema_version": 2}
-    if assignments is None:
-        assignment_table: TomlTable = {}
-        reply = existing_assignments.get("reply")
-        if isinstance(reply, str) and reply:
-            assignment_table["reply"] = reply
-        for key in ("info", "minutes"):
-            value = existing_assignments.get(key)
-            if isinstance(value, str) and value:
-                assignment_table[key] = value
-    else:
-        assignment_table = {}
-        if assignments.reply is not None:
-            assignment_table["reply"] = assignments.reply
-        if assignments.info is not None:
-            assignment_table["info"] = assignments.info
-        if assignments.minutes is not None:
-            assignment_table["minutes"] = assignments.minutes
-    cfg["ai.assignments"] = assignment_table
-
-    for route_id, raw_route in route_tables.items():
-        if not isinstance(raw_route, dict):
-            continue
-        route_table = cast(TomlTable, raw_route)
-        scalar_route = {key: value for key, value in route_table.items() if key != "env"}
-        if scalar_route:
-            cfg[f"ai.routes.{route_id}"] = scalar_route
-        env = route_table.get("env")
-        if isinstance(env, dict):
-            cfg[f"ai.routes.{route_id}.env"] = cast(TomlTable, env)
-
-
-def _write_ai_assignments(store: SettingsStore, assignments: AiRouteAssignments) -> None:
-    """Persist a full route-assignment replacement without losing route config."""
-
-    with store.locked():
-        cfg = store.load_config()
-        flatten_ai_tables(cfg, assignments)
-        store.write_sectioned_toml(store.config_path, cfg)
 
 
 def _route_assignment_error(code: str, message: str) -> HTTPException:
@@ -921,13 +174,13 @@ def create_router(
                     "AI_ROUTE_NOT_SELECTABLE",
                     f"指定されたAI経路は{use_case}に選択できません。",
                 )
-        _write_ai_assignments(store, candidate)
+        write_ai_assignments(store, candidate)
         await event_bus.publish(ConfigChanged())
         return current
 
     @router.get("/settings")
     async def get_settings() -> SettingsResponse:  # pyright: ignore[reportUnusedFunction]
-        return _build_settings_response(state=state, store=store)
+        return SettingsResponse.model_validate(build_settings_response_data(state=state, store=store))
 
     def locked_audio_settings_error() -> HTTPException:
         return HTTPException(
@@ -946,219 +199,39 @@ def create_router(
     async def save_settings(  # pyright: ignore[reportUnusedFunction]
         body: SettingsSaveRequest,
     ) -> SaveSettingsResponse:
-        ollama_override = _merge_ollama_from_body(body.ollama, state)
-
-        # ── Agents / Reply ──
-        # StrictBool on payload models guarantees values are bool; no manual check needed.
-        merged_agent_settings = state.config.agent_settings
-        if body.agents is not None:
-            raw_agents: dict[str, object] = body.agents.model_dump(exclude_none=True)
-            patch: dict[AgentSettingKey, bool] = {}
-            if "info_enabled" in raw_agents:
-                patch["info_enabled"] = cast("bool", raw_agents["info_enabled"])
-            result = patch_agent_settings(state.config.agent_settings, patch)
-            if isinstance(result, str):
-                raise HTTPException(status_code=400, detail=result)
-            merged_agent_settings = result
-
-        reply_style_tables_override: list[TomlTable] | None = None
-        reply_section_override: TomlTable | None = None
-        if body.reply is not None:
-            raw_reply: dict[str, object] = body.reply.model_dump(exclude_none=True)
-            reply_patch: dict[AgentSettingKey, bool] = {}
-            if "enabled" in raw_reply:
-                reply_patch["reply_enabled"] = cast("bool", raw_reply["enabled"])
-            if "auto_generate" in raw_reply:
-                reply_patch["reply_auto_generate"] = cast("bool", raw_reply["auto_generate"])
-            result = patch_agent_settings(merged_agent_settings, reply_patch)
-            if isinstance(result, str):
-                raise HTTPException(status_code=400, detail=result)
-            merged_agent_settings = result
-
-            existing_cfg = store.load_config()
-            style_patch: dict[str, bool] = {}
-            if body.reply.styles is not None:
-                style_patch = {p.id: p.enabled for p in body.reply.styles}
-            reply_style_tables = _apply_reply_style_enabled_patch(
-                cfg=existing_cfg,
-                definitions=state.config.reply_agent_definitions,
-                patch=style_patch,
-            )
-            if isinstance(reply_style_tables, str):
-                raise HTTPException(status_code=400, detail=reply_style_tables)
-            if merged_agent_settings["reply_enabled"] and not any(
-                _toml_bool(table.get("enabled"), True) for table in reply_style_tables
-            ):
-                raise HTTPException(status_code=400, detail="返答案のスタイルは最低1つ有効にしてください")
-            reply_style_tables_override = reply_style_tables
-            existing_reply = _toml_table(existing_cfg.get("reply"))
-            default_style = (
-                _toml_str(raw_reply.get("default_style"), "")
-                or (_toml_str(existing_reply.get("default_style"), "") if existing_reply else "")
-                or "standard"
-            )
-            reply_section_override = cast(
-                TomlTable,
-                {
-                    "enabled": merged_agent_settings["reply_enabled"],
-                    "auto_generate": merged_agent_settings["reply_auto_generate"],
-                    "default_style": default_style,
-                    "styles": reply_style_tables,
-                },
-            )
-
-        # Stage secret changes without mutating the store. Audio/STT validation
-        # below must succeed before any secret or TOML persistence occurs.
-        updates: dict[SecretKey, str] = {}
-        if body.secrets is not None:
-            typed_secrets: dict[str, object] = body.secrets.model_dump(exclude_none=True)
-            for key in SECRET_KEYS:
-                value = typed_secrets.get(key)
-                if isinstance(value, str) and value:
-                    updates[key] = value
-        deleted_secrets = set(body.delete_secrets or ())
-
-        # ── Config sections (stt, audio, ollama, context, etc.) ──
-        cfg_sections: dict[str, object] = {}
-        acp_command_override = body.acp.command if body.acp is not None and body.acp.command is not None else None
-
-        if body.stt is not None:
-            stt_patch: dict[str, object] = body.stt.model_dump(exclude_none=True)
-            if stt_patch:
-                cfg_sections["stt"] = stt_patch
-        if body.audio is not None:
-            audio_patch: dict[str, object] = body.audio.model_dump(exclude_none=True)
-            if audio_patch:
-                cfg_sections["audio"] = audio_patch
-        if body.context is not None:
-            cfg_sections["context"] = body.context
-        if body.usage_budget is not None:
-            cfg_sections["usage_budget"] = body.usage_budget.model_dump()
-        if body.recording_retention is not None:
-            cfg_sections["recording_retention"] = body.recording_retention.model_dump(mode="json", exclude_none=True)
-        if body.ollama is not None:
-            ollama_dict = body.ollama.model_dump(exclude_none=True)
-            if ollama_dict:
-                cfg_sections["ollama"] = ollama_dict
-        if body.agents is not None:
-            cfg_sections["agents"] = {"info_enabled": merged_agent_settings["info_enabled"]}
-        if reply_section_override is not None:
-            cfg_sections["reply"] = reply_section_override
-        if acp_command_override is not None:
-            cfg_sections["ai"] = {}
-
-        has_mutations = bool(updates or deleted_secrets or cfg_sections)
-        effective_audio_stt_changed = False
-        async with state.audio_lifecycle_lock:
-            try:
-                current_audio_stt = normalize_audio_stt_config(
-                    state.config.stt_config,
-                    audio_sample_rate=state.config.audio_sample_rate,
-                    audio_max_session_seconds=state.config.audio_max_session_seconds,
-                )
-                candidate_audio_stt = _merged_audio_stt_config(body, state)
-            except ValueError as exc:
-                raise RequestValidationError(
-                    [
-                        {
-                            "type": "value_error",
-                            "loc": ("body", "audio"),
-                            "msg": str(exc),
-                        }
-                    ]
-                ) from exc
-            effective_audio_stt_changed = candidate_audio_stt != current_audio_stt
-
-            if state.is_running and candidate_audio_stt != current_audio_stt:
-                raise locked_audio_settings_error()
-
-            affected_secret_keys = set(updates) | deleted_secrets
-            secret_snapshot = (
-                transactional_secret_store.snapshot(affected_secret_keys) if affected_secret_keys else None
-            )
-
-            try:
-                if updates:
-                    transactional_secret_store.set_secrets({str(key): value for key, value in updates.items()})
-                for key in deleted_secrets:
-                    transactional_secret_store.delete(key)
-
-                if cfg_sections:
-                    with store.locked():
-                        existing_cfg = store.load_config()
-                        if acp_command_override is not None:
-                            raw_ai = existing_cfg.get("ai")
-                            ai = cast(dict[str, TomlValue], raw_ai) if isinstance(raw_ai, dict) else {}
-                            raw_routes = ai.get("routes")
-                            routes = cast(dict[str, TomlValue], raw_routes) if isinstance(raw_routes, dict) else {}
-                            raw_acp = routes.get("acp")
-                            acp = cast(dict[str, TomlValue], raw_acp) if isinstance(raw_acp, dict) else {}
-                            acp["runtime"] = "acp"
-                            acp["command"] = cast("TomlValue", acp_command_override)
-                            routes["acp"] = cast("TomlValue", acp)
-                            ai["routes"] = cast("TomlValue", routes)
-                            existing_cfg["ai"] = cast("TomlValue", ai)
-                        for section, values in cfg_sections.items():
-                            if section == "ai":
-                                continue
-                            if section == "recording_retention":
-                                # This is a complete policy replacement, so clearing an
-                                # input actually disables it instead of reviving a stale
-                                # TOML key through the usual section merge.
-                                existing_cfg[section] = cast("TomlValue", values)
-                                continue
-                            existing = existing_cfg.get(section)
-                            if isinstance(existing, dict) and isinstance(values, dict):
-                                incoming = cast("dict[str, TomlValue]", values)
-                                if section == "stt":
-                                    for legacy_key, canonical_key in _LEGACY_STT_KEYS.items():
-                                        if (
-                                            legacy_key in existing
-                                            and canonical_key not in existing
-                                            and canonical_key not in incoming
-                                        ):
-                                            existing[canonical_key] = existing[legacy_key]
-                                        _ = existing.pop(legacy_key, None)
-                                existing.update(incoming)  # type: ignore[typeddict-item]
-                            else:
-                                existing_cfg[section] = cast("TomlValue", values)
-                        if "reply" in cfg_sections:
-                            _ = existing_cfg.pop("reply_agents", None)
-                            agents_section = existing_cfg.get("agents")
-                            if isinstance(agents_section, dict):
-                                _ = agents_section.pop("reply_enabled", None)
-                                _ = agents_section.pop("reply_auto_generate", None)
-                                _ = agents_section.pop("reply_main", None)
-                                _ = agents_section.pop("reply_polite", None)
-                        flatten_ai_tables(existing_cfg)
-                        store.write_sectioned_toml(store.config_path, existing_cfg)
-            except Exception as original_error:
-                if secret_snapshot is not None:
-                    try:
-                        transactional_secret_store.restore(secret_snapshot)
-                    except SecretRollbackError as rollback_error:
-                        raise rollback_error from original_error
-                    except Exception as rollback_error:
-                        raise SecretRollbackError((rollback_error,)) from original_error
-                raise
-
-            if has_mutations and effective_audio_stt_changed:
-                await event_bus.publish(ConfigChanged(audio_lifecycle_lock_held=True))
-
-        if has_mutations and not effective_audio_stt_changed:
-            await event_bus.publish(ConfigChanged())
-
-        # ── Build response with actual saved/merged values ──
-        return SaveSettingsResponse(
-            ok=True,
-            settings=_build_settings_response(
+        try:
+            result = await persist_settings(
+                body=body.model_dump_toml(),
                 state=state,
                 store=store,
-                merged_agent_settings=merged_agent_settings,
-                ollama_override=ollama_override,
-                reply_style_tables=reply_style_tables_override,
-            ),
+                event_bus=event_bus,
+                secret_store=transactional_secret_store,
+            )
+        except SettingsPatchError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except SettingsValidationError as exc:
+            raise RequestValidationError(
+                [
+                    {
+                        "type": "value_error",
+                        "loc": ("body", "audio"),
+                        "msg": str(exc),
+                    }
+                ]
+            ) from exc
+        except AudioSettingsLockedError as exc:
+            raise locked_audio_settings_error() from exc
+
+        settings = SettingsResponse.model_validate(
+            build_settings_response_data(
+                state=state,
+                store=store,
+                merged_agent_settings=result.merged_agent_settings,
+                ollama_base_url_override=result.ollama_base_url_override,
+                reply_style_tables=result.reply_style_tables,
+            )
         )
+        return SaveSettingsResponse(ok=True, settings=settings)
 
     @router.post("/settings/connections/test", response_model=ConnectionTestResponse)
     def test_connection(  # pyright: ignore[reportUnusedFunction]

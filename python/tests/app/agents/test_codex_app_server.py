@@ -22,9 +22,9 @@ from app.agents.codex_app_server import (
     CodexSafeError,
     ProcessState,
     TurnState,
-    _reap_version_probe,
     inspect_codex_installation,
 )
+from app.agents.codex_installation import _reap_version_probe
 from app.agents.codex_runtime import CodexInfoAgentRuntime, CodexMinutesAgentRuntime, CodexReplyAgentRuntime
 from app.agents.models import InfoPrompt, MinutesPrompt, ReplyPrompt
 from app.agents.prompts import CODEX_INFO_INSTRUCTION, MINUTES_INSTRUCTION
@@ -524,7 +524,7 @@ class CodexInstallationContractTest(unittest.IsolatedAsyncioTestCase):
             _ = await allow_cleanup.wait()
             cleanup_completed = True
 
-        with patch("app.agents.codex_app_server._terminate_version_probe", controlled_cleanup):
+        with patch("app.agents.codex_installation._terminate_version_probe", controlled_cleanup):
             cleanup = asyncio.create_task(
                 _reap_version_probe(child)  # pyright: ignore[reportArgumentType]
             )

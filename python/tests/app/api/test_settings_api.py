@@ -748,6 +748,37 @@ hallucination_phrase_blocklist = ["preserve me"]
         finally:
             _ = os.environ.pop("GEMINI_API_KEY", None)
 
+    def test_secret_update_with_null_only_context_skips_config_write(self) -> None:
+        config_text = """
+[context]
+dir_override = "existing-context"
+"""
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                client, state, store, _, events = _make_client(Path(td), config_text=config_text)
+                original_config = store.config_path.read_bytes()
+
+                with patch.object(
+                    store,
+                    "write_sectioned_toml",
+                    side_effect=OSError("config write must not run"),
+                ) as write_config:
+                    response = client.post(
+                        "/api/settings",
+                        json={
+                            "secrets": {"GEMINI_API_KEY": "synthetic-key"},
+                            "context": {"dir_override": None},
+                        },
+                    )
+
+                assert response.status_code == 200
+                assert state.secret_store.get("GEMINI_API_KEY") == "synthetic-key"
+                write_config.assert_not_called()
+                assert store.config_path.read_bytes() == original_config
+                assert events == ["ConfigChanged"]
+        finally:
+            _ = os.environ.pop("GEMINI_API_KEY", None)
+
     def test_keyring_read_failure_aborts_before_any_settings_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -979,6 +1010,48 @@ hallucination_phrase_blocklist = ["preserve me"]
             assert isinstance(stt, dict)
             assert stt["backend"] == "remote"
             assert stt["vad_engine"] == "silero"
+
+    def test_nested_context_null_is_noop_without_config_write_or_event(self) -> None:
+        config_text = """
+[context]
+dir_override = "existing-context"
+"""
+        with tempfile.TemporaryDirectory() as td:
+            client, _, store, _, events = _make_client(Path(td), config_text=config_text)
+            original_config = store.config_path.read_bytes()
+
+            with patch.object(store, "write_sectioned_toml") as write_config:
+                response = client.post("/api/settings", json={"context": {"dir_override": None}})
+
+            assert response.status_code == 200
+            assert response.json_object()["ok"] is True
+            write_config.assert_not_called()
+            assert store.config_path.read_bytes() == original_config
+            assert events == []
+
+    def test_context_value_is_saved_and_reloaded(self) -> None:
+        config_text = """
+[context]
+dir_override = "existing-context"
+"""
+        with tempfile.TemporaryDirectory() as td:
+            client, state, store, event_bus, events = _make_client(Path(td), config_text=config_text)
+
+            async def reload_runtime_config(event: ConfigChanged) -> None:
+                _ = event
+                state.config = state.config.reload()
+
+            event_bus.subscribe(ConfigChanged, reload_runtime_config)
+
+            response = client.post(
+                "/api/settings",
+                json={"context": {"dir_override": "updated-context"}},
+            )
+
+            assert response.status_code == 200
+            assert store.load_config()["context"] == {"dir_override": "updated-context"}
+            assert state.config.context_dir == Path("updated-context")
+            assert events == ["ConfigChanged"]
 
     def test_empty_body_returns_ok(self) -> None:
         with tempfile.TemporaryDirectory() as td:

@@ -6,20 +6,32 @@ import asyncio
 import json
 import logging
 import os
-import re
-import shutil
-import sys
 import tempfile
 from asyncio.subprocess import PIPE, Process
 from collections import deque
-from collections.abc import AsyncIterator, Coroutine, Mapping
-from dataclasses import dataclass
-from enum import StrEnum
+from collections.abc import Coroutine
 from pathlib import Path
 from typing import Final, Literal, Self
 
 from pydantic import TypeAdapter, ValidationError
 
+from app.agents.codex_installation import (
+    MINIMUM_CODEX_VERSION_LABEL,
+    CodexInstallation,
+    child_environment,
+    codex_process_command,
+    inspect_codex_installation,
+)
+from app.agents.codex_models import (
+    AuthState,
+    CodexAccountSnapshot,
+    CodexModelSelection,
+    CodexSafeError,
+    CodexServiceTierStatus,
+    CodexStatusSnapshot,
+    ProcessState,
+    TurnState,
+)
 from app.agents.codex_protocol import (
     AccountLoginCompletedNotification,
     AccountReadParams,
@@ -54,28 +66,20 @@ from app.agents.codex_protocol import (
     TurnStartParams,
     TurnStartResult,
 )
+from app.agents.codex_turn import REPLY_REASONING_EFFORT, CodexTurn
 
 logger = logging.getLogger(__name__)
 
-_CODEX_VERSION = re.compile(r"^codex-cli\s+(\S+)$")
-_RELEASE_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
-_MINIMUM_CODEX_VERSION: Final = (0, 144, 0)
-_SCHEMA_VERIFIED_CODEX_VERSIONS: Final[frozenset[str]] = frozenset({"0.144.0", "0.144.1"})
-MINIMUM_CODEX_VERSION_LABEL: Final = "0.144.0 以降"
 _REQUEST_TIMEOUT: Final = 15.0
 _INITIALIZE_TIMEOUT: Final = 10.0
 _TURN_START_TIMEOUT: Final = 30.0
 _INTERRUPT_TIMEOUT: Final = 3.0
 _STDIO_LIMIT: Final = 1024 * 1024
 _STDERR_LIMIT: Final = 64 * 1024
-_DELTA_QUEUE_LIMIT: Final = 512
-_DELTA_SIZE_LIMIT: Final = 256 * 1024
 _MODEL_LIST_PAGE_SIZE: Final = 100
 _MODEL_LIST_MAX_PAGES: Final = 16
-_REPLY_REASONING_EFFORT: Final[Literal["low"]] = "low"
 _STANDARD_SERVICE_TIER: Final[Literal["standard"]] = "standard"
 _PRIORITY_SERVICE_TIER: Final[Literal["priority"]] = "priority"
-_END: Final = object()
 _TURN_NOTIFICATION_METHODS: Final[frozenset[str]] = frozenset(
     {"item/agentMessage/delta", "turn/completed", "model/rerouted"}
 )
@@ -84,302 +88,7 @@ _REPLY_INSTRUCTIONS: Final = (
     "Do not inspect files, run commands, call tools, browse, load skills, or delegate to other agents."
 )
 
-_CHILD_ENVIRONMENT_VARIABLES: Final[frozenset[str]] = frozenset(
-    {
-        "ALL_PROXY",
-        "CURL_CA_BUNDLE",
-        "CODEX_HOME",
-        "DBUS_SESSION_BUS_ADDRESS",
-        "GNOME_KEYRING_CONTROL",
-        "HOME",
-        "HOMEPATH",
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "LANG",
-        "NODE_EXTRA_CA_CERTS",
-        "NO_PROXY",
-        "PATH",
-        "REQUESTS_CA_BUNDLE",
-        "SSL_CERT_DIR",
-        "SSL_CERT_FILE",
-        "TEMP",
-        "TMP",
-        "TMPDIR",
-        "USERPROFILE",
-        "XDG_RUNTIME_DIR",
-        "all_proxy",
-        "http_proxy",
-        "https_proxy",
-        "no_proxy",
-    }
-)
 _JSON_OBJECT: Final[TypeAdapter[dict[str, object]]] = TypeAdapter(dict[str, object])
-
-
-def _child_environment(parent_environment: Mapping[str, str]) -> dict[str, str]:
-    """Pass only authentication, connectivity, locale, and temporary-path inputs to Codex."""
-
-    return {
-        key: value
-        for key, value in parent_environment.items()
-        if key in _CHILD_ENVIRONMENT_VARIABLES or key.startswith("LC_")
-    }
-
-
-class ProcessState(StrEnum):
-    STOPPED = "stopped"
-    STARTING = "starting"
-    READY = "ready"
-    FAILED = "failed"
-    CLOSED = "closed"
-
-
-class AuthState(StrEnum):
-    UNKNOWN = "unknown"
-    UNAUTHENTICATED = "unauthenticated"
-    LOGGING_IN = "logging_in"
-    AUTHENTICATED = "authenticated"
-
-
-class TurnState(StrEnum):
-    IDLE = "idle"
-    STARTING = "starting"
-    ACTIVE = "active"
-    INTERRUPTING = "interrupting"
-
-
-@dataclass(frozen=True)
-class CodexInstallation:
-    binary: Path | None
-    version: str | None
-    compatible: bool
-    schema_verified: bool
-    reason_code: str | None
-
-
-@dataclass(frozen=True)
-class CodexAccountSnapshot:
-    authenticated: bool
-    account_type: str | None
-    plan_type: str | None
-    requires_openai_auth: bool
-
-
-@dataclass(frozen=True)
-class CodexStatusSnapshot:
-    installation: CodexInstallation
-    process_state: ProcessState
-    auth_state: AuthState
-    turn_state: TurnState
-    account: CodexAccountSnapshot | None
-
-
-@dataclass(frozen=True)
-class CodexModelSelection:
-    requested_model: str
-    effective_model: str
-    effective_model_provider: str
-    reasoning_effort: Literal["low"]
-    service_tier: Literal["standard", "priority"]
-    requested_service_tier: Literal["priority"] | None
-    effective_service_tier: str | None
-
-
-@dataclass(frozen=True)
-class CodexServiceTierStatus:
-    advertised: Literal["standard", "priority"]
-    effective: Literal["standard", "priority"] | None
-
-
-class CodexSafeError(RuntimeError):
-    """Error whose fields are safe to return across the API boundary."""
-
-    code: str
-    message: str
-    retryable: bool
-
-    def __init__(self, code: str, message: str, *, retryable: bool) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.retryable = retryable
-
-
-def _parse_release_version(value: str | None) -> tuple[int, int, int] | None:
-    if value is None:
-        return None
-    match = _RELEASE_VERSION.fullmatch(value)
-    if match is None:
-        return None
-    major, minor, patch = match.groups()
-    return int(major), int(minor), int(patch)
-
-
-def _codex_process_command(binary: Path, *arguments: str) -> tuple[str, ...]:
-    """Launch native binaries directly, with an interpreter only for Python test peers."""
-    if os.name == "nt" and binary.suffix.lower() == ".py":
-        return (sys.executable, os.fspath(binary), *arguments)
-    return (os.fspath(binary), *arguments)
-
-
-async def _terminate_version_probe(process: Process) -> None:
-    if process.returncode is not None:
-        return
-    try:
-        process.terminate()
-    except ProcessLookupError:
-        pass
-    try:
-        _ = await asyncio.wait_for(process.wait(), timeout=2.0)
-    except TimeoutError:
-        try:
-            process.kill()
-        except ProcessLookupError:
-            pass
-        _ = await process.wait()
-
-
-async def _reap_version_probe(process: Process) -> None:
-    cleanup_task = asyncio.create_task(_terminate_version_probe(process))
-    try:
-        await asyncio.shield(cleanup_task)
-    except asyncio.CancelledError:
-        await cleanup_task
-        raise
-
-
-async def inspect_codex_installation(binary: str | os.PathLike[str] | None = None) -> CodexInstallation:
-    """Resolve the official CLI and reject only versions below the protocol baseline."""
-
-    candidate = os.fspath(binary) if binary is not None else os.environ.get("CODEX_BINARY")
-    if candidate:
-        path = Path(candidate)
-        if not path.is_absolute() or not path.is_file() or not os.access(path, os.X_OK):
-            return CodexInstallation(None, None, False, False, "invalid_binary")
-    else:
-        resolved = shutil.which("codex")
-        if resolved is None:
-            return CodexInstallation(None, None, False, False, "not_installed")
-        path = Path(resolved).resolve()
-
-    try:
-        process = await asyncio.create_subprocess_exec(
-            *_codex_process_command(path, "--version"),
-            stdin=PIPE,
-            stdout=PIPE,
-            stderr=PIPE,
-            limit=4096,
-        )
-    except OSError:
-        return CodexInstallation(path, None, False, False, "version_unavailable")
-
-    try:
-        stdout, _stderr = await asyncio.wait_for(process.communicate(), timeout=3.0)
-    except TimeoutError:
-        await _reap_version_probe(process)
-        return CodexInstallation(path, None, False, False, "version_unavailable")
-    except asyncio.CancelledError:
-        await _reap_version_probe(process)
-        raise
-
-    if process.returncode != 0:
-        return CodexInstallation(path, None, False, False, "version_unavailable")
-    match = _CODEX_VERSION.fullmatch(stdout.decode("utf-8", errors="replace").strip())
-    version = match.group(1) if match is not None else None
-    parsed_version = _parse_release_version(version)
-    if parsed_version is None or parsed_version < _MINIMUM_CODEX_VERSION:
-        return CodexInstallation(path, version, False, False, "unsupported_version")
-    return CodexInstallation(path, version, True, version in _SCHEMA_VERIFIED_CODEX_VERSIONS, None)
-
-
-class CodexTurn:
-    """One ephemeral Codex turn dispatched through a shared app-server process."""
-
-    def __init__(
-        self,
-        peer: CodexAppServer,
-        thread_id: str,
-        *,
-        requested_model: str,
-        effective_model: str,
-        effective_model_provider: str,
-    ) -> None:
-        self._peer: CodexAppServer = peer
-        self.thread_id: str = thread_id
-        self.turn_id: str | None = None
-        self.requested_model: str = requested_model
-        self.effective_model: str = effective_model
-        self.effective_model_provider: str = effective_model_provider
-        self.reasoning_effort: Literal["low"] = _REPLY_REASONING_EFFORT
-        self._queue: asyncio.Queue[str | CodexSafeError | object] = asyncio.Queue(maxsize=_DELTA_QUEUE_LIMIT)
-        self._finished: bool = False
-        self._subscription_cleanup_claimed: bool = False
-
-    @property
-    def finished(self) -> bool:
-        return self._finished
-
-    def claim_subscription_cleanup(self) -> bool:
-        if self._subscription_cleanup_claimed:
-            return False
-        self._subscription_cleanup_claimed = True
-        return True
-
-    def emit(self, delta: str) -> None:
-        if self._finished or not delta:
-            return
-        if len(delta) > _DELTA_SIZE_LIMIT or self._queue.full():
-            self._finished = True
-            self._replace_queue_if_full(
-                CodexSafeError(
-                    "stream_backpressure",
-                    "Codex の応答を安全に受信できませんでした。もう一度お試しください。",
-                    retryable=True,
-                )
-            )
-            self._peer.spawn_background(
-                self._peer.interrupt_overflow_turn(self),
-                "codex-backpressure-interrupt",
-            )
-            return
-        self._queue.put_nowait(delta)
-
-    def finish(self) -> None:
-        if self._finished:
-            return
-        self._finished = True
-        self._replace_queue_if_full(_END)
-        self._peer.turn_finished(self)
-
-    def fail(self, error: CodexSafeError) -> None:
-        if self._finished:
-            return
-        self._finished = True
-        self._replace_queue_if_full(error)
-        self._peer.turn_finished(self)
-
-    def _replace_queue_if_full(self, item: object) -> None:
-        if self._queue.full():
-            while not self._queue.empty():
-                _ = self._queue.get_nowait()
-        self._queue.put_nowait(item)
-
-    async def interrupt(self) -> None:
-        await self._peer.interrupt_turn(self)
-
-    async def deltas(self) -> AsyncIterator[str]:
-        try:
-            while True:
-                item = await self._queue.get()
-                if item is _END:
-                    return
-                if isinstance(item, CodexSafeError):
-                    raise item
-                if isinstance(item, str):
-                    yield item
-        finally:
-            if not self.finished:
-                await self.interrupt()
 
 
 class CodexAppServer:
@@ -521,7 +230,7 @@ class CodexAppServer:
             self.process_state = ProcessState.STARTING
             try:
                 self._process = await asyncio.create_subprocess_exec(
-                    *_codex_process_command(
+                    *codex_process_command(
                         self._installation.binary,
                         "-c",
                         "mcp_servers={}",
@@ -561,7 +270,7 @@ class CodexAppServer:
                         "--stdio",
                     ),
                     cwd=self._cwd,
-                    env=_child_environment(os.environ),
+                    env=child_environment(os.environ),
                     stdin=PIPE,
                     stdout=PIPE,
                     stderr=PIPE,
@@ -785,7 +494,7 @@ class CodexAppServer:
         if candidate is None:
             raise CodexSafeError("model_unavailable", "指定されたCodexモデルを利用できません。", retryable=False)
         if not any(
-            option.reasoning_effort == _REPLY_REASONING_EFFORT for option in candidate.supported_reasoning_efforts
+            option.reasoning_effort == REPLY_REASONING_EFFORT for option in candidate.supported_reasoning_efforts
         ):
             raise CodexSafeError(
                 "reasoning_effort_unavailable",
@@ -867,7 +576,7 @@ class CodexAppServer:
                     approvalPolicy="never",
                     cwd=os.fspath(self.cwd),
                     model=model,
-                    effort=_REPLY_REASONING_EFFORT,
+                    effort=REPLY_REASONING_EFFORT,
                     serviceTier=service_tier if service_tier == _PRIORITY_SERVICE_TIER else None,
                 ),
                 timeout=_TURN_START_TIMEOUT,
@@ -878,7 +587,7 @@ class CodexAppServer:
                 requested_model=model,
                 effective_model=thread.model,
                 effective_model_provider=thread.model_provider,
-                reasoning_effort=_REPLY_REASONING_EFFORT,
+                reasoning_effort=REPLY_REASONING_EFFORT,
                 service_tier=service_tier,
                 requested_service_tier=service_tier if service_tier == _PRIORITY_SERVICE_TIER else None,
                 effective_service_tier=turn.turn.service_tier,
