@@ -78,17 +78,25 @@ function findPrimarySuggestion(
   );
 }
 
-function hasSuggestionError(
+function findSuggestionError(
   cards: SuggestionCard[],
   generationId: string | null,
   targetId: string | null,
-): boolean {
-  if (!generationId) return false;
-  return cards.some(
-    (card) =>
-      card.generationId === generationId &&
-      (!targetId || card.targetUtteranceId === targetId) &&
-      card.status === "error",
+): SuggestionCard | null {
+  if (!generationId) return null;
+  return (
+    [...cards]
+      .sort((left, right) => {
+        if (left.agentPriority !== right.agentPriority)
+          return left.agentPriority - right.agentPriority;
+        return left.agentLabel.localeCompare(right.agentLabel);
+      })
+      .find(
+        (card) =>
+          card.generationId === generationId &&
+          (!targetId || card.targetUtteranceId === targetId) &&
+          card.status === "error",
+      ) ?? null
   );
 }
 
@@ -128,6 +136,10 @@ export function LiveReplySidePanel(props: Props) {
 
 export function EmbeddedLiveReplyPanel(props: Props) {
   return <LiveReplySurface {...props} embedded />;
+}
+
+export function StandaloneLiveReplyPanel(props: Props) {
+  return <LiveReplySurface {...props} embedded={false} />;
 }
 
 function LiveReplySurface({
@@ -172,9 +184,9 @@ function LiveReplySurface({
       displayedSuggestionTargetId,
     ],
   );
-  const suggestionFailed = useMemo(
+  const suggestionError = useMemo(
     () =>
-      hasSuggestionError(
+      findSuggestionError(
         state.suggestionCards,
         state.activeSuggestionGenerationId,
         displayedSuggestionTargetId,
@@ -486,7 +498,7 @@ function LiveReplySurface({
           </div>
         </section>
 
-        {suggestionFailed && (
+        {suggestionError && (
           <InlineNotice
             tone="danger"
             title="返答案を作れませんでした"
@@ -506,7 +518,10 @@ function LiveReplySurface({
             }
           >
             <p className="text-xs leading-5">
-              内容は消えていません。もう一度試すか、メイン画面で設定を確認してください。
+              {suggestionError.errorText &&
+              suggestionError.errorText !== "返答案を作れませんでした"
+                ? suggestionError.errorText
+                : "内容は消えていません。もう一度試すか、メイン画面で設定を確認してください。"}
             </p>
           </InlineNotice>
         )}

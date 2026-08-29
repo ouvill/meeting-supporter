@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Literal, Self, override
 
-from app.agents.codex_app_server import CodexAppServer, CodexTurn
+from app.agents.codex_app_server import CodexAppServer, CodexSafeError, CodexTurn
 from app.agents.models import (
     InfoAgentRuntime,
     InfoPrompt,
@@ -20,6 +21,8 @@ from app.agents.models import (
 from app.agents.prompts import CODEX_INFO_INSTRUCTION, MINUTES_INSTRUCTION, REPLY_BASE_INSTRUCTION
 from app.core.protocols import StreamLike
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class _CodexStream(StreamLike, AbstractAsyncContextManager["_CodexStream"]):
@@ -28,10 +31,22 @@ class _CodexStream(StreamLike, AbstractAsyncContextManager["_CodexStream"]):
     model: str
     instructions: str
     _turn: CodexTurn | None = field(default=None, init=False)
+    _protocol_retry_used: bool = field(default=False, init=False)
+
+    async def _start_turn(self) -> CodexTurn:
+        try:
+            return await self.peer.begin_turn(self.prompt, self.model, instructions=self.instructions)
+        except CodexSafeError as error:
+            if error.code != "protocol_incompatible" or self._protocol_retry_used:
+                raise
+            self._protocol_retry_used = True
+            logger.warning("Codex protocol mismatch before output; retrying with a fresh app-server process")
+            await self.peer.restart()
+            return await self.peer.begin_turn(self.prompt, self.model, instructions=self.instructions)
 
     @override
     async def __aenter__(self) -> Self:
-        self._turn = await self.peer.begin_turn(self.prompt, self.model, instructions=self.instructions)
+        self._turn = await self._start_turn()
         return self
 
     @override
@@ -48,16 +63,28 @@ class _CodexStream(StreamLike, AbstractAsyncContextManager["_CodexStream"]):
 
     @override
     async def stream_text(self, *, delta: bool) -> AsyncIterator[str]:
-        turn = self._turn
-        if turn is None:
-            raise RuntimeError("Codex stream has not been entered")
         accumulated = ""
-        async for chunk in turn.deltas():
-            if delta:
-                yield chunk
-            else:
-                accumulated += chunk
-                yield accumulated
+        emitted = False
+        while True:
+            turn = self._turn
+            if turn is None:
+                raise RuntimeError("Codex stream has not been entered")
+            try:
+                async for chunk in turn.deltas():
+                    emitted = True
+                    if delta:
+                        yield chunk
+                    else:
+                        accumulated += chunk
+                        yield accumulated
+                return
+            except CodexSafeError as error:
+                if error.code != "protocol_incompatible" or emitted or self._protocol_retry_used:
+                    raise
+                self._protocol_retry_used = True
+                logger.warning("Codex protocol mismatch before output; retrying with a fresh app-server process")
+                await self.peer.restart()
+                self._turn = await self.peer.begin_turn(self.prompt, self.model, instructions=self.instructions)
 
 
 @dataclass(frozen=True)

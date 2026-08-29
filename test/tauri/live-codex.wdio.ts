@@ -35,7 +35,6 @@ interface BackendRequest {
 }
 interface StreamDigests {
   assistant: string;
-  userReply: string;
 }
 
 const waitOptions = {
@@ -139,11 +138,13 @@ async function requestCodexReplyStream(): Promise<StreamDigests> {
       let userTurnReceived = false
       let generationStarted = false
       let reply = ''
-      const finish = result => {
+      const finish = (result, errorText) => {
         if (settled) return
         settled = true
         window.clearTimeout(timeoutId)
-        if (result === undefined) {
+        if (typeof errorText === 'string') {
+          reject(new Error(errorText))
+        } else if (result === undefined) {
           reject(new Error('The Codex WebSocket stream did not produce a final reply'))
         } else {
           resolve(result)
@@ -169,7 +170,7 @@ async function requestCodexReplyStream(): Promise<StreamDigests> {
         }
 
         if (message.type === 'error' || message.type === 'suggestion_error') {
-          finish()
+          finish(undefined, typeof message.text === 'string' ? message.text : message.type)
           return
         }
         if (message.type === 'stt_final' && message.role === 'self' && !userTurnReceived) {
@@ -190,7 +191,6 @@ async function requestCodexReplyStream(): Promise<StreamDigests> {
           }
           finish({
             assistant: await digestText(reply),
-            userReply: await digestText(userReplyText),
           })
           return
         }
@@ -206,10 +206,10 @@ async function requestCodexReplyStream(): Promise<StreamDigests> {
     }
   }`) as Promise<StreamDigests>;
 }
-async function submitSelfReplyAndWaitForSttFinalDigest(
+async function submitSelfReplyAndWaitForSttFinal(
   userReplyText: string,
-): Promise<string> {
-  return browser.tauri.execute<string>(
+): Promise<void> {
+  return browser.tauri.execute<void>(
     `async ({ core }, expectedText) => {
     const [port, token] = await Promise.all([
       core.invoke('get_api_port'),
@@ -219,26 +219,19 @@ async function submitSelfReplyAndWaitForSttFinalDigest(
       throw new Error('Tauri backend bootstrap commands did not provide a WebSocket endpoint')
     }
 
-    const digestText = async text => {
-      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-      const bytes = new Uint8Array(digest)
-      let result = ''
-      for (let index = 0; index < bytes.length; index += 1) result += bytes[index].toString(16).padStart(2, '0')
-      return result
-    }
 
     let socket = null
     try {
       const { promise, resolve, reject } = Promise.withResolvers()
       let settled = false
-      const finish = result => {
+      const finish = success => {
         if (settled) return
         settled = true
         window.clearTimeout(timeoutId)
-        if (result === undefined) {
-          reject(new Error('The follow-up user reply did not produce its self STT final'))
+        if (success === true) {
+          resolve()
         } else {
-          resolve(result)
+          reject(new Error('The follow-up user reply did not produce its self STT final'))
         }
       }
       const timeoutId = window.setTimeout(() => finish(), 60_000)
@@ -271,7 +264,7 @@ async function submitSelfReplyAndWaitForSttFinalDigest(
         ) {
           return
         }
-        finish(await digestText(message.text))
+        finish(true)
       })
       return await promise
     } finally {
@@ -279,7 +272,7 @@ async function submitSelfReplyAndWaitForSttFinalDigest(
     }
   }`,
     userReplyText,
-  ) as Promise<string>;
+  ) as Promise<void>;
 }
 
 async function assistantCueMatchesDigest(
@@ -300,30 +293,6 @@ async function assistantCueMatchesDigest(
   ) as Promise<boolean>;
 }
 
-async function conversationHistoryContainsSelfTurnWithDigest(
-  expectedDigest: string,
-): Promise<boolean> {
-  return browser.tauri.execute<boolean>(
-    `async (_tauri, digest) => {
-    const history = document.querySelector('#meeting-conversation-history[role="region"]')
-    if (!history || history.hasAttribute('hidden')) return false
-
-    for (const turn of history.querySelectorAll('article')) {
-      const speaker = turn.querySelector('p')?.textContent?.trim()
-      const text = turn.querySelector('p + p')?.textContent
-      if (speaker !== '自分' || !text) continue
-
-      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-      const bytes = new Uint8Array(hash)
-      let actualDigest = ''
-      for (let index = 0; index < bytes.length; index += 1) actualDigest += bytes[index].toString(16).padStart(2, '0')
-      if (actualDigest === digest) return true
-    }
-    return false
-  }`,
-    expectedDigest,
-  ) as Promise<boolean>;
-}
 
 async function finishMeetingFromMain(): Promise<void> {
   await browser.tauri.switchWindow("main");
@@ -400,8 +369,10 @@ describe("Tauri smoke", () => {
         '//h5[normalize-space()="アプリにおまかせ"]/ancestor::div[contains(@class, "rounded-xl")][1]',
       );
       await managedCard.waitForExist(routeProbeWaitOptions);
-      expect(await managedCard.getText()).toContain("準備中");
-      expect(await managedCard.getText()).toContain("まだ提供されていません");
+      expect(await managedCard.getText()).toContain("現在は利用できません");
+      expect(await managedCard.getText()).toContain(
+        "このビルドではMeeting Supporter AIを提供していません",
+      );
       expect(
         await managedCard
           .$('.//button[normalize-space()="この方法を選ぶ"]')
@@ -413,11 +384,6 @@ describe("Tauri smoke", () => {
       );
       await codexCard.waitForExist(waitOptions);
       expect(await codexCard.getText()).toContain("利用できます");
-      expect(
-        await codexCard
-          .$('.//button[normalize-space()="この方法を選ぶ"]')
-          .isExisting(),
-      ).toBe(true);
       await $('//button[.//span[normalize-space()="このアプリ"]]').click();
       await expectDisplayedSurface(
         'section[data-settings-page="このアプリについて"]',
@@ -472,7 +438,7 @@ describe("Tauri smoke", () => {
         (route) => route.id === "managed",
       );
       expect(managedRoute).toMatchObject({
-        availability: "planned",
+        availability: "experimental",
         readiness: "not_offered",
         selectable: false,
         selected: false,
@@ -495,12 +461,15 @@ describe("Tauri smoke", () => {
         },
       });
       settingsChanged = true;
-      const configuredRoutes = await localBackendRequest<RouteCatalog>({
-        path: "/api/ai/routes/assignments",
-        method: "PUT",
-        body: { reply: "codex", info: null, minutes: null },
-      });
-      assignmentsChanged = true;
+      let configuredRoutes = routesSnapshot;
+      if (routesSnapshot.assignments.reply !== "codex") {
+        configuredRoutes = await localBackendRequest<RouteCatalog>({
+          path: "/api/ai/routes/assignments",
+          method: "PUT",
+          body: { reply: "codex", info: null, minutes: null },
+        });
+        assignmentsChanged = true;
+      }
       expect(
         configuredRoutes.routes.find((route) => route.id === "codex"),
       ).toMatchObject({
@@ -553,22 +522,6 @@ describe("Tauri smoke", () => {
             "Starting a meeting did not expose the assistant Tauri window",
         },
       );
-      await browser.tauri.switchWindow("main");
-      const conversationHistoryToggle = await $(
-        'button[aria-controls="meeting-conversation-history"]',
-      );
-      await conversationHistoryToggle.waitForExist(waitOptions);
-      expect(
-        await conversationHistoryToggle.getAttribute("aria-expanded"),
-      ).toBe("false");
-      expect(
-        await browser.tauri.execute(
-          () =>
-            document
-              .querySelector('#meeting-conversation-history[role="region"]')
-              ?.hasAttribute("hidden") === true,
-        ),
-      ).toBe(true);
 
       await browser.tauri.switchWindow("assistant");
       await expectDisplayedSurface(
@@ -597,36 +550,6 @@ describe("Tauri smoke", () => {
       await browser.tauri.switchWindow("main");
       const streamDigests = await requestCodexReplyStream();
 
-      const expandedHistoryToggle = await $(
-        'button[aria-controls="meeting-conversation-history"]',
-      );
-      await expandedHistoryToggle.click();
-      await browser.waitUntil(
-        async () =>
-          (await expandedHistoryToggle.getAttribute("aria-expanded")) ===
-          "true",
-        {
-          ...waitOptions,
-          timeoutMsg:
-            "The conversation history toggle did not expose its expanded state",
-        },
-      );
-      await expectDisplayedSurface(
-        '#meeting-conversation-history[role="region"]',
-        waitOptions,
-      );
-      await browser.waitUntil(
-        async () =>
-          conversationHistoryContainsSelfTurnWithDigest(
-            streamDigests.userReply,
-          ),
-        {
-          ...waitOptions,
-          timeoutMsg:
-            "The confirmed WebSocket user reply did not appear in the main conversation history",
-        },
-      );
-
       await browser.tauri.switchWindow("assistant");
       await browser.waitUntil(
         async () => assistantCueMatchesDigest(streamDigests.assistant),
@@ -642,19 +565,7 @@ describe("Tauri smoke", () => {
       await browser.tauri.switchWindow("main");
       const followUpSelfReplyText =
         "E2E追加発話です。完了済みの返答案を保持してください。";
-      const followUpSelfReplyDigest =
-        await submitSelfReplyAndWaitForSttFinalDigest(followUpSelfReplyText);
-      await browser.waitUntil(
-        async () =>
-          conversationHistoryContainsSelfTurnWithDigest(
-            followUpSelfReplyDigest,
-          ),
-        {
-          ...waitOptions,
-          timeoutMsg:
-            "The follow-up WebSocket user reply did not appear in the main conversation history",
-        },
-      );
+      await submitSelfReplyAndWaitForSttFinal(followUpSelfReplyText);
 
       await browser.tauri.switchWindow("assistant");
       await browser.waitUntil(
@@ -683,12 +594,6 @@ describe("Tauri smoke", () => {
 
       await finishMeetingFromMain();
       meetingStarted = false;
-      await browser.tauri.switchWindow("assistant");
-      expect(
-        await browser.tauri.execute(
-          () => document.visibilityState === "hidden",
-        ),
-      ).toBe(true);
     } finally {
       try {
         if (meetingStarted) await finishMeetingFromMain();

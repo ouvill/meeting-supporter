@@ -165,7 +165,7 @@ class ModelListItem(CodexProtocolModel):
 
 class ModelListResult(CodexProtocolModel):
     data: list[ModelListItem]
-    next_cursor: str | None = Field(alias="nextCursor")
+    next_cursor: str | None = Field(default=None, alias="nextCursor")
 
 
 class ThreadStartParams(CodexProtocolModel):
@@ -203,8 +203,8 @@ class ThreadUnsubscribeParams(CodexProtocolModel):
     thread_id: str = Field(alias="threadId")
 
 
-class ThreadUnsubscribeResult(EmptyResult):
-    pass
+class ThreadUnsubscribeResult(CodexProtocolModel):
+    status: Literal["unsubscribed", "notSubscribed"]
 
 
 class TextUserInput(CodexProtocolModel):
@@ -225,6 +225,13 @@ class TurnStartParams(CodexProtocolModel):
 class TurnError(CodexProtocolModel):
     message: SecretStr
     codex_error_info: str | dict[str, object] | None = Field(default=None, alias="codexErrorInfo")
+
+
+class ErrorNotification(CodexProtocolModel):
+    thread_id: str = Field(alias="threadId")
+    turn_id: str = Field(alias="turnId")
+    error: TurnError
+    will_retry: bool = Field(alias="willRetry")
 
 
 class Turn(CodexProtocolModel):
@@ -280,6 +287,7 @@ __all__ = [
     "CodexProtocolModel",
     "DeviceCodeLoginStartParams",
     "DeviceCodeLoginStartResult",
+    "ErrorNotification",
     "EmptyParams",
     "EmptyResult",
     "InitializeCapabilities",

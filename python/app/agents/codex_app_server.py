@@ -45,6 +45,7 @@ from app.agents.codex_protocol import (
     DeviceCodeLoginStartResult,
     EmptyParams,
     EmptyResult,
+    ErrorNotification,
     InitializeCapabilities,
     InitializeParams,
     InitializeResult,
@@ -81,7 +82,7 @@ _MODEL_LIST_MAX_PAGES: Final = 16
 _STANDARD_SERVICE_TIER: Final[Literal["standard"]] = "standard"
 _PRIORITY_SERVICE_TIER: Final[Literal["priority"]] = "priority"
 _TURN_NOTIFICATION_METHODS: Final[frozenset[str]] = frozenset(
-    {"item/agentMessage/delta", "turn/completed", "model/rerouted"}
+    {"error", "item/agentMessage/delta", "turn/completed", "model/rerouted"}
 )
 _REPLY_INSTRUCTIONS: Final = (
     "Return only a direct text reply to the user's request. "
@@ -89,6 +90,13 @@ _REPLY_INSTRUCTIONS: Final = (
 )
 
 _JSON_OBJECT: Final[TypeAdapter[dict[str, object]]] = TypeAdapter(dict[str, object])
+
+
+def _validation_failure_fields(error: ValidationError) -> list[tuple[str, str]]:
+    return [
+        (".".join(str(part) for part in detail["loc"]), detail["type"])
+        for detail in error.errors(include_url=False, include_context=False, include_input=False)
+    ]
 
 
 class CodexAppServer:
@@ -300,6 +308,11 @@ class CodexAppServer:
                 _ = InitializeResult.model_validate(raw)
                 await self._notify("initialized")
             except (CodexSafeError, ValidationError) as exc:
+                if isinstance(exc, ValidationError):
+                    logger.warning(
+                        "Codex protocol validation failed stage=initialize fields=%s",
+                        _validation_failure_fields(exc),
+                    )
                 self.process_state = ProcessState.FAILED
                 await self._stop_process(final_state=ProcessState.FAILED)
                 if isinstance(exc, CodexSafeError):
@@ -331,7 +344,7 @@ class CodexAppServer:
         try:
             response = AccountReadResult.model_validate(raw)
         except ValidationError as exc:
-            raise self._protocol_error() from exc
+            raise self._protocol_error("account/read") from exc
         account = response.account
         authenticated = account is not None and account.type == "chatgpt"
         self.auth_state = AuthState.AUTHENTICATED if authenticated else AuthState.UNAUTHENTICATED
@@ -414,7 +427,7 @@ class CodexAppServer:
             try:
                 result = ModelListResult.model_validate(raw)
             except ValidationError as exc:
-                raise self._protocol_error() from exc
+                raise self._protocol_error("model/list") from exc
             for item in result.data:
                 if not item.hidden and item.model:
                     visible[item.model] = item
@@ -425,7 +438,7 @@ class CodexAppServer:
             if cursor in seen_cursors:
                 break
             seen_cursors.add(cursor)
-        raise self._protocol_error()
+        raise self._protocol_error("model/list")
 
     async def start_login(self) -> ChatGptLoginStartResult:
         raw = await self.request("account/login/start", ChatGptLoginStartParams())
@@ -508,6 +521,7 @@ class CodexAppServer:
         )
         _ = await self._turn_lock.acquire()
         session: CodexTurn | None = None
+        validation_stage = "thread/start"
         try:
             thread_raw = await self.request(
                 "thread/start",
@@ -544,8 +558,12 @@ class CodexAppServer:
                 timeout=_TURN_START_TIMEOUT,
             )
             thread = ThreadStartResult.model_validate(thread_raw)
-            if Path(thread.cwd).resolve() != self.cwd:
-                raise self._protocol_error()
+            try:
+                cwd_matches = os.path.samefile(thread.cwd, self.cwd)
+            except OSError:
+                cwd_matches = False
+            if not cwd_matches:
+                raise self._protocol_error(validation_stage)
             session = CodexTurn(
                 self,
                 thread.thread.id,
@@ -566,6 +584,7 @@ class CodexAppServer:
                     "Codexが指定されたモデル以外へ切り替えたため、応答を開始しませんでした。",
                     retryable=False,
                 )
+            validation_stage = "turn/start"
             self._active_turn = session
             self.turn_state = TurnState.STARTING
             turn_raw = await self.request(
@@ -618,7 +637,12 @@ class CodexAppServer:
                 self.turn_state = TurnState.ACTIVE
             return session
         except ValidationError as exc:
-            error = self._protocol_error()
+            logger.warning(
+                "Codex protocol validation failed stage=%s fields=%s",
+                validation_stage,
+                _validation_failure_fields(exc),
+            )
+            error = self._protocol_error(validation_stage)
             if session is not None:
                 session.fail(error)
                 await self._unsubscribe_turn(session)
@@ -845,7 +869,7 @@ class CodexAppServer:
             return
         self._active_turn = None
         self.spawn_background(
-            self._terminate_malformed_turn_notification(turn, self._protocol_error()),
+            self._terminate_malformed_turn_notification(turn, self._protocol_error(method)),
             "codex-malformed-turn-notification-cleanup",
         )
 
@@ -897,6 +921,16 @@ class CodexAppServer:
                 if turn is not None and event.thread_id == turn.thread_id:
                     if turn.turn_id is None or event.turn_id == turn.turn_id:
                         turn.emit(event.delta)
+            elif method == "error":
+                event = ErrorNotification.model_validate(normalized)
+                turn = self._active_turn
+                if (
+                    turn is not None
+                    and event.thread_id == turn.thread_id
+                    and (turn.turn_id is None or event.turn_id == turn.turn_id)
+                    and not event.will_retry
+                ):
+                    turn.fail(self._safe_turn_error(event.error.codex_error_info))
             elif method == "turn/completed":
                 event = TurnCompletedNotification.model_validate(normalized)
                 turn = self._active_turn
@@ -934,7 +968,12 @@ class CodexAppServer:
                     self._login_id = None
                     self.auth_state = AuthState.UNKNOWN if event.success else AuthState.UNAUTHENTICATED
                     self._model_catalog = None
-        except ValidationError:
+        except ValidationError as exc:
+            logger.warning(
+                "Codex protocol validation failed stage=notification method=%s fields=%s",
+                method,
+                _validation_failure_fields(exc),
+            )
             self._fail_active_turn_protocol_notification(method, normalized)
 
     async def _deny_server_request(self, request_id: object, method: str) -> None:
@@ -955,14 +994,31 @@ class CodexAppServer:
             self.spawn_background(self.interrupt_turn(turn), "codex-denied-capability-interrupt")
 
     def _safe_turn_error(self, info: str | dict[str, object] | None) -> CodexSafeError:
-        code = info if isinstance(info, str) else None
+        code = info if isinstance(info, str) else next(iter(info), None) if isinstance(info, dict) else None
         if code == "unauthorized":
             self.auth_state = AuthState.UNAUTHENTICATED
             return CodexSafeError("not_logged_in", "Codex へ再度ログインしてください。", retryable=False)
         if code in {"usageLimitExceeded", "sessionBudgetExceeded"}:
             return CodexSafeError("usage_limit", "Codex の利用上限に達しました。", retryable=False)
+        if code == "rateLimitExceeded":
+            return CodexSafeError(
+                "rate_limited",
+                "Codex への要求が集中しています。少し待ってからもう一度お試しください。",
+                retryable=True,
+            )
         if code in {"serverOverloaded", "internalServerError"}:
             return CodexSafeError("service_unavailable", "Codex を一時的に利用できません。", retryable=True)
+        if code in {
+            "httpConnectionFailed",
+            "responseStreamConnectionFailed",
+            "responseStreamDisconnected",
+            "responseTooManyFailedAttempts",
+        }:
+            return CodexSafeError(
+                "connection_failed",
+                "Codex との通信が途中で切れました。接続を確認してもう一度お試しください。",
+                retryable=True,
+            )
         return CodexSafeError("turn_failed", "Codex が応答を完了できませんでした。", retryable=True)
 
     def turn_finished(self, turn: CodexTurn) -> None:
@@ -1009,6 +1065,22 @@ class CodexAppServer:
         self.process_state = ProcessState.FAILED
         async with self._start_lock:
             await self._stop_process(final_state=ProcessState.FAILED, turn_error=turn_error)
+
+    async def restart(self) -> None:
+        """Replace an idle protocol peer after a recoverable boundary failure."""
+        async with self._start_lock:
+            if self.process_state is ProcessState.CLOSED:
+                raise CodexSafeError("runtime_closed", "Codex runtime は終了しています。", retryable=False)
+            turn = self._active_turn
+            if turn is not None and not turn.finished:
+                raise CodexSafeError(
+                    "turn_active",
+                    "Codex の応答処理中は runtime を再起動できません。",
+                    retryable=True,
+                )
+            await self._stop_process(final_state=ProcessState.STOPPED)
+
+        await self.ensure_ready()
 
     async def close(self) -> None:
         async with self._start_lock:
@@ -1082,10 +1154,13 @@ class CodexAppServer:
                 await asyncio.sleep(retry_delay)
 
     @staticmethod
-    def _protocol_error() -> CodexSafeError:
+    def _protocol_error(stage: str | None = None) -> CodexSafeError:
+        message = "Codex app-server の応答に互換性がありません。"
+        if os.environ.get("DEBUG") == "1" and stage is not None:
+            message = f"{message}（{stage}）"
         return CodexSafeError(
             "protocol_incompatible",
-            "Codex app-server の応答に互換性がありません。",
+            message,
             retryable=False,
         )
 

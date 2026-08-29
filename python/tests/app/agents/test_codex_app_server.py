@@ -24,7 +24,7 @@ from app.agents.codex_app_server import (
     TurnState,
     inspect_codex_installation,
 )
-from app.agents.codex_installation import _reap_version_probe
+from app.agents.codex_installation import _reap_version_probe, child_environment
 from app.agents.codex_runtime import CodexInfoAgentRuntime, CodexMinutesAgentRuntime, CodexReplyAgentRuntime
 from app.agents.models import InfoPrompt, MinutesPrompt, ReplyPrompt
 from app.agents.prompts import CODEX_INFO_INSTRUCTION, MINUTES_INSTRUCTION
@@ -82,6 +82,13 @@ def _write_fake_codex(directory: Path, *, mode: str, version: str = "0.144.0") -
             if "--version" in sys.argv:
                 print("codex-cli " + VERSION)
                 raise SystemExit(0)
+            RETRY_MARKER = TRANSCRIPT.with_suffix(".protocol-retried")
+            FAIL_PROTOCOL_ONCE = (
+                MODE in {{"completion-missing-once", "thread-missing-once"}}
+                and not RETRY_MARKER.exists()
+            )
+            if FAIL_PROTOCOL_ONCE:
+                RETRY_MARKER.touch()
 
             record("startup", {{
                 "argv": sys.argv[1:],
@@ -164,22 +171,28 @@ def _write_fake_codex(directory: Path, *, mode: str, version: str = "0.144.0") -
                             "serviceTiers": service_tiers,
                         }}]
                     model_list_result = {{"data": models, "nextCursor": None}}
-                    if MODE == "model-missing-field":
+                    if MODE == "model-missing-data":
+                        del model_list_result["data"]
+                    if MODE == "model-omitted-cursor":
                         del model_list_result["nextCursor"]
                     send({{"id": request_id, "result": model_list_result}})
                 elif method == "thread/start":
                     thread_number += 1
                     thread_id = f"thread-{{thread_number}}" if MODE == "sequential" else "thread-1"
+                    response_cwd = message["params"]["cwd"]
+                    extended_prefix = chr(92) * 2 + "?" + chr(92)
+                    if MODE == "thread-equivalent-cwd" and response_cwd.startswith(extended_prefix):
+                        response_cwd = response_cwd[len(extended_prefix):]
                     thread_result = {{
                         "thread": {{"id": thread_id}},
                         "approvalPolicy": "never",
-                        "cwd": message["params"]["cwd"],
+                        "cwd": response_cwd,
                         "model": "gpt-5.6-luna-rerouted" if MODE == "thread-rerouted" else "gpt-5.6-luna",
                         "modelProvider": "chatgpt",
                         "sandbox": {{"type": "readOnly", "networkAccess": False}},
                         "serviceTier": "priority" if MODE in {{"priority", "priority-standard"}} else None,
                     }}
-                    if MODE == "thread-missing-field":
+                    if MODE == "thread-missing-field" or (MODE == "thread-missing-once" and FAIL_PROTOCOL_ONCE):
                         del thread_result["thread"]["id"]
                     send({{"id": request_id, "result": thread_result}})
                 elif method == "turn/start":
@@ -243,9 +256,9 @@ def _write_fake_codex(directory: Path, *, mode: str, version: str = "0.144.0") -
                                 "delta": "置換された応答",
                             }},
                         }})
-                    elif MODE in {{"completion-missing-field", "completion-invalid-status"}}:
+                    elif MODE in {{"completion-missing-field", "completion-invalid-status"}} or FAIL_PROTOCOL_ONCE:
                         completed_turn = {{"id": "turn-1", "status": "completed"}}
-                        if MODE == "completion-missing-field":
+                        if MODE == "completion-missing-field" or FAIL_PROTOCOL_ONCE:
                             del completed_turn["status"]
                         else:
                             completed_turn["status"] = "unknown"
@@ -276,6 +289,36 @@ def _write_fake_codex(directory: Path, *, mode: str, version: str = "0.144.0") -
                                 }},
                             }}
                         )
+                    elif MODE == "structured-error":
+                        send({{
+                            "method": "error",
+                            "params": {{
+                                "threadId": "thread-1",
+                                "turnId": "turn-1",
+                                "error": {{
+                                    "message": "synthetic connection failure",
+                                    "codexErrorInfo": {{
+                                        "responseTooManyFailedAttempts": {{"httpStatusCode": None}}
+                                    }},
+                                }},
+                                "willRetry": False,
+                            }},
+                        }})
+                        send({{
+                            "method": "turn/completed",
+                            "params": {{
+                                "threadId": "thread-1",
+                                "turn": {{
+                                    "id": "turn-1",
+                                    "status": "failed",
+                                    "error": {{
+                                        "codexErrorInfo": {{
+                                            "responseTooManyFailedAttempts": {{"httpStatusCode": None}}
+                                        }}
+                                    }},
+                                }},
+                            }},
+                        }})
                     elif MODE != "pending":
                         send({{"method": "unrecognized/notification", "params": {{"ignored": True}}}})
                         send({{
@@ -319,7 +362,7 @@ def _write_fake_codex(directory: Path, *, mode: str, version: str = "0.144.0") -
                 elif method == "thread/unsubscribe":
                     if MODE == "unsubscribe-exits":
                         raise SystemExit(0)
-                    send({{"id": request_id, "result": {{}}}})
+                    send({{"id": request_id, "result": {{"status": "unsubscribed"}}}})
                 elif method == "turn/interrupt":
                     send({{"id": request_id, "result": {{}}}})
                 elif request_id is not None:
@@ -420,7 +463,8 @@ class CodexInstallationContractTest(unittest.IsolatedAsyncioTestCase):
             ("verified 0.144.0 release", "0.144.0", True, True, None),
             ("verified 0.144.1 release", "0.144.1", True, True, None),
             ("newer unverified patch", "0.144.2", True, False, None),
-            ("newer unverified minor release", "0.145.0", True, False, None),
+            ("verified 0.151.0 release", "0.151.0", True, True, None),
+            ("newer unverified minor release", "0.152.0", True, False, None),
             ("older patch release", "0.143.9", False, False, "unsupported_version"),
             ("malformed version banner", "0.144.1 (dev)", False, False, "unsupported_version"),
             ("prerelease version", "0.145.0-beta.1", False, False, "unsupported_version"),
@@ -433,6 +477,21 @@ class CodexInstallationContractTest(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(compatible, installation.compatible)
                     self.assertEqual(schema_verified, installation.schema_verified)
                     self.assertEqual(reason, installation.reason_code)
+
+    def test_preserves_windows_system_root_without_forwarding_unrelated_parent_values(self) -> None:
+        """Codex keeps the Windows TLS root while arbitrary parent environment values stay isolated."""
+        environment = child_environment(
+            {
+                "SYSTEMROOT": r"C:\Windows",
+                "USERPROFILE": r"C:\SyntheticProfile",
+                "MEETING_SUPPORTER_SECRET_CANARY": _CANARY,
+            }
+        )
+
+        self.assertEqual(
+            {"SYSTEMROOT": r"C:\Windows", "USERPROFILE": r"C:\SyntheticProfile"},
+            environment,
+        )
 
     async def test_timeout_reaps_the_version_probe_child_despite_exit_races(self) -> None:
         """A timed-out version probe must reap its child even if it exits during termination."""
@@ -539,6 +598,38 @@ class CodexInstallationContractTest(unittest.IsolatedAsyncioTestCase):
 
 
 class CodexAppServerContractTest(unittest.IsolatedAsyncioTestCase):
+    async def test_maps_structured_stream_disconnect_to_safe_actionable_error(self) -> None:
+        server = CodexAppServer()
+
+        error = server._safe_turn_error({"responseStreamDisconnected": {"httpStatusCode": None}})
+
+        self.assertEqual("connection_failed", error.code)
+        self.assertEqual(
+            "Codex との通信が途中で切れました。接続を確認してもう一度お試しください。",
+            error.message,
+        )
+        self.assertTrue(error.retryable)
+
+    async def test_terminal_error_notification_wins_over_malformed_failed_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            binary, _transcript_path = _write_fake_codex(Path(temporary), mode="structured-error")
+            server = CodexAppServer(binary=binary, work_root=temporary)
+            try:
+                turn = await server.begin_reply("短く答えて", _LUNA)
+                with self.assertRaises(CodexSafeError) as raised:
+                    _ = [delta async for delta in turn.deltas()]
+                await asyncio.sleep(0)
+                process_state = server.process_state
+            finally:
+                await server.close()
+
+        self.assertEqual("connection_failed", raised.exception.code)
+        self.assertEqual(
+            "Codex との通信が途中で切れました。接続を確認してもう一度お試しください。",
+            raised.exception.message,
+        )
+        self.assertEqual(ProcessState.READY, process_state)
+
     async def test_initializes_before_announcing_ready_and_reuses_one_process_for_requests(self) -> None:
         """The JSONL peer initializes once, announces initialized second, then serves later
         requests over that process."""
@@ -604,7 +695,7 @@ class CodexAppServerContractTest(unittest.IsolatedAsyncioTestCase):
         cases = (
             ("initialize response", "initialize-missing-field", "initialize"),
             ("account response", "account-missing-field", "account"),
-            ("model response", "model-missing-field", "model"),
+            ("model response", "model-missing-data", "model"),
         )
         with tempfile.TemporaryDirectory() as temporary:
             for name, mode, boundary in cases:
@@ -628,6 +719,21 @@ class CodexAppServerContractTest(unittest.IsolatedAsyncioTestCase):
                     self.assertFalse(raised.exception.retryable)
                     self.assertNotIn("thread/start", received_methods)
                     self.assertNotIn("turn/start", received_methods)
+
+    async def test_model_list_accepts_an_omitted_optional_next_cursor(self) -> None:
+        """The official schema permits the final model-list response to omit nextCursor."""
+        with tempfile.TemporaryDirectory() as temporary:
+            binary, transcript = _write_fake_codex(Path(temporary), mode="model-omitted-cursor")
+            server = CodexAppServer(binary=binary, work_root=temporary)
+            try:
+                service_tier = await server.model_service_tier(_LUNA, effort="low")
+                events = _transcript(transcript)
+            finally:
+                await server.close()
+
+        received_methods = [event["value"]["method"] for event in events if event["kind"] == "received"]
+        self.assertEqual("standard", service_tier)
+        self.assertEqual(1, received_methods.count("model/list"))
 
     async def test_authentication_state_distinguishes_missing_login_authenticated_account_and_login_start(self) -> None:
         """Account results and login initiation drive the externally surfaced authentication state machine."""
@@ -796,6 +902,20 @@ class CodexAppServerContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("thread/start", received_methods)
         self.assertNotIn("turn/start", received_methods)
 
+    @unittest.skipUnless(os.name == "nt", "Windows extended paths are platform-specific")
+    async def test_accepts_equivalent_windows_thread_cwd_spelling(self) -> None:
+        """The app-local extended path and app-server's normal path must identify the same directory."""
+        with tempfile.TemporaryDirectory() as temporary:
+            binary, _ = _write_fake_codex(Path(temporary), mode="thread-equivalent-cwd")
+            extended_temporary = "\\\\?\\" + temporary
+            server = CodexAppServer(binary=binary, work_root=extended_temporary)
+            try:
+                deltas = await _collect_deltas(server)
+            finally:
+                await server.close()
+
+        self.assertEqual(["日本語の応答"], deltas)
+
     async def test_malformed_start_results_fail_closed_and_terminate_the_uncertain_peer(self) -> None:
         """Missing required ids after thread/start or turn/start cannot leave the app-server alive."""
         cases = (
@@ -903,6 +1023,30 @@ class CodexAppServerContractTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(["日本語の応答"], deltas)
         self.assertEqual(_LUNA, turn_start["params"]["model"])
+
+    async def test_runtime_retries_one_pre_output_protocol_failure_with_a_fresh_process(self) -> None:
+        """A stale prewarmed peer is replaced once without duplicating partial reply text."""
+        for mode in ("thread-missing-once", "completion-missing-once"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                binary, transcript = _write_fake_codex(Path(temporary), mode=mode)
+                server = CodexAppServer(binary=binary, work_root=temporary)
+                runtime = CodexReplyAgentRuntime(peer=server, model=_LUNA)
+                try:
+                    async with runtime.run_stream(ReplyPrompt(text="短く答えて")) as stream:
+                        deltas = [delta async for delta in stream.stream_text(delta=True)]
+                    events = _transcript(transcript)
+                finally:
+                    await server.close()
+
+            startups = [event for event in events if event["kind"] == "startup"]
+            turn_starts = [
+                event
+                for event in events
+                if event["kind"] == "received" and event["value"].get("method") == "turn/start"
+            ]
+            self.assertEqual(["日本語の応答"], deltas)
+            self.assertEqual(2, len(startups))
+            self.assertEqual(1 if mode == "thread-missing-once" else 2, len(turn_starts))
 
     async def test_info_runtime_starts_a_read_only_tool_disabled_complete_note_turn(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -368,6 +368,7 @@ describe("LiveReplySidePanel", () => {
     );
 
     expect(screen.getByText("返答案を作れませんでした")).toBeInTheDocument();
+    expect(screen.getByText("runtime unavailable")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "再試行" }));
     expect(send).toHaveBeenCalledWith({
       type: "generate_reply",
