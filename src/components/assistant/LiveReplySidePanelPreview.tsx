@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { LiveReplySidePanel } from "./LiveReplySidePanel";
+import { StandaloneLiveReplyPanel } from "./LiveReplySidePanel";
 import type {
   SendFn,
   SocketState,
@@ -12,6 +12,7 @@ type PreviewScenarioId =
   | "idle"
   | "generating"
   | "generated"
+  | "failed"
   | "reply-off"
   | "long-history";
 
@@ -146,6 +147,22 @@ function createScenarios(): PreviewScenario[] {
       }),
     },
     {
+      id: "failed",
+      label: "生成失敗",
+      description: "Codex との通信が切れ、再試行できる状態です。",
+      state: createBaseState({
+        activeSuggestionGenerationId: "preview-generation-1",
+        suggestionCards: [
+          {
+            ...createSuggestionCard(""),
+            status: "error",
+            errorText:
+              "Codex との通信が途中で切れました。接続を確認してもう一度お試しください。",
+          },
+        ],
+      }),
+    },
+    {
       id: "generated",
       label: "生成後",
       description: "生成済みの返答案とコピー操作を確認できます。",
@@ -277,12 +294,13 @@ export function LiveReplySidePanelPreview() {
           <div
             className={`w-full max-w-[420px] overflow-hidden rounded-[28px] border border-white/15 bg-white shadow-2xl ring-1 ring-black/20 sm:w-[390px] ${PREVIEW_PANEL_HEIGHT_CLASS}`}
           >
-            <LiveReplySidePanel
+            <StandaloneLiveReplyPanel
               state={selectedScenario.state}
               send={send}
               onClose={closePreviewPanel}
               writeClipboard={writeClipboard}
               panelHeightClass="h-full"
+              replyReadiness="ready"
             />
           </div>
         </main>

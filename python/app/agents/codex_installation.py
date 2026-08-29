@@ -16,7 +16,7 @@ from typing import Final
 _CODEX_VERSION = re.compile(r"^codex-cli\s+(\S+)$")
 _RELEASE_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 _MINIMUM_CODEX_VERSION: Final = (0, 144, 0)
-_SCHEMA_VERIFIED_CODEX_VERSIONS: Final[frozenset[str]] = frozenset({"0.144.0", "0.144.1"})
+_SCHEMA_VERIFIED_CODEX_VERSIONS: Final[frozenset[str]] = frozenset({"0.144.0", "0.144.1", "0.151.0"})
 MINIMUM_CODEX_VERSION_LABEL: Final = "0.144.0 以降"
 
 _CHILD_ENVIRONMENT_VARIABLES: Final[frozenset[str]] = frozenset(
@@ -37,6 +37,7 @@ _CHILD_ENVIRONMENT_VARIABLES: Final[frozenset[str]] = frozenset(
         "REQUESTS_CA_BUNDLE",
         "SSL_CERT_DIR",
         "SSL_CERT_FILE",
+        "SYSTEMROOT",
         "TEMP",
         "TMP",
         "TMPDIR",

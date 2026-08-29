@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import NamedTuple, cast
 from uuid import uuid4
 
+from app.agents.codex_models import CodexSafeError
 from app.agents.models import ReplyAgentSpec, ReplyPrompt
 from app.agents.prompts import build_reply_prompt
 from app.core.config import UsageBudgetConfig
@@ -334,14 +335,16 @@ class ReplyPipeline:
         except Exception as exc:
             if not self._mark_terminal(generation_key):
                 return
+            safe_error = exc if isinstance(exc, CodexSafeError) else None
             logger.warning(
-                "Reply generation failed agent_id=%s error_type=%s",
+                "Reply generation failed agent_id=%s error_type=%s error_code=%s",
                 agent_id,
                 type(exc).__name__,
+                safe_error.code if safe_error is not None else None,
             )
             await self._broadcast(
                 SuggestionErrorMsg(
-                    text="返答案を作れませんでした",
+                    text=safe_error.message if safe_error is not None else "返答案を作れませんでした",
                     agent_id=agent_id,
                     agent_label=agent_label,
                     agent_priority=agent_priority,

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import cast, override
 
+from app.agents.codex_models import CodexSafeError
 from app.agents.models import InfoOutputMode, InfoPrompt, MinutesPrompt, ReplyAgentSpec, ReplyPrompt
 from app.core.messages import OutgoingMessage
 from app.core.protocols import TurnLike
@@ -80,6 +81,16 @@ class FailsOnceReplyRuntime:
         if self.calls == 1:
             raise RuntimeError("model exploded")
         return RecordingStream(["再", "試行"])
+
+
+class SafeFailureReplyRuntime:
+    def run_stream(self, prompt: ReplyPrompt) -> RecordingStream:
+        _ = prompt
+        raise CodexSafeError(
+            "service_unavailable",
+            "Codex を一時的に利用できません。",
+            retryable=True,
+        )
 
 
 class ControlledReplyStream(RecordingStream):
@@ -195,6 +206,37 @@ class Phase2UseCaseBoundaryTest(unittest.IsolatedAsyncioTestCase):
             runtime.prompts,
         )
         self.assertEqual([True], runtime.streams[0].delta_flags)
+
+    async def test_reply_pipeline_surfaces_provider_safe_error(self) -> None:
+        session = MeetingSession(
+            id="reply-session",
+            started_at=datetime.now(UTC),
+            turns=(Turn(id="utt-1", speaker="other", text="返答してください"),),
+        )
+        pipeline = ReplyPipeline(
+            state=FakeConversationState(current_session=session),
+            broadcast=self._record_message,
+            reply_agents=[
+                ReplyAgentSpec(
+                    id="reply_main",
+                    label="標準",
+                    runtime=SafeFailureReplyRuntime(),
+                    priority=10,
+                )
+            ],
+            turn_lock=asyncio.Lock(),
+        )
+
+        await pipeline.generate_reply(generation_id="generation-safe-error")
+        records = list(pipeline._reply_tasks.values())
+        _ = await asyncio.gather(*(record.task for record in records))
+
+        self.assertTrue(
+            any(
+                message.get("type") == "suggestion_error" and message.get("text") == "Codex を一時的に利用できません。"
+                for message in self.messages
+            )
+        )
 
     async def test_reply_pipeline_preserves_agent_error_and_releases_target_for_retry(self) -> None:
         runtime = FailsOnceReplyRuntime()
