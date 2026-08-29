@@ -122,6 +122,13 @@ class ParseReplyAgentDefinitionsTest(unittest.TestCase):
 class FromSettingsStoreSttTest(unittest.TestCase):
     """Tests for STT config loading in ConfigLoader.from_settings_store."""
 
+    def test_reazonspeech_is_the_default_stt_backend(self) -> None:
+        loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=cast(TomlTable, {})))
+
+        self.assertEqual("reazonspeech", loader.stt_backend)
+        self.assertEqual("reazonspeech", loader.stt_config.backend)
+        self.assertEqual("ja", loader.stt_config.language)
+
     def test_whisper_model_from_config(self) -> None:
         """When [stt] whisper_model is set in config, it is used."""
         config: TomlTable = cast(TomlTable, {"stt": {"whisper_model": "tiny"}})

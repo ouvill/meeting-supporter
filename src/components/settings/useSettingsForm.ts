@@ -52,7 +52,9 @@ export function useSettingsForm({
   const [ollamaMessageIsError, setOllamaMessageIsError] = useState(false);
 
   const speechModelBackend =
-    form.sttBackend === "vosk" || form.sttBackend === "whisper"
+    form.sttBackend === "vosk" ||
+    form.sttBackend === "whisper" ||
+    form.sttBackend === "reazonspeech"
       ? form.sttBackend
       : null;
   const speechModelLanguage =
@@ -73,10 +75,7 @@ export function useSettingsForm({
 
   useEffect(() => {
     persistence.synchronizePreparedSpeechModelPath(preparedSpeechModelPath);
-  }, [
-    persistence.synchronizePreparedSpeechModelPath,
-    preparedSpeechModelPath,
-  ]);
+  }, [persistence.synchronizePreparedSpeechModelPath, preparedSpeechModelPath]);
 
   const selectedRoutes = useMemo(
     () =>

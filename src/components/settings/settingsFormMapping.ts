@@ -7,7 +7,12 @@ import type {
   TomlTable,
 } from "../../api/generated/types.gen";
 import type { ConnectionSecretKey } from "./ApiConnectionControl";
-import { isVadEngine, STT_FORM_FIELDS, type ReplyStyleFormItem, type SettingsForm } from "./types";
+import {
+  isVadEngine,
+  STT_FORM_FIELDS,
+  type ReplyStyleFormItem,
+  type SettingsForm,
+} from "./types";
 
 export type SettingsResponseWithRetention = SettingsResponse & {
   recording_retention?: {
@@ -41,7 +46,7 @@ export const INITIAL_SETTINGS_FORM: SettingsForm = {
   secretInputs: {},
   ollamaBaseUrl: "http://localhost:11434/v1",
   acpCommand: "",
-  sttBackend: "whisper",
+  sttBackend: "reazonspeech",
   sttWhisperModel: "large-v3-turbo",
   sttDeepgramModel: "nova-2",
   sttOpenaiModel: "gpt-4o-transcribe",
@@ -101,6 +106,8 @@ export function mapSettingsResponseToForm(
         left.priority - right.priority || left.label.localeCompare(right.label),
     );
   const sttVadEngine = getTomlString(settings.stt, "vad_engine");
+  const sttBackend = getTomlString(settings.stt, "backend") ?? "reazonspeech";
+  const sttLanguage = getTomlString(settings.stt, "language") ?? "ja";
 
   return {
     secretsStatus: Object.fromEntries(
@@ -109,17 +116,16 @@ export function mapSettingsResponseToForm(
     secretInputs: {},
     ollamaBaseUrl: settings.ollama?.base_url ?? "http://localhost:11434/v1",
     acpCommand: settings.acp?.command.join("\n") ?? "",
-    sttBackend: getTomlString(settings.stt, "backend") ?? "whisper",
+    sttBackend,
     sttWhisperModel:
       getTomlString(settings.stt, "whisper_model") ?? "large-v3-turbo",
-    sttDeepgramModel:
-      getTomlString(settings.stt, "deepgram_model") ?? "nova-2",
+    sttDeepgramModel: getTomlString(settings.stt, "deepgram_model") ?? "nova-2",
     sttOpenaiModel:
       getTomlString(settings.stt, "openai_model") ?? "gpt-4o-transcribe",
     sttVoskModelPath:
       getTomlString(settings.stt, "vosk_model_path") ??
       "vosk-model-small-ja-0.22",
-    sttLang: getTomlString(settings.stt, "language") ?? "ja",
+    sttLang: sttBackend === "reazonspeech" ? "ja" : sttLanguage,
     sttVadEngine: isVadEngine(sttVadEngine) ? sttVadEngine : "silero",
     sttVadSensitivity: getTomlNumber(settings.stt, "vad_sensitivity") ?? 0.4,
     sttVad: getTomlNumber(settings.stt, "vad_aggressiveness") ?? 2,
@@ -132,8 +138,7 @@ export function mapSettingsResponseToForm(
     usageMonthlyLimitJpy: settings.usage?.budget?.monthly_limit_jpy ?? 0,
     dataDir: settings.data_dir ?? "",
     contextDir: settings.context_dir ?? "",
-    recordingCleanupCutoffDate:
-      settings.recording_retention?.cutoff_date ?? "",
+    recordingCleanupCutoffDate: settings.recording_retention?.cutoff_date ?? "",
     recordingCleanupMaxMegabytes: settings.recording_retention?.max_total_bytes
       ? settings.recording_retention.max_total_bytes / (1024 * 1024)
       : 0,
@@ -149,8 +154,7 @@ export function mapSettingsFormToPayload(
     Object.entries(form.secretInputs).filter(([, value]) => value.trim()),
   ) as SecretsPayload & { XAI_API_KEY?: string };
   const replyStyles =
-    form.replyFeatureEnabled &&
-    !form.replyStyles.some((style) => style.enabled)
+    form.replyFeatureEnabled && !form.replyStyles.some((style) => style.enabled)
       ? form.replyStyles.map((style, index) => ({
           ...style,
           enabled: index === 0,

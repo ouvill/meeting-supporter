@@ -7,7 +7,7 @@ import {
 import type { SpeechModelStatusResponse } from "../api/generated/types.gen";
 
 export type SpeechModelLanguage = "ja" | "en";
-export type SpeechModelBackend = "vosk" | "whisper";
+export type SpeechModelBackend = "vosk" | "whisper" | "reazonspeech";
 export type WhisperModelAlias =
   | "tiny"
   | "base"

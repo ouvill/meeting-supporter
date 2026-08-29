@@ -147,4 +147,56 @@ describe("AudioSettingsPanel", () => {
     expect(screen.getByLabelText("声の検出方法")).toBeDisabled();
     expect(screen.getByLabelText("Silero音声判定しきい値")).toBeDisabled();
   });
+
+  it("offers ReazonSpeech as a Japanese-only local model", () => {
+    render(
+      <AudioSettingsPanel
+        form={{ ...FORM, sttBackend: "reazonspeech", sttLang: "ja" }}
+        errors={{}}
+        speechModel={{
+          ...SPEECH_MODEL,
+          backend: "reazonspeech",
+          model: null,
+        }}
+        managedStt={{
+          offered: false,
+          loading: false,
+          authenticated: false,
+          selectable: false,
+          message: "このビルドでは提供していません。",
+          refresh: vi.fn(async () => {}),
+        }}
+        onManageAccount={vi.fn()}
+        connectionStates={CONNECTION_STATES}
+        secretsStatus={{}}
+        secretInputs={{}}
+        connectionEditingProvider={null}
+        connectionTestingProvider={null}
+        connectionTestMessages={{}}
+        onBeginConnectionEdit={vi.fn()}
+        onCancelConnectionEdit={vi.fn()}
+        onSecretChange={vi.fn()}
+        onTestConnection={vi.fn()}
+        onRequestSecretDelete={vi.fn()}
+        onCancelSecretDelete={vi.fn()}
+        update={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("option", {
+        name: "端末内・日本語高精度（ReazonSpeech）",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "ReazonSpeech K2-v2の軽量化モデルを端末内で実行します。日本語専用で、モデルの取得に約153 MB使用します。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("会議の言語")).toBeDisabled();
+    expect(
+      screen.queryByRole("option", { name: "英語" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("ReazonSpeech日本語モデル")).toBeInTheDocument();
+  });
 });
