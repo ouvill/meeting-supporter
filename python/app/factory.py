@@ -59,6 +59,7 @@ from app.meetings.repository import MeetingHistoryRepository
 from app.meetings.service import MeetingHistoryService
 from app.services.config_loader import ConfigLoader
 from app.services.managed_session import ManagedSessionStore
+from app.services.reazonspeech_model_manager import ReazonSpeechModelManager
 from app.services.secret_store import FileSecretStore
 from app.services.settings_store import SettingsStore
 from app.services.vosk_model_manager import VoskModelManager
@@ -125,6 +126,7 @@ class HttpRouterDependencies:
     ollama_status: OllamaStatusProvider | None = None
     vosk_model_manager: VoskModelManager | None = None
     whisper_model_manager: WhisperModelManager | None = None
+    reazonspeech_model_manager: ReazonSpeechModelManager | None = None
     managed_session_store: ManagedSessionStore | None = None
 
 
@@ -141,6 +143,7 @@ def create_http_routers(dependencies: HttpRouterDependencies) -> tuple[APIRouter
         event_bus=dependencies.settings_event_bus,
     )
     whisper_model_manager = dependencies.whisper_model_manager or WhisperModelManager()
+    reazonspeech_model_manager = dependencies.reazonspeech_model_manager or ReazonSpeechModelManager()
     managed_session_store = dependencies.managed_session_store or ManagedSessionStore(
         "openapi-session-capability-000000"
     )
@@ -157,6 +160,7 @@ def create_http_routers(dependencies: HttpRouterDependencies) -> tuple[APIRouter
         stt_models.create_router(
             vosk_model_manager=vosk_model_manager,
             whisper_model_manager=whisper_model_manager,
+            reazonspeech_model_manager=reazonspeech_model_manager,
         ),
         ai_runtimes.create_router(codex=dependencies.codex),
         managed_session.create_router(managed_session_store),

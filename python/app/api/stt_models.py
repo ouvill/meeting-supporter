@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 
+from app.services.reazonspeech_model_manager import ReazonSpeechModelManager
 from app.services.vosk_model_manager import CATALOG, ModelLanguage, SpeechModelStatus, VoskModelManager
 from app.services.whisper_model_manager import DEFAULT_WHISPER_MODEL, WhisperModelAlias, WhisperModelManager
+from app.stt.reazonspeech_model import REAZONSPEECH_MODEL_ID
 
-SpeechModelBackend = Literal["vosk", "whisper"]
+SpeechModelBackend = Literal["vosk", "whisper", "reazonspeech"]
 
 
 class SpeechModelDownloadRequest(BaseModel):
@@ -78,10 +80,20 @@ def _whisper_response(model: WhisperModelAlias, status: SpeechModelStatus) -> Sp
     return _response(backend="whisper", model_id=model, status=status)
 
 
+def _reazonspeech_response(status: SpeechModelStatus) -> SpeechModelStatusResponse:
+    return _response(backend="reazonspeech", model_id=REAZONSPEECH_MODEL_ID, status=status)
+
+
+def _require_reazonspeech_language(language: ModelLanguage) -> None:
+    if language != "ja":
+        raise HTTPException(status_code=422, detail="ReazonSpeech K2-v2は日本語にのみ対応しています。")
+
+
 def create_router(
     *,
     vosk_model_manager: VoskModelManager,
     whisper_model_manager: WhisperModelManager,
+    reazonspeech_model_manager: ReazonSpeechModelManager,
 ) -> APIRouter:
     """Create provider-aware managed-model routes."""
     router = APIRouter(prefix="/api/stt", tags=["speech-model"])
@@ -94,6 +106,9 @@ def create_router(
     ) -> SpeechModelStatusResponse:
         if backend == "vosk":
             return _vosk_response(vosk_model_manager.status(language))
+        if backend == "reazonspeech":
+            _require_reazonspeech_language(language)
+            return _reazonspeech_response(reazonspeech_model_manager.status())
         whisper_model = _whisper_model_id(model)
         return _whisper_response(whisper_model, whisper_model_manager.status(language, whisper_model))
 
@@ -103,6 +118,9 @@ def create_router(
     ) -> SpeechModelStatusResponse:
         if body.backend == "vosk":
             return _vosk_response(await vosk_model_manager.start(body.language))
+        if body.backend == "reazonspeech":
+            _require_reazonspeech_language(body.language)
+            return _reazonspeech_response(await reazonspeech_model_manager.start())
         whisper_model = _whisper_model_id(body.model)
         return _whisper_response(whisper_model, await whisper_model_manager.start(body.language, whisper_model))
 
@@ -114,6 +132,9 @@ def create_router(
     ) -> SpeechModelStatusResponse:
         if backend == "vosk":
             return _vosk_response(await vosk_model_manager.cancel())
+        if backend == "reazonspeech":
+            _require_reazonspeech_language(language)
+            return _reazonspeech_response(reazonspeech_model_manager.cancel())
         whisper_model = _whisper_model_id(model)
         return _whisper_response(whisper_model, whisper_model_manager.cancel(language, whisper_model))
 

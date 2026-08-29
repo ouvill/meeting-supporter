@@ -451,7 +451,7 @@ class ConfigLoader:
         )
         ai_assignments, routes = _parse_ai_config(cfg)
 
-        stt_backend = cfg_get("stt", "backend", "whisper")
+        stt_backend = cfg_get("stt", "backend", "reazonspeech")
         effective_audio_stt = _load_effective_audio_stt_config(
             cfg,
             cfg_get,

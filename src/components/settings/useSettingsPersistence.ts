@@ -1,21 +1,21 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getSettingsApiSettingsGet,
   saveSettingsApiSettingsPost,
 } from "../../api/generated/sdk.gen";
-import type { AiRouteReadModel, AiRoutesController } from "../../hooks/useAiRoutes";
+import type {
+  AiRouteReadModel,
+  AiRoutesController,
+} from "../../hooks/useAiRoutes";
 import {
   getManagedAuthStatus,
   getManagedEntitlement,
 } from "../../platform/managedServiceClient";
 import { useMeetingStore } from "../../store/meetingStore";
-import type { ConnectionProvider, ConnectionSecretKey } from "./ApiConnectionControl";
+import type {
+  ConnectionProvider,
+  ConnectionSecretKey,
+} from "./ApiConnectionControl";
 import {
   getTomlString,
   INITIAL_SETTINGS_FORM,
@@ -63,8 +63,7 @@ export function useSettingsPersistence({
   const [loaded, setLoaded] = useState(false);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<SettingsFieldErrors>({});
-  const [sectionError, setSectionError] =
-    useState<SettingsSectionError>(null);
+  const [sectionError, setSectionError] = useState<SettingsSectionError>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const previousAudioSettingsLocked = useRef(audioSettingsLocked);
@@ -136,6 +135,9 @@ export function useSettingsPersistence({
     connectionStates: Record<ConnectionProvider, ConnectionUiState>,
   ) => {
     const nextForm = { ...form, [key]: value };
+    if (key === "sttBackend" && value === "reazonspeech") {
+      nextForm.sttLang = "ja";
+    }
     setForm(nextForm);
     setFieldErrors((previous) => ({
       ...previous,
@@ -222,11 +224,7 @@ export function useSettingsPersistence({
         return;
       }
     }
-    const errors = validateSettingsForm(
-      form,
-      selectedRoutes,
-      connectionStates,
-    );
+    const errors = validateSettingsForm(form, selectedRoutes, connectionStates);
     setFieldErrors(errors);
     setSaveMessage(null);
     setSectionError(null);
@@ -241,9 +239,7 @@ export function useSettingsPersistence({
     }
 
     const preparedPathAtSaveStart =
-      speechModelBackend === "vosk"
-        ? preparedSpeechModelPathRef.current
-        : null;
+      speechModelBackend === "vosk" ? preparedSpeechModelPathRef.current : null;
     const speechModelPathForSave =
       preparedPathAtSaveStart &&
       lastSyncedSpeechModelPathRef.current !== preparedPathAtSaveStart

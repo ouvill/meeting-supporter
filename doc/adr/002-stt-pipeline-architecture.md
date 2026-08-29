@@ -33,7 +33,7 @@ flowchart LR
     VOL --> WS1[WebSocket\n音量レベル]
     Qb --> VAD[VadStage\nis_speech 付与]
     VAD --> Q2[Q2\nAudioFrame]
-    Q2 --> STT[SttStage\nWhisper / Vosk / Deepgram / Remote]
+    Q2 --> STT[SttStage\nWhisper / ReazonSpeech / Vosk / Deepgram / Remote]
     STT --> Q3[Q3]
     Q3 --> DIAR[DiarizationStage\n話者分離 Optional]
     DIAR --> Q4[Q4]
@@ -98,14 +98,14 @@ CaptureStage → None → Q1
 
 ### ステージ一覧
 
-| ステージ | クラス | 役割 | 入力 | 出力 |
-|---------|--------|------|------|------|
-| 音声取得 | `CaptureStage` | soundcard → PCM フレーム | — | Q1 (`AudioFrame`) |
-| 音量計算 | `VolumeStage` | Q1 をタップし RMS 計算 | Q1 (read-only tap) | WebSocket |
-| VAD | `VadStage` | 各フレームに `is_speech` を付与して全量通過 | Q1 | Q2 (`AudioFrame`) |
-| 音声認識 | `WhisperStage` / `VoskStage` / `DeepgramStage` / `RemoteStage` | `is_speech` を見てバッファリング・テキスト変換 | Q2 | Q3 |
-| 話者分離 | `DiarizationStage` | 話者 ID 付与 (Optional) | Q3 | Q4 |
-| 出力 | (パイプライン末端) | WebSocket ブロードキャスト | Q4 or Q3 | WebSocket |
+| ステージ | クラス                                                                               | 役割                                           | 入力               | 出力              |
+| -------- | ------------------------------------------------------------------------------------ | ---------------------------------------------- | ------------------ | ----------------- |
+| 音声取得 | `CaptureStage`                                                                       | soundcard → PCM フレーム                       | —                  | Q1 (`AudioFrame`) |
+| 音量計算 | `VolumeStage`                                                                        | Q1 をタップし RMS 計算                         | Q1 (read-only tap) | WebSocket         |
+| VAD      | `VadStage`                                                                           | 各フレームに `is_speech` を付与して全量通過    | Q1                 | Q2 (`AudioFrame`) |
+| 音声認識 | `WhisperStage` / `ReazonSpeechStage` / `VoskStage` / `DeepgramStage` / `RemoteStage` | `is_speech` を見てバッファリング・テキスト変換 | Q2                 | Q3                |
+| 話者分離 | `DiarizationStage`                                                                   | 話者 ID 付与 (Optional)                        | Q3                 | Q4                |
+| 出力     | (パイプライン末端)                                                                   | WebSocket ブロードキャスト                     | Q4 or Q3           | WebSocket         |
 
 ### ファイル構成
 
@@ -120,6 +120,7 @@ app/stt/
 │   ├── volume.py        # VolumeStage
 │   ├── vad.py           # VadStage (WebRTC VAD / Silero 切り替え可)
 │   ├── stt_whisper.py   # WhisperStage
+│   ├── stt_reazonspeech.py # ReazonSpeechStage
 │   ├── stt_vosk.py      # VoskStage
 │   ├── stt_deepgram.py  # DeepgramStage
 │   ├── stt_remote.py    # RemoteStage
@@ -141,6 +142,7 @@ app/stt/
 現状の `AudioLevelMonitor`（`app/services/audio_level_monitor.py`）は STT とは独立した soundcard 接続を持っている。
 
 新設計では `VolumeStage` が Multiplexer 経由で同一フレームを受け取るため:
+
 - soundcard の二重オープンがなくなる
 - STT が停止中でも `CaptureStage` + `Multiplexer` + `VolumeStage` だけを起動すれば音量モニタリングができる
 - `AudioLevelMonitor` は廃止できる
@@ -206,13 +208,13 @@ def put_latest(q: queue.Queue, item) -> None:
 
 **キューごとの maxsize と用途**
 
-| キュー | maxsize (目安) | 理由 |
-|--------|--------------|------|
-| Q1 (CaptureStage → Multiplexer) | 50 | フレーム連続性が必要。大きすぎると遅延が増える |
-| Qa (Multiplexer → VolumeStage) | 50 | 古いフレームは `put_latest` で捨てるので大きさは重要でない |
-| Qb (Multiplexer → VadStage) | 50 | VAD は連続フレームが必要。ドロップすると誤検出 |
-| Q2 (VadStage → SttStage) | 200 | Whisper は推論に時間がかかるためバッファが必要 |
-| Q3 (SttStage → DiarizationStage) | 10 | テキスト結果は小さい。溜まるなら処理が遅すぎる |
+| キュー                           | maxsize (目安) | 理由                                                       |
+| -------------------------------- | -------------- | ---------------------------------------------------------- |
+| Q1 (CaptureStage → Multiplexer)  | 50             | フレーム連続性が必要。大きすぎると遅延が増える             |
+| Qa (Multiplexer → VolumeStage)   | 50             | 古いフレームは `put_latest` で捨てるので大きさは重要でない |
+| Qb (Multiplexer → VadStage)      | 50             | VAD は連続フレームが必要。ドロップすると誤検出             |
+| Q2 (VadStage → SttStage)         | 200            | Whisper は推論に時間がかかるためバッファが必要             |
+| Q3 (SttStage → DiarizationStage) | 10             | テキスト結果は小さい。溜まるなら処理が遅すぎる             |
 
 ### SttConfig との関係
 
@@ -221,6 +223,7 @@ def put_latest(q: queue.Queue, item) -> None:
 ## 結果
 
 **ポジティブ**
+
 - 新しい STT バックエンドの追加 → `stt/stages/stt_xxx.py` を1ファイル追加するだけ
 - 新しい VAD エンジンの追加 → `VadEngine` Protocol を実装するだけ
 - 音量モニタリングと STT が同一の soundcard 接続を共有するため、デバイス管理が単純化される
@@ -228,6 +231,7 @@ def put_latest(q: queue.Queue, item) -> None:
 - 話者分離を「ステージを追加するだけ」で組み込める
 
 **トレードオフ**
+
 - `stt_v2/` の既存実装（`WhisperSttStream` 等）をステージベースに書き直す必要がある
 - パイプラインのステージ数が増えるとデバッグ時にどのステージで詰まっているか追いにくくなる
   → 各ステージに structured logging（stage_name, queue_size 等）を追加することで対処する

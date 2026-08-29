@@ -274,7 +274,8 @@
             "schema": {
               "enum": [
                 "vosk",
-                "whisper"
+                "whisper",
+                "reazonspeech"
               ],
               "type": "string",
               "title": "Backend"
@@ -398,7 +399,8 @@
             "schema": {
               "enum": [
                 "vosk",
-                "whisper"
+                "whisper",
+                "reazonspeech"
               ],
               "type": "string",
               "title": "Backend"
@@ -3085,7 +3087,8 @@
             "type": "string",
             "enum": [
               "vosk",
-              "whisper"
+              "whisper",
+              "reazonspeech"
             ],
             "title": "Backend"
           },
@@ -3132,7 +3135,8 @@
             "type": "string",
             "enum": [
               "vosk",
-              "whisper"
+              "whisper",
+              "reazonspeech"
             ],
             "title": "Backend"
           },
