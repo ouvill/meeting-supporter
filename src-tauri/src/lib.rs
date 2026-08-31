@@ -152,11 +152,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            commands::get_api_port,
-            commands::get_api_auth_token,
-            commands::is_backend_running,
-            commands::get_backend_bootstrap_status,
-            commands::get_backend_crash_info,
+            commands::get_backend_bootstrap_snapshot,
             commands::set_assistant_window_visible,
             managed_auth::managed_auth_start,
             managed_auth::managed_auth_status,

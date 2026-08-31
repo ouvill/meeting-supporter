@@ -2,59 +2,49 @@ use serde::Serialize;
 use tauri::{Manager, State, Window};
 
 use crate::error::AppError;
-use crate::process::{refresh_backend_state, BackendCrashInfo, BackendState};
-use crate::state::BootstrapState;
+use crate::process::{
+    refresh_backend_state, BackendCrashInfo, BackendProcess, BackendState,
+};
+use crate::state::{BootstrapState, BootstrapStateData};
 
-#[derive(Serialize)]
-pub struct BootstrapStatus {
+#[derive(Debug, Serialize)]
+pub struct BackendBootstrapSnapshot {
     pub phase: String,
     pub message: String,
+    pub running: bool,
+    pub port: Option<u16>,
+    pub auth_token: Option<String>,
+    pub crash: Option<BackendCrashInfo>,
 }
 
-#[tauri::command]
-pub fn get_backend_bootstrap_status(
-    state: State<BootstrapState>,
-) -> Result<BootstrapStatus, AppError> {
-    let current = state
-        .lock()
-        .map_err(|e| AppError::MutexPoison(e.to_string()))?
-        .clone();
-    Ok(BootstrapStatus {
-        phase: current.phase,
-        message: current.message,
-    })
-}
-
-#[tauri::command]
-pub fn get_api_port(state: State<BackendState>) -> Result<Option<u16>, AppError> {
-    let mut backend = state
-        .lock()
-        .map_err(|e| AppError::MutexPoison(e.to_string()))?;
-    if refresh_backend_state(&mut backend) {
-        Ok(backend.port)
-    } else {
-        Ok(None)
+fn build_backend_bootstrap_snapshot(
+    bootstrap: &BootstrapStateData,
+    backend: &mut BackendProcess,
+) -> BackendBootstrapSnapshot {
+    let running = refresh_backend_state(backend);
+    BackendBootstrapSnapshot {
+        phase: bootstrap.phase.clone(),
+        message: bootstrap.message.clone(),
+        running,
+        port: running.then_some(backend.port).flatten(),
+        auth_token: running.then(|| backend.auth_token.clone()).flatten(),
+        crash: backend.crash_info.clone(),
     }
 }
 
 #[tauri::command]
-pub fn get_api_auth_token(state: State<BackendState>) -> Result<Option<String>, AppError> {
-    let mut backend = state
+pub fn get_backend_bootstrap_snapshot(
+    bootstrap_state: State<BootstrapState>,
+    backend_state: State<BackendState>,
+) -> Result<BackendBootstrapSnapshot, AppError> {
+    // Hold both guards while refreshing so every field comes from one point-in-time view.
+    let bootstrap = bootstrap_state
         .lock()
         .map_err(|e| AppError::MutexPoison(e.to_string()))?;
-    if refresh_backend_state(&mut backend) {
-        Ok(backend.auth_token.clone())
-    } else {
-        Ok(None)
-    }
-}
-
-#[tauri::command]
-pub fn is_backend_running(state: State<BackendState>) -> Result<bool, AppError> {
-    let mut backend = state
+    let mut backend = backend_state
         .lock()
         .map_err(|e| AppError::MutexPoison(e.to_string()))?;
-    Ok(refresh_backend_state(&mut backend))
+    Ok(build_backend_bootstrap_snapshot(&bootstrap, &mut backend))
 }
 
 #[tauri::command]
@@ -74,19 +64,62 @@ pub fn set_assistant_window_visible(window: Window, visible: bool) -> Result<(),
     Ok(())
 }
 
-/// 直近のバックエンド異常終了情報を取得する。
-/// クラッシュが検出されていない場合は `None` を返す。
-///
-/// 呼び出しごとに `refresh_backend_state` を実行し、
-/// プロセス終了の検出をこのコマンド単体で完結させる。
-/// （`is_backend_running` / `get_api_port` の副作用に依存しない）
-#[tauri::command]
-pub fn get_backend_crash_info(
-    state: State<BackendState>,
-) -> Result<Option<BackendCrashInfo>, AppError> {
-    let mut backend = state
-        .lock()
-        .map_err(|e| AppError::MutexPoison(e.to_string()))?;
-    refresh_backend_state(&mut backend);
-    Ok(backend.crash_info.clone())
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_fails_closed_and_preserves_crash_details_when_not_running() {
+        let bootstrap = BootstrapStateData {
+            phase: "running".into(),
+            message: "Backend is ready.".into(),
+        };
+        let crash = BackendCrashInfo {
+            unexpected: true,
+            exit_code: Some(137),
+            signal: None,
+            message: "Backend process terminated unexpectedly.".into(),
+        };
+        let mut backend = BackendProcess::none();
+        backend.port = Some(49152);
+        backend.auth_token = Some("must-not-leak".into());
+        backend.crash_info = Some(crash);
+
+        let snapshot = build_backend_bootstrap_snapshot(&bootstrap, &mut backend);
+
+        assert!(!snapshot.running);
+        assert_eq!(snapshot.port, None);
+        assert_eq!(snapshot.auth_token, None);
+        let crash = snapshot.crash.expect("crash details should remain visible");
+        assert!(crash.unexpected);
+        assert_eq!(crash.exit_code, Some(137));
+    }
+
+    #[test]
+    fn snapshot_serializes_as_the_frontend_wire_contract() {
+        let bootstrap = BootstrapStateData {
+            phase: "starting".into(),
+            message: "Starting backend...".into(),
+        };
+        let mut backend = BackendProcess::none();
+
+        let value = serde_json::to_value(build_backend_bootstrap_snapshot(
+            &bootstrap,
+            &mut backend,
+        ))
+        .expect("snapshot should serialize");
+
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "phase": "starting",
+                "message": "Starting backend...",
+                "running": false,
+                "port": null,
+                "auth_token": null,
+                "crash": null,
+            })
+        );
+    }
 }

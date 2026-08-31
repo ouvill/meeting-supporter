@@ -48,10 +48,11 @@ let fixture: AcpFixture | null = null;
 async function sendSyntheticSelfTurn(text: string): Promise<void> {
   await browser.tauri.execute(
     `async ({ core }, expectedText) => {
-    const [port, token] = await Promise.all([
-      core.invoke('get_api_port'),
-      core.invoke('get_api_auth_token'),
-    ])
+    const snapshot = await core.invoke('get_backend_bootstrap_snapshot')
+    if (!snapshot || typeof snapshot !== 'object') {
+      throw new Error('Tauri backend WebSocket endpoint is unavailable')
+    }
+    const { port, auth_token: token } = snapshot
     if (typeof port !== 'number' || typeof token !== 'string' || !token) {
       throw new Error('Tauri backend WebSocket endpoint is unavailable')
     }

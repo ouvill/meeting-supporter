@@ -1,11 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  getBackendBootstrapStatus,
-  getApiPort,
-  getApiAuthToken,
-  getBackendCrashInfo,
-  isBackendRunning,
+  getBackendBootstrapSnapshot,
   isExpectedBootstrapError,
+  type BackendBootstrapSnapshot,
   type BackendCrashInfo,
   type BootstrapStatus,
 } from "../platform/backendBootstrapClient";
@@ -26,70 +23,82 @@ export interface BackendBootstrapState {
   crashInfo: BackendCrashInfo | null;
 }
 
-/**
- * Polls the Tauri backend bootstrap IPC until the backend is ready.
- *
- * Returns the API port (once determined), the current bootstrap status
- * (phase / message) that drives the bootstrap screen, and any crash
- * diagnostic info if the backend terminated unexpectedly.
- *
- * The effect cleans up its interval and sets a cancelled flag to prevent
- * state updates after unmount.
- */
+/** Polls sequential bootstrap snapshots until credentials or a crash are available. */
 export function useBackendBootstrapStatus(): BackendBootstrapState {
   const [apiPort, setApiPort] = useState<number | null>(null);
   const [apiAuthToken, setApiAuthToken] = useState<string | null>(null);
   const [bootstrap, setBootstrap] =
     useState<BootstrapStatus>(INITIAL_BOOTSTRAP);
   const [crashInfo, setCrashInfo] = useState<BackendCrashInfo | null>(null);
+  const pendingSnapshot = useRef<Promise<BackendBootstrapSnapshot> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
+    let stopped = false;
+    let timeoutId: number | null = null;
 
-    /** Stop the polling loop (idempotent). */
     function stopPolling(): void {
-      if (intervalId !== null) {
-        clearInterval(intervalId);
-        intervalId = null;
+      stopped = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+        timeoutId = null;
       }
+    }
+
+    function scheduleNextPoll(): void {
+      if (cancelled || stopped || timeoutId !== null) return;
+      timeoutId = window.setTimeout(() => {
+        timeoutId = null;
+        void refresh();
+      }, POLL_INTERVAL_MS);
     }
 
     async function refresh(): Promise<void> {
+      const request =
+        pendingSnapshot.current ?? getBackendBootstrapSnapshot();
+      pendingSnapshot.current = request;
+
       try {
-        const status = await getBackendBootstrapStatus();
-        const running = await isBackendRunning();
-        const port = await getApiPort();
-        const token = await getApiAuthToken();
-        const crash = await getBackendCrashInfo();
+        const snapshot = await request;
         if (cancelled) return;
-        setCrashInfo(crash);
-        if (crash?.unexpected) {
-          // バックエンドが予期せず終了した場合は bootstrap を failed に上書き
+
+        setCrashInfo(snapshot.crash);
+        if (snapshot.crash?.unexpected) {
           setBootstrap({
             phase: "failed",
-            message: crash.message,
+            message: snapshot.crash.message,
           });
           setApiPort(null);
           setApiAuthToken(null);
-          // クラッシュ検出後はこれ以上 IPC を呼ばない
           stopPolling();
+          return;
+        }
+
+        setBootstrap({ phase: snapshot.phase, message: snapshot.message });
+        if (
+          snapshot.running &&
+          snapshot.port !== null &&
+          snapshot.auth_token !== null
+        ) {
+          setApiPort(snapshot.port);
+          setApiAuthToken(snapshot.auth_token);
         } else {
-          setBootstrap(status);
-          if (running && port && token) {
-            setApiPort(port);
-            setApiAuthToken(token);
-          }
+          setApiPort(null);
+          setApiAuthToken(null);
         }
       } catch (err: unknown) {
-        if (!isExpectedBootstrapError(err)) {
+        if (!cancelled && !isExpectedBootstrapError(err)) {
           console.error("Bootstrap refresh failed:", err);
         }
+      } finally {
+        if (pendingSnapshot.current === request) {
+          pendingSnapshot.current = null;
+        }
+        scheduleNextPoll();
       }
     }
 
-    refresh();
-    intervalId = setInterval(refresh, POLL_INTERVAL_MS);
+    void refresh();
     return () => {
       cancelled = true;
       stopPolling();

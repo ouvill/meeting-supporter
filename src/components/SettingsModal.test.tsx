@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   saveSettingsApiSettingsPost,
@@ -24,6 +24,21 @@ const sdkMocks = vi.hoisted(() => ({
   cancelSpeechDownload: vi.fn(),
   getOllamaModels: vi.fn(),
 }));
+
+const managedMocks = vi.hoisted(() => ({
+  authStatus: vi.fn(),
+  entitlement: vi.fn(),
+  onAuthChanged: vi.fn(),
+  startAuth: vi.fn(),
+  logout: vi.fn(),
+  checkout: vi.fn(),
+  billing: vi.fn(),
+  deleteAccount: vi.fn(),
+}));
+
+const licenseMocks = vi.hoisted(() => ({
+  read: vi.fn(),
+}));
 vi.mock("../api/generated/sdk.gen", () => ({
   getSettingsApiSettingsGet: sdkMocks.getSettings,
   saveSettingsApiSettingsPost: sdkMocks.saveSettings,
@@ -32,6 +47,21 @@ vi.mock("../api/generated/sdk.gen", () => ({
   startSpeechModelDownloadApiSttModelDownloadPost: sdkMocks.startSpeechDownload,
   cancelSpeechModelDownloadApiSttModelCancelPost: sdkMocks.cancelSpeechDownload,
   getOllamaModelsApiSettingsOllamaModelsGet: sdkMocks.getOllamaModels,
+}));
+vi.mock("../platform/managedServiceClient", () => ({
+  getManagedAuthStatus: managedMocks.authStatus,
+  getManagedEntitlement: managedMocks.entitlement,
+  onManagedAuthChanged: managedMocks.onAuthChanged,
+  startManagedAuth: managedMocks.startAuth,
+  logoutManagedAuth: managedMocks.logout,
+  openManagedCheckout: managedMocks.checkout,
+  openManagedBillingPortal: managedMocks.billing,
+  deleteManagedAccount: managedMocks.deleteAccount,
+}));
+vi.mock("../../LICENSE?raw", () => ({
+  get default() {
+    return licenseMocks.read();
+  },
 }));
 vi.mock("../api/recordingRetention", () => ({
   previewRecordingCleanup: vi.fn(),
@@ -162,6 +192,32 @@ afterEach(() => vi.unstubAllGlobals());
 describe("SettingsModal connection UX", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    licenseMocks.read.mockReturnValue("GNU AFFERO GENERAL PUBLIC LICENSE");
+    managedMocks.authStatus.mockResolvedValue({
+      authenticated: true,
+      reason: "authenticated",
+    });
+    managedMocks.entitlement.mockResolvedValue({
+      account: { status: "active" },
+      plan: { status: "active", cancel_at_period_end: false },
+      quota: {
+        remaining_micro_usd: 1,
+        approximate_remaining_jpy: 1,
+        renews_at: null,
+        shared: true,
+        rollover: false,
+        overage_charging: false,
+      },
+      managed: {
+        availability: "available",
+        readiness: "ready",
+        reason: "ready",
+        action: null,
+        reply: { enabled: true, selectable: true },
+        speech_recognition: { enabled: true, selectable: true },
+      },
+    });
+    managedMocks.onAuthChanged.mockResolvedValue(() => undefined);
     sdkMocks.getSpeechStatus.mockResolvedValue({
       data: speechStatus(),
       error: undefined,
@@ -184,6 +240,109 @@ describe("SettingsModal connection UX", () => {
       request,
       response,
     });
+  });
+
+  it("defers managed availability until Audio and does not refresh on ordinary rerenders", async () => {
+    const routes = routeCatalog({
+      routes: [
+        route({
+          id: "managed",
+          kind: "managed",
+          label: "Meeting Supporter",
+          description: "Managed speech recognition",
+          capabilities: ["reply"],
+          reason_code: null,
+        }),
+      ],
+    });
+    const { onClose, rerender } = await renderModal(settings(), routes);
+
+    expect(screen.getByRole("heading", { name: "支援方法" })).toBeInTheDocument();
+    expect(managedMocks.authStatus).not.toHaveBeenCalled();
+    expect(managedMocks.entitlement).not.toHaveBeenCalled();
+    expect(managedMocks.onAuthChanged).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /音声/ }));
+
+    await waitFor(() => {
+      expect(managedMocks.authStatus).toHaveBeenCalledOnce();
+      expect(managedMocks.entitlement).toHaveBeenCalledOnce();
+      expect(managedMocks.onAuthChanged).toHaveBeenCalledOnce();
+    });
+
+    rerender(<SettingsModal onClose={onClose} routes={routes} />);
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    expect(managedMocks.authStatus).toHaveBeenCalledOnce();
+    expect(managedMocks.entitlement).toHaveBeenCalledOnce();
+    expect(managedMocks.onAuthChanged).toHaveBeenCalledOnce();
+  });
+
+  it("ignores an auth refresh that settles after leaving and reentering Audio", async () => {
+    const listeners: Array<() => void> = [];
+    managedMocks.onAuthChanged.mockImplementation(
+      async (listener: () => void) => {
+        listeners.push(listener);
+        return () => undefined;
+      },
+    );
+    const initialAuth = { authenticated: true, reason: "authenticated" };
+    let resolveStaleAuth:
+      | ((status: { authenticated: boolean; reason: string }) => void)
+      | undefined;
+    const staleAuth = new Promise<{
+      authenticated: boolean;
+      reason: string;
+    }>((resolve) => {
+      resolveStaleAuth = resolve;
+    });
+    managedMocks.authStatus
+      .mockResolvedValueOnce(initialAuth)
+      .mockReturnValueOnce(staleAuth)
+      .mockResolvedValue(initialAuth);
+    const routes = routeCatalog({
+      routes: [
+        route({
+          id: "managed",
+          kind: "managed",
+          label: "Meeting Supporter",
+          description: "Managed speech recognition",
+          capabilities: ["reply"],
+          reason_code: null,
+        }),
+      ],
+    });
+    await renderModal(settings(), routes);
+
+    fireEvent.click(screen.getByRole("button", { name: /音声/ }));
+    expect(
+      await screen.findByText("月額プランの共通利用枠で利用できます。"),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(listeners).toHaveLength(1));
+
+    act(() => listeners[0]!());
+    await waitFor(() => expect(managedMocks.authStatus).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(screen.getByRole("button", { name: /支援方法/ }));
+    fireEvent.click(screen.getByRole("button", { name: /音声/ }));
+    await waitFor(() => {
+      expect(managedMocks.authStatus).toHaveBeenCalledTimes(3);
+      expect(managedMocks.entitlement).toHaveBeenCalledTimes(2);
+      expect(listeners).toHaveLength(2);
+    });
+
+    await act(async () => {
+      resolveStaleAuth?.({ authenticated: false, reason: "logged_out" });
+      await staleAuth;
+    });
+
+    expect(routes.reload).not.toHaveBeenCalled();
+    expect(managedMocks.entitlement).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByText("月額プランの共通利用枠で利用できます。"),
+    ).toBeInTheDocument();
   });
 
   it("focuses the native dialog title and restores the opening control after close", async () => {
@@ -437,7 +596,7 @@ describe("SettingsModal connection UX", () => {
 
     expect(screen.queryByText("API接続")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("OpenAI APIキー")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("OpenAIモデル")).toBeInTheDocument();
+    expect(await screen.findByLabelText("OpenAIモデル")).toBeInTheDocument();
   });
 
   it("shows every route in general or setup groups and keeps the selected route visible", async () => {
@@ -738,11 +897,11 @@ describe("SettingsModal connection UX", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /音声/ }));
     expect(
-      screen.getByRole("button", { name: "OpenAI APIキーを変更" }),
+      await screen.findByRole("button", { name: "OpenAI APIキーを変更" }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /詳細設定/ }));
     expect(screen.queryByLabelText("OpenAI APIキー")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("OpenAIモデル")).toBeInTheDocument();
+    expect(await screen.findByLabelText("OpenAIモデル")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     expect(
       await screen.findByText(
@@ -1052,32 +1211,34 @@ describe("SettingsModal connection UX", () => {
     });
   });
 
-  it("shows application and third-party license notices without a save action", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response("PROVISIONED COMPONENTS\nuv 0.11.7", { status: 200 }),
-        ),
-    );
+  it("loads each license only when its disclosure is opened", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("PROVISIONED COMPONENTS\nuv 0.11.7", { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
 
     await renderModal();
 
     fireEvent.click(screen.getByRole("button", { name: /このアプリ/ }));
-    expect(
-      screen.getByText("アプリケーションライセンス（AGPL-3.0-only）"),
-    ).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByText("アプリケーションライセンス（AGPL-3.0-only）"),
+    const applicationDisclosure = await screen.findByText(
+      "アプリケーションライセンス（AGPL-3.0-only）",
     );
-    expect(screen.getByTestId("application-license")).toHaveTextContent(
-      "GNU AFFERO GENERAL PUBLIC LICENSE",
-    );
-    expect(screen.getByText("THIRD-PARTY-NOTICESを表示")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(licenseMocks.read).not.toHaveBeenCalled();
     expect(
       screen.queryByRole("button", { name: "保存" }),
     ).not.toBeInTheDocument();
+
+    fireEvent.click(applicationDisclosure);
+    await waitFor(() =>
+      expect(screen.getByTestId("application-license")).toHaveTextContent(
+        "GNU AFFERO GENERAL PUBLIC LICENSE",
+      ),
+    );
+    expect(licenseMocks.read).toHaveBeenCalledOnce();
+    expect(fetchMock).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText("THIRD-PARTY-NOTICESを表示"));
     await waitFor(() =>
@@ -1088,5 +1249,34 @@ describe("SettingsModal connection UX", () => {
     expect(screen.getByTestId("third-party-notices")).toHaveTextContent(
       "uv 0.11.7",
     );
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("keeps About usable when the application license cannot be loaded", async () => {
+    licenseMocks.read.mockImplementationOnce(() => {
+      throw new Error("module load failed");
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderModal();
+    fireEvent.click(screen.getByRole("button", { name: /このアプリ/ }));
+    const applicationDisclosure = await screen.findByText(
+      "アプリケーションライセンス（AGPL-3.0-only）",
+    );
+
+    fireEvent.click(applicationDisclosure);
+
+    expect(
+      await screen.findByText(
+        "アプリケーションライセンスを読み込めませんでした。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("THIRD-PARTY-NOTICESを表示")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "このアプリについて" }),
+    ).toBeInTheDocument();
+    expect(licenseMocks.read).toHaveBeenCalledOnce();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

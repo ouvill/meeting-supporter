@@ -2,7 +2,10 @@
 # pyright: reportUnusedFunction=false
 
 import os
+import tomllib
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 from typing import final
 from unittest.mock import MagicMock, patch
 
@@ -23,9 +26,11 @@ class _FakeKeyring:
         self.passwords: dict[str, str] = dict(initial or {})
         self.fail_writes: bool = fail_writes
         self.fail_deletes: bool = fail_deletes
+        self.get_calls: list[str] = []
 
     def get_password(self, service_name: str, username: str) -> str | None:
         _ = service_name
+        self.get_calls.append(username)
         return self.passwords.get(username)
 
     def set_password(self, service_name: str, username: str, password: str) -> None:
@@ -38,6 +43,34 @@ class _FakeKeyring:
         _ = service_name
         if self.fail_deletes:
             raise RuntimeError("credential store locked")
+        _ = self.passwords.pop(username, None)
+
+
+@final
+class _BlockingReadKeyring:
+    def __init__(self, initial: dict[str, str], blocked_key: str) -> None:
+        self.passwords = dict(initial)
+        self.blocked_key = blocked_key
+        self.read_started = Event()
+        self.release_read = Event()
+        self._block_once = True
+
+    def get_password(self, service_name: str, username: str) -> str | None:
+        _ = service_name
+        value = self.passwords.get(username)
+        if username == self.blocked_key and self._block_once:
+            self._block_once = False
+            self.read_started.set()
+            if not self.release_read.wait(timeout=5):
+                raise TimeoutError("blocked keyring read was not released")
+        return value
+
+    def set_password(self, service_name: str, username: str, password: str) -> None:
+        _ = service_name
+        self.passwords[username] = password
+
+    def delete_password(self, service_name: str, username: str) -> None:
+        _ = service_name
         _ = self.passwords.pop(username, None)
 
 
@@ -418,3 +451,172 @@ class TestCredentialSecretStore:
         assert "legacy-openai-key" not in status
         assert "credential-gemini-key" not in {str(value) for value in status.values()}
         assert "legacy-openai-key" not in {str(value) for value in status.values()}
+
+    def test_status_all_reuses_boolean_presence_without_reloading_or_reprobing(self, tmp_path: Path) -> None:
+        path = tmp_path / "secrets.toml"
+        credential_secret = "synthetic-credential-canary"
+        fallback_secret = "synthetic-fallback-canary"
+        _ = path.write_text(f'OPENAI_API_KEY = "{fallback_secret}"\n', encoding="utf-8")
+        fallback = FileSecretStore(path)
+        keyring = _FakeKeyring({"GEMINI_API_KEY": credential_secret})
+        store = CredentialSecretStore(fallback=fallback, keyring_client=keyring)
+
+        with patch("app.services.secret_store.tomllib.load", wraps=tomllib.load) as load:
+            first = store.status_all()
+            first_probe_count = len(keyring.get_calls)
+            second = store.status_all()
+
+        assert first == second
+        assert load.call_count == 1
+        assert len(keyring.get_calls) == first_probe_count
+        assert first_probe_count > 0
+        assert store._presence_cache is not None  # pyright: ignore[reportPrivateUsage]
+        assert all(type(value) is bool for value in store._presence_cache.values())  # pyright: ignore[reportPrivateUsage]
+        assert credential_secret not in repr(store._presence_cache)  # pyright: ignore[reportPrivateUsage]
+        assert fallback_secret not in repr(store._presence_cache)  # pyright: ignore[reportPrivateUsage]
+
+    def test_file_status_all_reuses_presence_until_environment_changes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = tmp_path / "secrets.toml"
+        _ = path.write_text('OPENAI_API_KEY = "synthetic-file-secret"\n', encoding="utf-8")
+        store = FileSecretStore(path)
+
+        with patch("app.services.secret_store.tomllib.load", wraps=tomllib.load) as load:
+            assert store.status_all()["OPENAI_API_KEY"] is True
+            assert store.status_all()["OPENAI_API_KEY"] is True
+            assert load.call_count == 1
+            monkeypatch.setenv("GEMINI_API_KEY", "synthetic-environment-secret")
+            assert store.status_all()["GEMINI_API_KEY"] is True
+            assert load.call_count == 2
+
+        assert store._presence_cache is not None  # pyright: ignore[reportPrivateUsage]
+        assert all(type(value) is bool for value in store._presence_cache.values())  # pyright: ignore[reportPrivateUsage]
+
+    def test_mutations_hydration_and_restore_keep_cached_presence_coherent(self, tmp_path: Path) -> None:
+        path = tmp_path / "secrets.toml"
+        fallback = FileSecretStore(path)
+        keyring = _FakeKeyring()
+        store = CredentialSecretStore(fallback=fallback, keyring_client=keyring)
+        secret = "synthetic-cache-coherence-secret"
+
+        assert store.status_all()["GEMINI_API_KEY"] is False
+        snapshot = store.snapshot(["GEMINI_API_KEY"])
+        store.set_secrets({"GEMINI_API_KEY": secret})
+        assert store.status_all()["GEMINI_API_KEY"] is True
+        store.delete("GEMINI_API_KEY")
+        assert store.status_all()["GEMINI_API_KEY"] is False
+
+        keyring.passwords["GEMINI_API_KEY"] = secret
+        store.apply_secrets_to_env(keys=["GEMINI_API_KEY"])
+        assert os.environ["GEMINI_API_KEY"] == secret
+        assert store.status_all()["GEMINI_API_KEY"] is True
+
+        store.restore(snapshot)
+        assert os.getenv("GEMINI_API_KEY") is None
+        assert store.status_all()["GEMINI_API_KEY"] is False
+        assert store._presence_cache is not None  # pyright: ignore[reportPrivateUsage]
+        assert all(type(value) is bool for value in store._presence_cache.values())  # pyright: ignore[reportPrivateUsage]
+        assert secret not in repr(store._presence_cache)  # pyright: ignore[reportPrivateUsage]
+
+    def test_direct_access_is_fresh_and_status_all_refreshes_after_ttl(self, tmp_path: Path) -> None:
+        now = [100.0]
+        keyring = _FakeKeyring()
+        store = CredentialSecretStore(
+            fallback=FileSecretStore(tmp_path / "secrets.toml"),
+            keyring_client=keyring,
+            presence_cache_ttl_seconds=5.0,
+            presence_clock=lambda: now[0],
+        )
+        assert store.status_all()["ANTHROPIC_API_KEY"] is False
+        initial_probe_count = len(keyring.get_calls)
+
+        keyring.passwords["ANTHROPIC_API_KEY"] = "synthetic-injected-secret"
+
+        assert store.get("ANTHROPIC_API_KEY") == "synthetic-injected-secret"
+        assert store.status("ANTHROPIC_API_KEY") is True
+        assert store.status_all()["ANTHROPIC_API_KEY"] is False
+        assert len(keyring.get_calls) == initial_probe_count + 2
+
+        now[0] += 5.0
+        assert store.status_all()["ANTHROPIC_API_KEY"] is True
+        assert len(keyring.get_calls) > initial_probe_count + 2
+
+    def test_same_size_fallback_replacement_invalidates_file_and_credential_caches(self, tmp_path: Path) -> None:
+        path = tmp_path / "secrets.toml"
+        openai_content = 'OPENAI_API_KEY = "synthetic-a"\n'
+        gemini_content = 'GEMINI_API_KEY = "synthetic-b"\n'
+        assert len(openai_content) == len(gemini_content)
+        _ = path.write_text(openai_content, encoding="utf-8")
+
+        file_store = FileSecretStore(path)
+        credential_store = CredentialSecretStore(
+            fallback=FileSecretStore(path),
+            keyring_client=_FakeKeyring(),
+            presence_cache_ttl_seconds=60.0,
+        )
+        assert file_store.status_all()["OPENAI_API_KEY"] is True
+        assert credential_store.status_all()["OPENAI_API_KEY"] is True
+
+        replacement = tmp_path / "replacement.toml"
+        _ = replacement.write_text(gemini_content, encoding="utf-8")
+        _ = replacement.replace(path)
+
+        file_status = file_store.status_all()
+        credential_status = credential_store.status_all()
+        assert file_status["OPENAI_API_KEY"] is False
+        assert file_status["GEMINI_API_KEY"] is True
+        assert credential_status["OPENAI_API_KEY"] is False
+        assert credential_status["GEMINI_API_KEY"] is True
+
+    def test_concurrent_delete_prevents_stale_keyring_presence_publication(self, tmp_path: Path) -> None:
+        keyring = _BlockingReadKeyring(
+            {"GEMINI_API_KEY": "synthetic-concurrent-secret"},
+            blocked_key="GEMINI_API_KEY",
+        )
+        store = CredentialSecretStore(
+            fallback=FileSecretStore(tmp_path / "secrets.toml"),
+            keyring_client=keyring,
+        )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            status_future = executor.submit(store.status_all)
+            assert keyring.read_started.wait(timeout=5)
+            delete_future = executor.submit(store.delete, "GEMINI_API_KEY")
+            delete_future.result(timeout=5)
+            keyring.release_read.set()
+            status = status_future.result(timeout=5)
+
+        assert status["GEMINI_API_KEY"] is False
+        assert store.status_all()["GEMINI_API_KEY"] is False
+        assert store._presence_cache is not None  # pyright: ignore[reportPrivateUsage]
+        assert all(type(value) is bool for value in store._presence_cache.values())  # pyright: ignore[reportPrivateUsage]
+
+    @pytest.mark.parametrize("context_change", ["injected-client", "forced-file-backend"])
+    def test_context_change_during_probe_discards_old_keyring_results(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        context_change: str,
+    ) -> None:
+        old_keyring = _BlockingReadKeyring(
+            {"GEMINI_API_KEY": "synthetic-old-context-secret"},
+            blocked_key="GEMINI_API_KEY",
+        )
+        store = CredentialSecretStore(
+            fallback=FileSecretStore(tmp_path / "secrets.toml"),
+            keyring_client=old_keyring,
+        )
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            status_future = executor.submit(store.status_all)
+            assert old_keyring.read_started.wait(timeout=5)
+            if context_change == "injected-client":
+                store.keyring_client = _FakeKeyring()
+            else:
+                monkeypatch.setenv("SECRET_STORE_BACKEND", "file")
+            old_keyring.release_read.set()
+            status = status_future.result(timeout=5)
+
+        assert status["GEMINI_API_KEY"] is False
+        assert store.status_all()["GEMINI_API_KEY"] is False

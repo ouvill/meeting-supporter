@@ -93,7 +93,7 @@ def _reply_style_data(definitions: list[ReplyAgentDefinition]) -> list[dict[str,
     ]
 
 
-def _provider_summary_data(state: "AppState") -> list[dict[str, object]]:
+def _provider_summary_data(state: "AppState", secret_statuses: dict[str, bool]) -> list[dict[str, object]]:
     return [
         {
             "id": provider.id,
@@ -103,7 +103,13 @@ def _provider_summary_data(state: "AppState") -> list[dict[str, object]]:
             "base_url": provider.base_url,
             "models": provider.models,
             "experimental": provider.experimental,
-            "api_key_configured": state.secret_store.status(provider.key_ref) if provider.key_ref else None,
+            "api_key_configured": (
+                secret_statuses.get(provider.key_ref, False)
+                if provider.key_ref in secret_statuses
+                else state.secret_store.status(provider.key_ref)
+            )
+            if provider.key_ref
+            else None,
         }
         for provider in state.config.providers
     ]
@@ -239,12 +245,10 @@ def build_settings_response_data(
     usage_logger = UsageLogger(state.config.user_data_dir / "usage.jsonl")
     current_session = state.current_session
     current_meeting_id = current_session.id if current_session is not None else None
-    current_meeting_summary = (
-        usage_logger.summarize(meeting_id=current_meeting_id)
-        if current_meeting_id
-        else usage_logger.summarize(meeting_id="")
+    current_meeting_summary, current_month_summary = usage_logger.summarize_meeting_and_month(
+        meeting_id=current_meeting_id or "",
+        month=datetime.now(UTC),
     )
-    current_month_summary = usage_logger.summarize(month=datetime.now(UTC))
     reply_route = state.config.ai_assignments.reply
     billing_mode = (
         "unassigned"
@@ -265,6 +269,8 @@ def build_settings_response_data(
         acp_route = next((route for route in state.config.routes if route.id == "acp"), None)
         acp_command = list(acp_route.command or ()) if acp_route is not None else []
 
+    secret_statuses = state.secret_store.status_all()
+
     return {
         "ollama": {"base_url": ollama_base_url},
         "acp": {"command": acp_command},
@@ -277,8 +283,8 @@ def build_settings_response_data(
             "default_style": default_style,
             "styles": reply_styles,
         },
-        "providers": _provider_summary_data(state),
-        "secrets": {key: value for key, value in state.secret_store.status_all().items() if key in SECRET_KEYS},
+        "providers": _provider_summary_data(state, secret_statuses),
+        "secrets": {key: value for key, value in secret_statuses.items() if key in SECRET_KEYS},
         "data_dir": str(state.config.user_data_dir),
         "context_dir": str(state.config.context_dir),
         "usage": {

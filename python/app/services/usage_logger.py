@@ -152,6 +152,24 @@ class UsageLogger:
             )
         return result
 
+    def summarize_meeting_and_month(
+        self,
+        *,
+        meeting_id: str,
+        month: datetime,
+    ) -> tuple[UsageSummary, UsageSummary]:
+        """Summarize one meeting and one month from a single log parse."""
+        meeting_summary = UsageSummary()
+        month_summary = UsageSummary()
+        for record in self.records():
+            if record.meeting_id == meeting_id:
+                _add_record(meeting_summary, record)
+            if _same_month(record.ts, month):
+                _add_record(month_summary, record)
+        meeting_summary.estimated_cost_jpy = round(meeting_summary.estimated_cost_jpy, 6)
+        month_summary.estimated_cost_jpy = round(month_summary.estimated_cost_jpy, 6)
+        return meeting_summary, month_summary
+
     def summarize(
         self,
         *,
@@ -164,10 +182,7 @@ class UsageLogger:
                 continue
             if month is not None and not _same_month(record.ts, month):
                 continue
-            summary.input_tokens += record.input_tokens
-            summary.output_tokens += record.output_tokens
-            summary.estimated_cost_jpy += record.estimated_cost_jpy
-            summary.request_count += 1
+            _add_record(summary, record)
         summary.estimated_cost_jpy = round(summary.estimated_cost_jpy, 6)
         return summary
 
@@ -185,6 +200,13 @@ class UsageLogger:
             if self.summarize(month=now or datetime.now(UTC)).estimated_cost_jpy >= budget.monthly_limit_jpy:
                 return True
         return False
+
+
+def _add_record(summary: UsageSummary, record: UsageRecord) -> None:
+    summary.input_tokens += record.input_tokens
+    summary.output_tokens += record.output_tokens
+    summary.estimated_cost_jpy += record.estimated_cost_jpy
+    summary.request_count += 1
 
 
 def _str_field(raw: dict[str, object], key: str) -> str:

@@ -1,7 +1,9 @@
 use sha2::{Digest, Sha256};
 use std::ffi::OsStr;
-use std::io::Read;
+use std::fs::OpenOptions;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tauri::AppHandle;
 use wait_timeout::ChildExt;
@@ -23,6 +25,9 @@ const BACKOFF_INITIAL_SECS: u64 = 1;
 /// リトライ間隔の上限（秒）。
 const BACKOFF_MAX_SECS: u64 = 8;
 const UV_VERSION: &str = "0.11.7";
+const SYNC_STAMP_VERSION: &str = "meeting-supporter-uv-sync-v1";
+const SYNC_STAMP_FILE: &str = ".venv-sync-success";
+static SYNC_STAMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 pub fn managed_uv_path(app_local_data_dir: &Path) -> PathBuf {
     #[cfg(target_os = "windows")]
@@ -214,6 +219,188 @@ fn uv_sync_command(paths: &RuntimePaths) -> std::process::Command {
         .current_dir(&paths.python_dir);
     command
 }
+fn expected_python_executable(venv_dir: &Path) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    return venv_dir.join("Scripts").join("python.exe");
+
+    #[cfg(not(target_os = "windows"))]
+    venv_dir.join("bin").join("python")
+}
+
+fn sync_stamp_path(venv_dir: &Path) -> Result<PathBuf, AppError> {
+    let parent = venv_dir
+        .parent()
+        .ok_or_else(|| AppError::Process("Python environment has no parent directory".into()))?;
+    Ok(parent.join(SYNC_STAMP_FILE))
+}
+
+fn hash_file(path: &Path) -> Result<[u8; 32], AppError> {
+    let mut file = std::fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(hasher.finalize().into())
+}
+
+fn add_fingerprint_component(hasher: &mut Sha256, name: &str, value: &[u8]) {
+    hasher.update((name.len() as u64).to_le_bytes());
+    hasher.update(name.as_bytes());
+    hasher.update((value.len() as u64).to_le_bytes());
+    hasher.update(value);
+}
+
+fn sync_fingerprint(paths: &RuntimePaths) -> Result<Option<String>, AppError> {
+    let app_local_data_dir = paths
+        .venv_dir
+        .parent()
+        .ok_or_else(|| AppError::Process("Python environment has no parent directory".into()))?;
+    let expected_managed_uv = managed_uv_path(app_local_data_dir);
+    let actual_uv =
+        std::fs::canonicalize(&paths.uv).unwrap_or_else(|_| paths.uv.clone());
+    let managed_uv = std::fs::canonicalize(&expected_managed_uv)
+        .unwrap_or(expected_managed_uv);
+    if actual_uv != managed_uv {
+        return Ok(None);
+    }
+
+    let (uv_archive, uv_archive_checksum) = uv_release()?;
+    let project_hash = hash_file(&paths.python_dir.join("pyproject.toml"))?;
+    let lock_hash = hash_file(&paths.python_dir.join("uv.lock"))?;
+    let mut hasher = Sha256::new();
+
+    add_fingerprint_component(&mut hasher, "stamp-version", SYNC_STAMP_VERSION.as_bytes());
+    add_fingerprint_component(&mut hasher, "pyproject.toml", &project_hash);
+    add_fingerprint_component(&mut hasher, "uv.lock", &lock_hash);
+    add_fingerprint_component(&mut hasher, "uv-version", UV_VERSION.as_bytes());
+    add_fingerprint_component(&mut hasher, "uv-release-archive", uv_archive.as_bytes());
+    add_fingerprint_component(
+        &mut hasher,
+        "uv-release-checksum",
+        uv_archive_checksum.as_bytes(),
+    );
+    add_fingerprint_component(
+        &mut hasher,
+        "application-version",
+        env!("CARGO_PKG_VERSION").as_bytes(),
+    );
+    add_fingerprint_component(&mut hasher, "target-os", std::env::consts::OS.as_bytes());
+    add_fingerprint_component(&mut hasher, "target-arch", std::env::consts::ARCH.as_bytes());
+    add_fingerprint_component(&mut hasher, "sync-arguments", b"sync\0--locked\0--no-dev");
+    #[cfg(target_os = "windows")]
+    add_fingerprint_component(
+        &mut hasher,
+        "environment-executable",
+        b"Scripts/python.exe",
+    );
+    #[cfg(not(target_os = "windows"))]
+    add_fingerprint_component(&mut hasher, "environment-executable", b"bin/python");
+
+    Ok(Some(format!("{:x}", hasher.finalize())))
+}
+
+fn sync_stamp_contents(fingerprint: &str) -> String {
+    format!("{SYNC_STAMP_VERSION}\n{fingerprint}\n")
+}
+
+fn can_skip_uv_sync(paths: &RuntimePaths, fingerprint: &str, stamp_path: &Path) -> bool {
+    if !expected_python_executable(&paths.venv_dir).is_file() {
+        return false;
+    }
+
+    std::fs::read_to_string(stamp_path)
+        .map(|contents| contents == sync_stamp_contents(fingerprint))
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "windows")]
+fn replace_file_atomically(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::iter;
+    use std::os::windows::ffi::OsStrExt;
+
+    const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
+    const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
+
+    #[link(name = "Kernel32")]
+    extern "system" {
+        fn MoveFileExW(
+            existing_file_name: *const u16,
+            new_file_name: *const u16,
+            flags: u32,
+        ) -> i32;
+    }
+
+    let source: Vec<u16> = source.as_os_str().encode_wide().chain(iter::once(0)).collect();
+    let destination: Vec<u16> = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(iter::once(0))
+        .collect();
+    let result = unsafe {
+        MoveFileExW(
+            source.as_ptr(),
+            destination.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if result == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn replace_file_atomically(source: &Path, destination: &Path) -> std::io::Result<()> {
+    std::fs::rename(source, destination)
+}
+
+fn write_sync_stamp_atomic(stamp_path: &Path, fingerprint: &str) -> Result<(), AppError> {
+    let parent = stamp_path
+        .parent()
+        .ok_or_else(|| AppError::Process("uv sync stamp has no parent directory".into()))?;
+    let sequence = SYNC_STAMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let temporary_path = parent.join(format!(
+        ".venv-sync-success.{}.{}.tmp",
+        std::process::id(),
+        sequence
+    ));
+
+    let write_result = (|| -> std::io::Result<()> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)?;
+        file.write_all(sync_stamp_contents(fingerprint).as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        replace_file_atomically(&temporary_path, stamp_path)?;
+        #[cfg(unix)]
+        std::fs::File::open(parent)?.sync_all()?;
+        Ok(())
+    })();
+
+    if write_result.is_err() {
+        let _ = std::fs::remove_file(&temporary_path);
+    }
+    write_result.map_err(AppError::from)
+}
+fn invalidate_sync_stamp(stamp_path: &Path) -> Result<(), AppError> {
+    match std::fs::remove_file(stamp_path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(AppError::Process(format!(
+            "uv sync stamp could not be invalidated before environment mutation: {error}"
+        ))),
+    }
+}
+
+
 
 /// `uv sync --locked --no-dev` を一度実行し、指定秒数でタイムアウトする。
 ///
@@ -255,6 +442,7 @@ fn run_uv_sync_with_timeout(paths: &RuntimePaths) -> Result<(), AppError> {
 
 /// Python 環境を準備する。
 ///
+/// 入力と環境が前回成功時から完全に一致する場合は同期を省略する。それ以外は
 /// `uv sync --locked --no-dev` を最大 3 回リトライし、各試行は 120 秒でタイムアウトする。
 /// リトライ間は指数バックオフで待機し、ユーザーに進捗を表示する。
 /// すべての試行が失敗した場合は `AppError::Process` を返す。
@@ -264,6 +452,21 @@ pub fn ensure_python_environment(app: &AppHandle) -> Result<(), AppError> {
     println!("[backend] uv: {}", paths.uv.display());
     println!("[backend] python_dir: {}", paths.python_dir.display());
     println!("[backend] venv: {}", paths.venv_dir.display());
+
+    let fingerprint = sync_fingerprint(&paths).ok().flatten();
+    let stamp_path = sync_stamp_path(&paths.venv_dir)?;
+    if fingerprint
+        .as_deref()
+        .map(|fingerprint| can_skip_uv_sync(&paths, fingerprint, &stamp_path))
+        .unwrap_or(false)
+    {
+        println!("[backend] Python environment is current; skipping uv sync");
+        return Ok(());
+    }
+
+    // A failed or partial sync must never leave a stamp that could become valid again
+    // after inputs are restored.
+    invalidate_sync_stamp(&stamp_path)?;
 
     for attempt in 1..=MAX_RETRIES {
         if attempt > 1 {
@@ -296,6 +499,19 @@ pub fn ensure_python_environment(app: &AppHandle) -> Result<(), AppError> {
         match run_uv_sync_with_timeout(&paths) {
             Ok(()) => {
                 println!("[backend] uv sync completed on attempt {attempt}");
+                if let (Some(before), Ok(Some(after))) =
+                    (fingerprint.as_deref(), sync_fingerprint(&paths))
+                {
+                    if before == after {
+                        if let Err(error) = write_sync_stamp_atomic(&stamp_path, before) {
+                            eprintln!("[backend] could not persist the uv sync stamp: {error}");
+                        }
+                    } else {
+                        eprintln!(
+                            "[backend] Python environment inputs changed during uv sync; not caching success"
+                        );
+                    }
+                }
                 return Ok(());
             }
             Err(e) if attempt < MAX_RETRIES => {
@@ -345,6 +561,181 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    fn runtime_fixture(temp: &TestDirectory) -> RuntimePaths {
+        let python_dir = temp.child("python");
+        let venv_dir = temp.child(".venv");
+        let uv = managed_uv_path(&temp.0);
+        fs::create_dir_all(&python_dir).expect("create Python project fixture");
+        fs::create_dir_all(uv.parent().expect("managed uv parent"))
+            .expect("create managed uv directory");
+        fs::write(
+            python_dir.join("pyproject.toml"),
+            b"[project]\nname = \"fixture\"\n",
+        )
+        .expect("write project fixture");
+        fs::write(python_dir.join("uv.lock"), b"version = 1\n").expect("write lock fixture");
+        fs::write(&uv, b"fixture uv executable").expect("write uv fixture");
+
+        RuntimePaths {
+            uv,
+            python_dir,
+            venv_dir,
+            codex_binary: None,
+            codex_work_root: temp.child("codex-work"),
+        }
+    }
+
+    fn create_environment_executable(paths: &RuntimePaths) {
+        let executable = expected_python_executable(&paths.venv_dir);
+        fs::create_dir_all(executable.parent().expect("environment executable parent"))
+            .expect("create environment executable directory");
+        fs::write(executable, b"fixture Python executable")
+            .expect("write environment executable");
+    }
+
+    #[test]
+    fn exact_success_stamp_and_environment_skip_sync() {
+        let temp = TestDirectory::new("warm-sync");
+        let paths = runtime_fixture(&temp);
+        create_environment_executable(&paths);
+        let fingerprint = sync_fingerprint(&paths)
+            .expect("fingerprint fixture")
+            .expect("managed uv is cacheable");
+        let stamp = sync_stamp_path(&paths.venv_dir).expect("stamp path");
+        write_sync_stamp_atomic(&stamp, &fingerprint).expect("write success stamp");
+
+        assert!(can_skip_uv_sync(&paths, &fingerprint, &stamp));
+    }
+
+    #[test]
+    fn cold_mismatch_corrupt_and_missing_executable_require_sync() {
+        let temp = TestDirectory::new("sync-decisions");
+        let paths = runtime_fixture(&temp);
+        create_environment_executable(&paths);
+        let fingerprint = sync_fingerprint(&paths)
+            .expect("fingerprint fixture")
+            .expect("managed uv is cacheable");
+        let stamp = sync_stamp_path(&paths.venv_dir).expect("stamp path");
+
+        assert!(!can_skip_uv_sync(&paths, &fingerprint, &stamp));
+
+        fs::write(&stamp, b"not a success stamp").expect("write corrupt stamp");
+        assert!(!can_skip_uv_sync(&paths, &fingerprint, &stamp));
+
+        write_sync_stamp_atomic(&stamp, &"0".repeat(64)).expect("write mismatched stamp");
+        assert!(!can_skip_uv_sync(&paths, &fingerprint, &stamp));
+
+        write_sync_stamp_atomic(&stamp, &fingerprint).expect("write matching stamp");
+        fs::remove_file(expected_python_executable(&paths.venv_dir))
+            .expect("remove environment executable");
+        assert!(!can_skip_uv_sync(&paths, &fingerprint, &stamp));
+    }
+
+    #[test]
+    fn fingerprint_changes_with_project_inputs_and_uses_pinned_uv_identity() {
+        let temp = TestDirectory::new("sync-fingerprint");
+        let paths = runtime_fixture(&temp);
+        let original = sync_fingerprint(&paths)
+            .expect("original fingerprint")
+            .expect("managed uv is cacheable");
+
+        fs::write(
+            paths.python_dir.join("pyproject.toml"),
+            b"[project]\nname = \"changed\"\n",
+        )
+        .expect("change project fixture");
+        let changed_project = sync_fingerprint(&paths)
+            .expect("changed project fingerprint")
+            .expect("managed uv is cacheable");
+        assert_ne!(original, changed_project);
+
+        fs::write(
+            paths.python_dir.join("pyproject.toml"),
+            b"[project]\nname = \"fixture\"\n",
+        )
+        .expect("restore project fixture");
+        fs::write(paths.python_dir.join("uv.lock"), b"version = 2\n")
+            .expect("change lock fixture");
+        let changed_lock = sync_fingerprint(&paths)
+            .expect("changed lock fingerprint")
+            .expect("managed uv is cacheable");
+        assert_ne!(original, changed_lock);
+
+        fs::write(paths.python_dir.join("uv.lock"), b"version = 1\n")
+            .expect("restore lock fixture");
+        fs::write(&paths.uv, b"changed bytes are not read on warm start")
+            .expect("change managed uv fixture");
+        assert_eq!(
+            original,
+            sync_fingerprint(&paths)
+                .expect("pinned managed uv fingerprint")
+                .expect("managed uv is cacheable")
+        );
+
+        let system_uv = temp.child(if cfg!(target_os = "windows") {
+            "system-uv.exe"
+        } else {
+            "system-uv"
+        });
+        fs::write(&system_uv, b"arbitrary system uv").expect("write system uv fixture");
+        let system_paths = RuntimePaths {
+            uv: system_uv,
+            python_dir: paths.python_dir.clone(),
+            venv_dir: paths.venv_dir.clone(),
+            codex_binary: None,
+            codex_work_root: paths.codex_work_root.clone(),
+        };
+        assert_eq!(
+            sync_fingerprint(&system_paths).expect("classify system uv"),
+            None
+        );
+    }
+
+    #[test]
+    fn atomic_stamp_write_replaces_previous_success() {
+        let temp = TestDirectory::new("replace-sync-stamp");
+        let paths = runtime_fixture(&temp);
+        let stamp = sync_stamp_path(&paths.venv_dir).expect("stamp path");
+        let first = "1".repeat(64);
+        let second = "2".repeat(64);
+
+        write_sync_stamp_atomic(&stamp, &first).expect("write first stamp");
+        write_sync_stamp_atomic(&stamp, &second).expect("replace stamp");
+
+        assert_eq!(
+            fs::read_to_string(stamp).expect("read replaced stamp"),
+            sync_stamp_contents(&second)
+        );
+    }
+
+    #[test]
+    fn invalidating_before_a_failed_sync_leaves_no_valid_stamp() {
+        let temp = TestDirectory::new("failed-sync-stamp");
+        let paths = runtime_fixture(&temp);
+        create_environment_executable(&paths);
+        let fingerprint = sync_fingerprint(&paths)
+            .expect("fingerprint fixture")
+            .expect("managed uv is cacheable");
+        let stamp = sync_stamp_path(&paths.venv_dir).expect("stamp path");
+        write_sync_stamp_atomic(&stamp, &fingerprint).expect("write prior stamp");
+
+        invalidate_sync_stamp(&stamp).expect("invalidate prior stamp");
+        // A failed sync performs no success-stamp write.
+
+        assert!(!can_skip_uv_sync(&paths, &fingerprint, &stamp));
+        assert!(!stamp.exists());
+    }
+
+    #[test]
+    fn invalidation_failure_aborts_before_environment_mutation() {
+        let temp = TestDirectory::new("stamp-invalidation-failure");
+        let stamp = temp.child(SYNC_STAMP_FILE);
+        fs::create_dir(&stamp).expect("create non-removable stamp fixture");
+
+        assert!(invalidate_sync_stamp(&stamp).is_err());
+        assert!(stamp.is_dir());
     }
 
     #[test]
