@@ -16,10 +16,16 @@ export async function localBackendRequest<T>(
   request: BackendRequest,
 ): Promise<T> {
   return browser.tauri.execute(async ({ core }, rawRequest: BackendRequest) => {
-    const [port, token] = await Promise.all([
-      core.invoke("get_api_port"),
-      core.invoke("get_api_auth_token"),
-    ]);
+    const snapshot = await core.invoke("get_backend_bootstrap_snapshot");
+    if (
+      !snapshot ||
+      typeof snapshot !== "object" ||
+      !("port" in snapshot) ||
+      !("auth_token" in snapshot)
+    ) {
+      throw new Error("Tauri backend endpoint is unavailable");
+    }
+    const { port, auth_token: token } = snapshot;
     if (typeof port !== "number" || typeof token !== "string" || !token) {
       throw new Error("Tauri backend endpoint is unavailable");
     }
@@ -50,17 +56,17 @@ export async function waitForBackendReady(
   await browser.waitUntil(
     async () =>
       browser.tauri.execute(async ({ core }) => {
-        const [running, port, token] = await Promise.all([
-          core.invoke("is_backend_running"),
-          core.invoke("get_api_port"),
-          core.invoke("get_api_auth_token"),
-        ]);
+        const snapshot = await core.invoke("get_backend_bootstrap_snapshot");
+        if (!snapshot || typeof snapshot !== "object") return false;
         return (
-          running === true &&
-          typeof port === "number" &&
-          port > 0 &&
-          typeof token === "string" &&
-          token.length > 0
+          "running" in snapshot &&
+          snapshot.running === true &&
+          "port" in snapshot &&
+          typeof snapshot.port === "number" &&
+          snapshot.port > 0 &&
+          "auth_token" in snapshot &&
+          typeof snapshot.auth_token === "string" &&
+          snapshot.auth_token.length > 0
         );
       }),
     {

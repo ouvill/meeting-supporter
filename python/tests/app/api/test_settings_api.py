@@ -25,7 +25,7 @@ from app.core.state import AppState
 from app.meetings.models import MeetingSession
 from app.services.secret_store import CredentialSecretStore, FileSecretStore
 from app.services.settings_store import SettingsStore
-from app.services.usage_logger import UsageLogger
+from app.services.usage_logger import UsageLogger, UsageRecord
 from tests.helpers.api_client import JsonObject, TypedResponse, TypedTestClient, as_json_object, as_object_array
 
 
@@ -159,6 +159,7 @@ class TestGetSettings:
         """Remove all known secret env vars before each test to prevent leakage."""
         for key in SECRET_KEYS:
             monkeypatch.delenv(key, raising=False)
+        monkeypatch.delenv("PROVIDER_LMSTUDIO_API_KEY", raising=False)
 
     def test_router_rejects_secret_store_without_transaction_support(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -254,7 +255,16 @@ priority = 20
                 elapsed_s=0.7,
             )
 
-            resp = client.get("/api/settings")
+            records_calls = 0
+            original_records = UsageLogger.records
+
+            def counting_records(logger: UsageLogger) -> list[UsageRecord]:
+                nonlocal records_calls
+                records_calls += 1
+                return original_records(logger)
+
+            with patch.object(UsageLogger, "records", counting_records):
+                resp = client.get("/api/settings")
 
             assert resp.status_code == 200
             usage = as_json_object(resp.json_object()["usage"])
@@ -269,6 +279,7 @@ priority = 20
             current_month = as_json_object(usage["current_month"])
             assert current_month["request_count"] == 2
             assert current_month["estimated_cost_jpy"] == 92.0
+            assert records_calls == 1
 
 
 class TestPostSettings:

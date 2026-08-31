@@ -1,19 +1,51 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import type { AiRoutesController } from "../hooks/useAiRoutes";
 import { useManagedSttAvailability } from "../hooks/useManagedService";
 import { Dialog, DialogContent } from "./ui/Dialog";
 import { Button } from "./ui/Button";
-import { AccountSettingsPanel } from "./settings/AccountSettingsPanel";
-import { AdvancedSettingsPanel } from "./settings/AdvancedSettingsPanel";
-import { AboutSettingsPanel } from "./settings/AboutSettingsPanel";
-import { AudioSettingsPanel } from "./settings/AudioSettingsPanel";
-import { PrivacySettingsPanel } from "./settings/PrivacySettingsPanel";
 import { SettingsNavigation } from "./settings/SettingsPrimitives";
 import type { ConnectionProvider } from "./settings/ApiConnectionControl";
 import { SupportMethodPanel } from "./settings/SupportMethodPanel";
 import type { SettingsCategory } from "./settings/types";
 import { useSettingsForm } from "./settings/useSettingsForm";
+
+const AccountSettingsPanel = lazy(() =>
+  import("./settings/AccountSettingsPanel").then((module) => ({
+    default: module.AccountSettingsPanel,
+  })),
+);
+const AdvancedSettingsPanel = lazy(() =>
+  import("./settings/AdvancedSettingsPanel").then((module) => ({
+    default: module.AdvancedSettingsPanel,
+  })),
+);
+const AboutSettingsPanel = lazy(() =>
+  import("./settings/AboutSettingsPanel").then((module) => ({
+    default: module.AboutSettingsPanel,
+  })),
+);
+const AudioSettingsPanel = lazy(() =>
+  import("./settings/AudioSettingsPanel").then((module) => ({
+    default: module.AudioSettingsPanel,
+  })),
+);
+const PrivacySettingsPanel = lazy(() =>
+  import("./settings/PrivacySettingsPanel").then((module) => ({
+    default: module.PrivacySettingsPanel,
+  })),
+);
+
+function SettingsPanelFallback() {
+  return (
+    <div
+      className="flex h-48 items-center justify-center text-sm text-ink-muted"
+      role="status"
+    >
+      設定画面を読み込んでいます
+    </div>
+  );
+}
 
 interface Props {
   onClose: () => void;
@@ -85,8 +117,12 @@ export function SettingsModal({
   const managedStt = useManagedSttAvailability(
     managedRoute !== undefined &&
       managedRoute.reason_code !== "MANAGED_SERVICE_NOT_CONFIGURED",
+    activeCategory === "audio",
     routes.reload,
   );
+  const handleManagedAccountChanged = useCallback(() => {
+    void routes.reload();
+  }, [routes.reload]);
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
   const lockedConnectionProviders = useMemo(() => {
     const providers = new Set<ConnectionProvider>();
@@ -160,6 +196,7 @@ export function SettingsModal({
                   {currentSectionError}
                 </div>
               )}
+              <Suspense fallback={<SettingsPanelFallback />}>
               {activeCategory !== "about" &&
               activeCategory !== "account" &&
               !loaded &&
@@ -174,10 +211,7 @@ export function SettingsModal({
                 <AccountSettingsPanel
                   offered={managedStt.offered}
                   managedActionsLocked={managedActionsLocked}
-                  onChanged={() => {
-                    void managedStt.refresh();
-                    void routes.reload();
-                  }}
+                  onChanged={handleManagedAccountChanged}
                 />
               ) : activeCategory === "support" ? (
                 <SupportMethodPanel
@@ -273,6 +307,7 @@ export function SettingsModal({
               ) : (
                 <AboutSettingsPanel />
               )}
+              </Suspense>
             </main>
           </div>
 
