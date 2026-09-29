@@ -50,7 +50,6 @@ export const INITIAL_SETTINGS_FORM: SettingsForm = {
   sttWhisperModel: "large-v3-turbo",
   sttDeepgramModel: "nova-2",
   sttOpenaiModel: "gpt-4o-transcribe",
-  sttVoskModelPath: "vosk-model-small-ja-0.22",
   sttLang: "ja",
   sttVadEngine: "silero",
   sttVadSensitivity: 0.4,
@@ -122,9 +121,6 @@ export function mapSettingsResponseToForm(
     sttDeepgramModel: getTomlString(settings.stt, "deepgram_model") ?? "nova-2",
     sttOpenaiModel:
       getTomlString(settings.stt, "openai_model") ?? "gpt-4o-transcribe",
-    sttVoskModelPath:
-      getTomlString(settings.stt, "vosk_model_path") ??
-      "vosk-model-small-ja-0.22",
     sttLang: sttBackend === "reazonspeech" ? "ja" : sttLanguage,
     sttVadEngine: isVadEngine(sttVadEngine) ? sttVadEngine : "silero",
     sttVadSensitivity: getTomlNumber(settings.stt, "vad_sensitivity") ?? 0.4,
@@ -196,7 +192,6 @@ export function mapSettingsFormToPayload(
             whisper_model: form.sttWhisperModel,
             deepgram_model: form.sttDeepgramModel,
             openai_model: form.sttOpenaiModel,
-            vosk_model_path: form.sttVoskModelPath,
             language: form.sttLang,
             vad_engine: form.sttVadEngine,
             vad_sensitivity: form.sttVadSensitivity,

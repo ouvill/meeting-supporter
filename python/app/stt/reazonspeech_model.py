@@ -82,6 +82,15 @@ def download_reazonspeech_snapshot(*, local_files_only: bool = False) -> str:
 
 def cached_reazonspeech_snapshot() -> str | None:
     """Return the complete cached snapshot without performing network I/O."""
+    # Transitional desktop integration: share the selected model with the existing
+    # model-status API, so SetupScreen and inference see the same readiness.
+    if os.environ.get("MEETING_REAZON_RUNTIME") == "rust":
+        native_model = os.environ.get("MEETING_REAZON_MODEL")
+        if native_model:
+            try:
+                return _validate_snapshot(native_model)
+            except FileNotFoundError:
+                return None
     from huggingface_hub.errors import LocalEntryNotFoundError
 
     try:

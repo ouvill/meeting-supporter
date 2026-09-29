@@ -35,8 +35,8 @@ function status(
   overrides: Partial<SpeechModelStatusResponse> = {},
 ): SpeechModelStatusResponse {
   return {
-    backend: "vosk",
-    model_id: "vosk-small-ja",
+    backend: "whisper",
+    model_id: "large-v3-turbo",
     state: "missing",
     phase: "idle",
     language: "ja",
@@ -85,14 +85,14 @@ describe("useSpeechModel", () => {
   it("loads the selected language status and clears the save block once the status settles", async () => {
     sdkMocks.getStatus.mockResolvedValue(apiResult(status()));
 
-    const { result } = renderHook(() => useSpeechModel("vosk", null, "ja"));
+    const { result } = renderHook(() => useSpeechModel("whisper", null, "ja"));
 
     expect(result.current.blocksSettingsSave).toBe(true);
     await flushReact();
 
     expect(sdkMocks.getStatus).toHaveBeenCalledWith(
       expect.objectContaining({
-        query: { backend: "vosk", language: "ja" },
+        query: { backend: "whisper", language: "ja" },
       }),
     );
     expect(result.current.status).toMatchObject({
@@ -107,7 +107,7 @@ describe("useSpeechModel", () => {
     const start = deferred<SpeechModelApiResult>();
     sdkMocks.getStatus.mockResolvedValue(apiResult(status()));
     sdkMocks.startDownload.mockReturnValue(start.promise);
-    const { result } = renderHook(() => useSpeechModel("vosk", null, "ja"));
+    const { result } = renderHook(() => useSpeechModel("whisper", null, "ja"));
     await flushReact();
 
     act(() => {
@@ -162,7 +162,7 @@ describe("useSpeechModel", () => {
         ),
       );
 
-    const { result } = renderHook(() => useSpeechModel("vosk", null, "ja"));
+    const { result } = renderHook(() => useSpeechModel("whisper", null, "ja"));
     await flushReact();
 
     expect(result.current.isDownloading).toBe(true);
@@ -249,7 +249,7 @@ describe("useSpeechModel", () => {
         }),
       ),
     );
-    const { result } = renderHook(() => useSpeechModel("vosk", null, "ja"));
+    const { result } = renderHook(() => useSpeechModel("whisper", null, "ja"));
     await flushReact();
 
     await act(async () => {
@@ -257,7 +257,7 @@ describe("useSpeechModel", () => {
     });
     expect(sdkMocks.cancelDownload).toHaveBeenCalledWith(
       expect.objectContaining({
-        query: { backend: "vosk", language: "ja" },
+        query: { backend: "whisper", language: "ja" },
       }),
     );
 
@@ -334,7 +334,7 @@ describe("useSpeechModel", () => {
         return poll.promise;
       });
 
-    const { unmount } = renderHook(() => useSpeechModel("vosk", null, "ja"));
+    const { unmount } = renderHook(() => useSpeechModel("whisper", null, "ja"));
     await flushReact();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(800);
@@ -358,7 +358,7 @@ describe("useSpeechModel", () => {
 
     const initialProps: { language: SpeechModelLanguage } = { language: "ja" };
     const { result, rerender } = renderHook(
-      ({ language }) => useSpeechModel("vosk", null, language),
+      ({ language }) => useSpeechModel("whisper", null, language),
       { initialProps },
     );
     rerender({ language: "en" });
@@ -386,7 +386,7 @@ describe("useSpeechModel", () => {
 
     const initialProps: { language: SpeechModelLanguage } = { language: "ja" };
     const { result, rerender } = renderHook(
-      ({ language }) => useSpeechModel("vosk", null, language),
+      ({ language }) => useSpeechModel("whisper", null, language),
       { initialProps },
     );
     rerender({ language: "en" });
@@ -441,17 +441,17 @@ describe("useSpeechModel", () => {
       state: "missing",
     });
   });
-  it("ignores a stale Vosk response after switching to a Whisper model", async () => {
-    const vosk = deferred<SpeechModelApiResult>();
+  it("ignores a stale model response after switching Whisper quality", async () => {
+    const previous = deferred<SpeechModelApiResult>();
     sdkMocks.getStatus
-      .mockReturnValueOnce(vosk.promise)
+      .mockReturnValueOnce(previous.promise)
       .mockResolvedValueOnce(
         apiResult(status({ backend: "whisper", model_id: "small" })),
       );
 
-    const initialProps: { backend: "vosk" | "whisper"; model: null | "small" } =
+    const initialProps: { backend: "whisper" | "whisper"; model: null | "small" } =
       {
-        backend: "vosk",
+        backend: "whisper",
         model: null,
       };
     const { result, rerender } = renderHook(
@@ -462,12 +462,12 @@ describe("useSpeechModel", () => {
     await flushReact();
 
     await act(async () => {
-      vosk.resolve(
+      previous.resolve(
         apiResult(
           status({
             state: "ready",
             phase: "ready",
-            model_path: "/app-data/vosk",
+            model_path: "/cache/previous",
           }),
         ),
       );

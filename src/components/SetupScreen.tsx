@@ -73,7 +73,6 @@ export function SetupScreen({
     "local",
     "whisper",
     "reazonspeech",
-    "vosk",
   ].includes(state.sttBackend);
   const audioLocked =
     state.sttInitialized || state.sttInitializing || state.sttInitRequested;

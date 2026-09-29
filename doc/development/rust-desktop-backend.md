@@ -1,0 +1,182 @@
+# Rust バックエンドの直接接続
+
+既存アプリの通常画面を使い、会議管理・音声制御・SQLite 保存を Tauri 内の Rust ライブラリで実行する開発用経路です。
+通常起動では Python・uv を起動しません。DOCX の取り込み時だけ共通 Python worker を呼び出します。
+会議管理・保存・音声中継の CLI worker は介在しません。
+
+```mermaid
+flowchart LR
+  UI[既存 React 画面] --> API[認証付き loopback HTTP / WebSocket]
+  subgraph Tauri[Tauri プロセス]
+    API --> Runtime[meeting-desktop-runtime]
+    Runtime --> Session[meeting-session]
+    Runtime --> Storage[meeting-storage / SQLx]
+    Runtime --> Media[meeting-media-runtime]
+  end
+  Media --> Capture[音声取得・WAV worker × 2]
+  Media --> Speech[Silero・ReazonSpeech・句読点 worker × 2]
+  Storage --> DB[(既存形式の SQLite)]
+```
+
+HTTP / WebSocket adapter は既存画面の契約を保つためのものです。
+Python の API サーバーや Rust ドメイン処理用の追加プロセスは介在しません。
+資料変換の呼び出し・配布方法は [共通 Python worker](../../python-worker/README.md)を参照してください。
+
+## 起動
+
+現在の取得・録音 adapter は Linux の PulseAudio / PipeWire 用です。
+リポジトリのルートで実行します。
+
+```bash
+cargo build --release --locked --manifest-path crates/meeting-audio-runtime/Cargo.toml
+npm run dev:rust
+```
+
+事前に [音声 worker のビルド](../../test/rust-native-backend/README.md#reazonspeech-版のビルドと実行)を行ってください。
+句読点モデルは同じ文書の「日本語の句読点復元」を参照してください。
+ReazonSpeech モデルは設定画面から取得できます。既にビルド・モデル取得済みなら再実行は不要です。
+
+開発時は次を自動参照します。別の配置を使う場合は対応する環境変数を指定できます。
+
+| 対象 | 既定の配置 | 環境変数 |
+|---|---|---|
+| 音声取得 | `crates/meeting-audio-runtime/target/release/meeting-audio-runtime` | `MEETING_AUDIO_WORKER` |
+| 推論 | `test/rust-native-backend/target/release/meeting-native-backend` | `MEETING_REAZON_WORKER` |
+| ReazonSpeech | Hugging Face の共有キャッシュ（下記） | `MEETING_REAZON_MODEL` |
+| 句読点 | `test/rust-native-backend/target/models/punctuation-bert` | `MEETING_REAZON_PUNCTUATION` |
+
+環境変数には絶対パスを指定してください。既定の句読点モデルはディレクトリが存在する場合に使用します。
+明示した句読点モデルをロードできない場合は準備エラーになります。
+Silero threshold と無音時間は既存の設定画面で変更できます。既定値はそれぞれ 0.4、0.4 秒です。
+取得レートは 16 kHz です。デバイスは画面接続時に開き、モデル未準備でも両入力の音量メーターが動きます。
+モデルは「音声認識を準備」で開きます。会議終了時にモデルを閉じて入力監視を再開するため、次の会議では再度準備してください。
+
+`dev:rust` は `rust-backend` feature と `tauri.rust.conf.json` を使い、Python resource の準備をスキップします。
+起動ログに `Rust in-process backend is ready (Python worker starts only on demand).` と表示します。
+`npm run tauri -- dev` は引き続き既存 Python 経路、`dev:native` は独立した音声検証画面です。
+
+保存先は既存アプリと同じ app-data directory です。履歴スキーマを維持しているため、既存履歴も参照できます。
+開発テストは一時 DB と合成音声で行い、実ユーザーの履歴をテストに使用しません。
+
+## 対応範囲
+
+- 通常画面から入力デバイスを選択、音声認識を準備・解除、会議を開始・終了。
+- 自分・相手の文字起こし、任意の句読点復元、手入力、入力別の WAV 保存。
+- 会議コンテキストの JSON 保存。
+- rig による返答生成・部分表示・停止・返答スタイル・明示的に有効化した自動生成・履歴保存。
+- AI 接続先の一覧・返答経路の割当、API キーの接続確認、Ollama のモデル一覧。
+- 既存設定画面での読み込み・保存、既存 `config.toml` の引継ぎ、音声設定の反映。
+- モデル準備前・デバイス変更後・会議終了後の両入力の音量メーター。
+- 履歴一覧・詳細、タイトル変更、録音再生とシーク、会議と関連ファイルの削除。
+- アプリ終了時の認識結果 drain と保存。準備中の終了・解除はモデル準備を中断。
+- 推論や保存の障害時は会議を未確定で保持し、保存完了の通知を出さない。
+
+## 設定の保存と反映
+
+`GET /api/settings` と `POST /api/settings` は Rust が処理します。
+既存の `config.toml` を読み、未知のセクションや AI 経路の定義を保持したまま、
+検証済みの変更だけを一時ファイルから原子的に置換します。TOML のコメントと整形は再保存時に変更されます。
+ファイル未作成時の既定値は、共通の `config.default.toml` をビルド時に取り込んで利用します。
+Python は呼び出しません。既存 `usage.jsonl` の当月利用量も読み取ります。
+
+会議中やモデル準備中の音声設定変更は 409 を返します。
+音声設定を保存すると準備済みの推論プロセスを閉じ、音量監視を再開します。
+次の「音声認識を準備」で更新した値を渡します。
+現在の Rust 音声構成で扱えない backend・VAD・言語・サンプルレートへの変更は、
+ファイルを変更せずエラーにします。
+
+API キーは通常の設定 TOML に含めず、Python と同じ service 名の OS キーストアに保存します。
+既存の `secrets.toml` も読み取り、更新・削除後に古い値が復活しないよう該当キーを除去します。
+OS キーストアを利用できない場合、読み取りは既存ファイルを参照できますが、新しい保存はエラーになります。
+従来のファイル保存を明示的に使う場合は `SECRET_STORE_BACKEND=file` を指定します。
+ファイルは Unix では 0600 で作成します。設定保存が失敗した場合は変更した認証情報を復元し、
+復元にも失敗した場合は別のエラーで通知します。API が返すのはキーの有無だけです。
+
+## AI 返答の直接接続
+
+`rig-core` 0.42.0 をモデル API の adapter として利用します。
+OpenAI、Gemini、Anthropic、Ollama の返答経路を既存の設定画面から選択できます。
+Rust 構成では実サービスでの E2E 検証が未完了のため、これらの経路も試験提供と表示します。
+クラウド経路の `ready` は認証情報の設定状態を表し、有効性は接続確認で検証します。
+Ollama は接続と設定済みモデルの存在を確認します。モデル名は既存の
+`[ai.routes.<route>].model` を引き継ぎ、接続先が loopback 以外の場合はローカル処理と表示しません。
+
+通常の起動では AI クライアントを生成せず、生成要求が来たときに接続します。
+会議の文脈と指定された発言までの履歴を使い、有効な返答スタイルを優先順に実行します。
+部分結果は既存の WebSocket 契約で通知し、正常完了した返答案だけを SQLx で保存します。
+停止は生成 ID と対象発言 ID が一致する要求だけに適用します。
+保存中の停止は commit の完了を待ち、完了済みの返答を取消済みとは通知しません。
+会議終了・設定変更・アプリ終了では未完了の生成を中断します。
+自動生成は既定で無効で、有効にした場合だけ相手の発言に対して起動します。
+
+`usage.jsonl` に要求開始・完了を記録し、同じ要求を二重計上せず、当月と会議単位の利用量を集計します。
+本文や認証情報は記録しません。価格は既存 Python 実装の概算表を引き継ぎます。
+停止・通信障害で利用量を取得できなかったクラウド要求や、概算価格が未登録のモデルは利用量不明として保持します。
+予算が有効な場合、集計対象に不明な利用量があると追加のクラウド生成を拒否します。
+これは生成前の概算チェックで、サービス側の厳密な課金上限ではありません。
+
+## 資料と保存管理
+
+開始画面の Markdown・テキストは Rust、DOCX は共通 worker の MarkItDown で取り込みます。
+DOCX を使う前に `npm run build:python-worker` を実行してください。
+上限は 10 件、1 件 10 MiB、合計 20 MiB、抽出本文は各 40,000 文字です。
+DOCX は見出し・表などを Markdown に変換します。変換時に外部サービスや LLM を呼びません。
+解析できない資料は失敗状態で保存し、解析できた資料だけを返答生成に使います。
+既存形式の `meetings/<id>/references/<document-id>/` にメタデータと抽出本文を保存します。
+返答には先頭 3 件の本文を各 1,500 文字まで渡します。
+
+前提資料フォルダの `.md` は会議開始時と再読み込み要求時に読みます。
+起動時には読みません。返答に含める前提資料は最大 4,000 文字です。
+クラウドの返答経路を選ぶと、これらの参照本文も生成要求に含まれます。
+
+設定画面の「録音の整理」は、終了済み会議について期限・録音合計容量で対象を確認し、
+確認ダイアログから実行できます。期限は指定日の UTC 0 時より前、容量超過分は古い順に選びます。
+設定保存だけでは削除せず、進行中・未確定の会議は一括削除の対象外です。
+対象確認後に対象や容量が変化した場合、実行 API は 409 を返して再確認を求めます。
+
+削除対象は録音・会議履歴・保存資料です。ファイルを削除してから DB を削除し、
+ファイル削除に失敗した会議の DB 情報は再試行用に保持します。
+途中の I/O エラーで一部のファイルだけが削除されることはあります。
+結果は削除済み・失敗・対象外の ID に分けて返し、他の会議の処理を継続します。
+
+## 音声モデルの管理
+
+既存の設定画面から ReazonSpeech と Whisper の取得状況確認・ダウンロード・再試行・キャンセルができます。
+この処理は Rust が所有し、Python や uv を起動しません。起動時と状態確認時には通信しません。
+Vosk の認識・モデル管理・設定項目は削除しました。以前取得したユーザーのファイルは削除しません。
+
+保存先は `HF_HUB_CACHE`、`HUGGINGFACE_HUB_CACHE`、`HF_HOME/hub`、
+`XDG_CACHE_HOME/huggingface/hub`、`~/.cache/huggingface/hub` の順に解決します。
+`models--owner--repo/{blobs,snapshots,refs}` と共有ロックを使い、Python の huggingface_hub が作ったキャッシュも再利用します。
+`HF_HUB_OFFLINE=1` では新規取得を開始しません。共有モデルを削除する API は設けていません。
+
+ReazonSpeech は既存の K2-v2 int8 の固定 revision を取得し、ファイルの SHA-256 を検証します。
+`MEETING_REAZON_MODEL` は読み取り専用の配置指定です。明示指定が不完全なら準備エラーとし、その場所にダウンロードしません。
+指定がなければ共有キャッシュを優先し、開発時だけ旧 `test/rust-native-backend/target/models/reazonspeech` も読み取ります。
+Whisper は既存 Python と同じ faster-whisper / CTranslate2 モデルの管理です。Rust での Whisper 推論対応とは別です。
+取得途中の一時ファイルはキャンセル時に消し、検証済みの共有 blob は再利用のため残します。
+
+## 未移植の機能
+
+情報 AI の会話メモ更新・調査・議事録、Codex・ACP の実行、クラウド STT、Whisper
+の推論実行は未接続です。話者分離は既存 Python でも実処理がなく、新規機能として別途検討します。
+情報 AI・議事録の既存割当は保持しますが、割当変更はまだできません。
+対応していない provider 種別や独自の key reference は既定経路へ置き換えず、未対応として扱います。
+未設定の hosted service は `not_offered` のままです。
+
+障害で未確定のまま残った会議の復旧・削除 UI は未実装です。
+停止結果が不明な場合は、新しい会議を開始せずアプリの再起動が必要です。
+汎用 provider plan、Windows / macOS の取得、配布用 worker と共有ライブラリの同梱も後続の作業です。
+`tauri.rust.conf.json` では bundle を無効にしており、一般配布が完成した状態ではありません。
+
+Python が必要な AI 機能は、後続の移植で共通 PyInstaller worker のサブコマンドとして追加します。
+この直接接続の経路に Python の仲介を戻す必要はありません。
+
+## 検証
+
+[Rust ライブラリの統合テスト](../../crates/meeting-desktop-runtime/README.md#検証)は合成 worker と一時 DB で動きます。
+rig の通信はローカルの模擬 HTTP / SSE サーバーを使い、API ごとの送信形式、
+返答の保存、停止、途中切断、世代の再送、自動生成、複数スタイルを検証します。
+実際の認証情報・外部 AI サービスはテストに使用しません。
+画面の接続先選択は `src/__tests__/App.rustBackend.test.tsx` で検証します。
+実デバイスの音質・長時間稼働や一般配布は別途検証が必要です。

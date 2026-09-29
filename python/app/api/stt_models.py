@@ -8,11 +8,11 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 
 from app.services.reazonspeech_model_manager import ReazonSpeechModelManager
-from app.services.vosk_model_manager import CATALOG, ModelLanguage, SpeechModelStatus, VoskModelManager
+from app.services.speech_model_status import ModelLanguage, SpeechModelStatus
 from app.services.whisper_model_manager import DEFAULT_WHISPER_MODEL, WhisperModelAlias, WhisperModelManager
 from app.stt.reazonspeech_model import REAZONSPEECH_MODEL_ID
 
-SpeechModelBackend = Literal["vosk", "whisper", "reazonspeech"]
+SpeechModelBackend = Literal["whisper", "reazonspeech"]
 
 
 class SpeechModelDownloadRequest(BaseModel):
@@ -72,10 +72,6 @@ def _whisper_model_id(model: WhisperModelAlias | None) -> WhisperModelAlias:
     return model or DEFAULT_WHISPER_MODEL
 
 
-def _vosk_response(status: SpeechModelStatus) -> SpeechModelStatusResponse:
-    return _response(backend="vosk", model_id=CATALOG[status.language].model_id, status=status)
-
-
 def _whisper_response(model: WhisperModelAlias, status: SpeechModelStatus) -> SpeechModelStatusResponse:
     return _response(backend="whisper", model_id=model, status=status)
 
@@ -91,7 +87,6 @@ def _require_reazonspeech_language(language: ModelLanguage) -> None:
 
 def create_router(
     *,
-    vosk_model_manager: VoskModelManager,
     whisper_model_manager: WhisperModelManager,
     reazonspeech_model_manager: ReazonSpeechModelManager,
 ) -> APIRouter:
@@ -104,8 +99,6 @@ def create_router(
         language: Annotated[ModelLanguage, Query()],
         model: Annotated[WhisperModelAlias | None, Query()] = None,
     ) -> SpeechModelStatusResponse:
-        if backend == "vosk":
-            return _vosk_response(vosk_model_manager.status(language))
         if backend == "reazonspeech":
             _require_reazonspeech_language(language)
             return _reazonspeech_response(reazonspeech_model_manager.status())
@@ -116,8 +109,6 @@ def create_router(
     async def start_speech_model_download(  # pyright: ignore[reportUnusedFunction]
         body: SpeechModelDownloadRequest,
     ) -> SpeechModelStatusResponse:
-        if body.backend == "vosk":
-            return _vosk_response(await vosk_model_manager.start(body.language))
         if body.backend == "reazonspeech":
             _require_reazonspeech_language(body.language)
             return _reazonspeech_response(await reazonspeech_model_manager.start())
@@ -130,8 +121,6 @@ def create_router(
         language: Annotated[ModelLanguage, Query()],
         model: Annotated[WhisperModelAlias | None, Query()] = None,
     ) -> SpeechModelStatusResponse:
-        if backend == "vosk":
-            return _vosk_response(await vosk_model_manager.cancel())
         if backend == "reazonspeech":
             _require_reazonspeech_language(language)
             return _reazonspeech_response(reazonspeech_model_manager.cancel())

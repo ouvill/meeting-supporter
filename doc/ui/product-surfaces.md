@@ -245,7 +245,6 @@ provider固有model、local service、外部agent runtimeを理解している�
 
 - cloud provider固有のmodel識別子
 - Ollama/OpenAI-compatible endpointとmodel
-- Vosk model path
 - generic ACP commandと接続状態
 - Codex診断情報（検出version、login readiness）
 - data locationとbilling owner

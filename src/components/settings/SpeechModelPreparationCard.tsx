@@ -12,16 +12,6 @@ interface Props {
   startDisabled?: boolean;
 }
 
-const SIZE_BY_LANGUAGE = {
-  ja: 48,
-  en: 40,
-} as const;
-
-const LANGUAGE_LABEL = {
-  ja: "日本語",
-  en: "英語",
-} as const;
-
 const WHISPER_MODEL_LABEL: Record<WhisperModelAlias, string> = {
   tiny: "最速",
   base: "軽量",
@@ -100,24 +90,16 @@ export function SpeechModelPreparationCard({
   const { language, status } = model;
   const isWhisper = model.backend === "whisper";
   const isReazonSpeech = model.backend === "reazonspeech";
-  const usesSharedCache = isWhisper || isReazonSpeech;
   const whisperModelLabel = model.model
     ? WHISPER_MODEL_LABEL[model.model]
-    : "選択した精度モデル";
+    : "精度";
   const presentation = statePresentation(
     status,
     model.loading,
     model.confirmingStart,
     model.action,
   );
-  const size = isReazonSpeech
-    ? 153
-    : !isWhisper && language
-      ? SIZE_BY_LANGUAGE[language]
-      : null;
-  const languageLabel =
-    !usesSharedCache && language ? LANGUAGE_LABEL[language] : null;
-  const storagePath = status?.storage_path.trim();
+  const size = isReazonSpeech ? 153 : null;
   const percent =
     status?.state === "downloading" ? progressPercent(status) : null;
   const roundedPercent = percent === null ? null : Math.round(percent);
@@ -129,9 +111,7 @@ export function SpeechModelPreparationCard({
         : "合計を確認中";
   const preparationName = isWhisper
     ? "高精度な音声認識モデル"
-    : isReazonSpeech
-      ? "ReazonSpeech日本語モデル"
-      : "軽量な音声認識データ";
+    : "ReazonSpeech日本語モデル";
 
   return (
     <SettingsCard
@@ -139,11 +119,7 @@ export function SpeechModelPreparationCard({
       description={
         isWhisper
           ? `選択した${whisperModelLabel}モデルを端末内で使えるように準備します。`
-          : isReazonSpeech
-            ? "ReazonSpeech K2-v2の軽量化モデルを端末内で使えるように準備します。"
-            : language && size
-              ? `${languageLabel}の音声を端末内で文字にするため、約${size} MBのデータを使用します。`
-              : "日本語または英語を選ぶと、必要なデータを準備できます。"
+          : "ReazonSpeech K2-v2の軽量化モデルを端末内で使えるように準備します。"
       }
     >
       <div className="space-y-4">
@@ -162,10 +138,6 @@ export function SpeechModelPreparationCard({
             <span className="text-xs font-semibold tabular-nums text-ink-muted">
               日本語・約153 MB
             </span>
-          ) : languageLabel && size ? (
-            <span className="text-xs font-semibold tabular-nums text-ink-muted">
-              {languageLabel}・約{size} MB
-            </span>
           ) : null}
         </div>
 
@@ -175,14 +147,7 @@ export function SpeechModelPreparationCard({
           </p>
           <dl className="grid gap-1 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-3">
             <dt className="font-semibold text-ink">保存先</dt>
-            <dd className="break-all">
-              {usesSharedCache
-                ? "Hugging Face の共有キャッシュ"
-                : storagePath ||
-                  (model.loading
-                    ? "アプリのデータフォルダを確認しています"
-                    : "アプリのデータフォルダ")}
-            </dd>
+            <dd className="break-all">Hugging Face の共有キャッシュ</dd>
           </dl>
         </div>
 
@@ -190,9 +155,7 @@ export function SpeechModelPreparationCard({
           <InlineNotice tone="warning" title="会議の言語を選んでください">
             {isReazonSpeech
               ? "ReazonSpeechは日本語の会議で利用できます。"
-              : isWhisper
-                ? "会議の言語を選ぶと、選択した精度モデルを準備できます。"
-                : "軽量方式は日本語と英語に対応しています。"}
+              : "会議の言語を選ぶと、選択した精度モデルを準備できます。"}
           </InlineNotice>
         )}
 
@@ -275,11 +238,9 @@ export function SpeechModelPreparationCard({
         {status?.state === "missing" && (
           <div className="space-y-3">
             <p className="text-xs leading-relaxed text-ink-muted">
-              {usesSharedCache
-                ? isReazonSpeech
-                  ? "取得後はReazonSpeechを端末内で使用できます。"
-                  : "取得後は選択した精度モデルを端末内で使用できます。"
-                : "取得後は通信なしで使用できます。必要なときに、この画面から1クリックで取得できます。"}
+              {isReazonSpeech
+                ? "取得後はReazonSpeechを端末内で使用できます。"
+                : "取得後は選択した精度モデルを端末内で使用できます。"}
             </p>
             <Button
               variant="primary"
@@ -293,9 +254,7 @@ export function SpeechModelPreparationCard({
               }
             >
               <Download aria-hidden="true" className="size-3.5" />
-              {usesSharedCache
-                ? `モデルを取得${isReazonSpeech ? "（約153 MB）" : ""}`
-                : `データを取得${size ? `（約${size} MB）` : ""}`}
+              {`モデルを取得${isReazonSpeech ? "（約153 MB）" : ""}`}
             </Button>
           </div>
         )}
@@ -307,9 +266,7 @@ export function SpeechModelPreparationCard({
           >
             {isReazonSpeech
               ? "ReazonSpeech日本語モデルを端末内で使用できます。"
-              : isWhisper
-                ? `選択した${whisperModelLabel}モデルを端末内で使用できます。`
-                : "この言語の軽量方式を、通信なしで使用できます。"}
+              : `選択した${whisperModelLabel}モデルを端末内で使用できます。`}
           </InlineNotice>
         )}
 
@@ -340,7 +297,7 @@ export function SpeechModelPreparationCard({
           </InlineNotice>
         )}
 
-        {model.backend === "vosk" && status?.state === "cancelled" && (
+        {status?.state === "cancelled" && (
           <InlineNotice tone="warning" title="取得を取り消しました">
             <div className="space-y-2">
               <p>

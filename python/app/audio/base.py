@@ -22,6 +22,7 @@ class AudioFrame:
     pcm: bytes
     is_speech: bool
     timestamp_ms: float
+    sequence: int | None = None
 
 
 @dataclass(frozen=True)

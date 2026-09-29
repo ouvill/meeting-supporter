@@ -25,6 +25,7 @@ const INITIAL: SocketState = {
   connected: false,
   statusText: "接続中...",
   isRunning: false,
+  meetingSaved: undefined,
   sttBackend: "google",
   sttInitialized: false,
   sttInitializing: false,
@@ -149,6 +150,7 @@ function reduce(s: SocketState, msg: InboundMessage): SocketState {
       return {
         ...s,
         isRunning: running,
+        meetingSaved: msg.saved,
         ...(running
           ? {}
           : {

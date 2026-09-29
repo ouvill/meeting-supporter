@@ -62,7 +62,6 @@ from app.services.managed_session import ManagedSessionStore
 from app.services.reazonspeech_model_manager import ReazonSpeechModelManager
 from app.services.secret_store import FileSecretStore
 from app.services.settings_store import SettingsStore
-from app.services.vosk_model_manager import VoskModelManager
 from app.services.whisper_model_manager import WhisperModelManager
 
 logger = logging.getLogger(__name__)
@@ -124,7 +123,6 @@ class HttpRouterDependencies:
     managed_status: ManagedStatusProvider | None = None
     codex_status: CodexStatusProvider | None = None
     ollama_status: OllamaStatusProvider | None = None
-    vosk_model_manager: VoskModelManager | None = None
     whisper_model_manager: WhisperModelManager | None = None
     reazonspeech_model_manager: ReazonSpeechModelManager | None = None
     managed_session_store: ManagedSessionStore | None = None
@@ -137,11 +135,6 @@ def create_http_routers(dependencies: HttpRouterDependencies) -> tuple[APIRouter
     and the lightweight OpenAPI app. WebSocket routes are intentionally outside
     it because OpenAPI does not describe them.
     """
-    vosk_model_manager = dependencies.vosk_model_manager or VoskModelManager(
-        user_data_dir=dependencies.user_data_dir,
-        settings_store=dependencies.settings_store,
-        event_bus=dependencies.settings_event_bus,
-    )
     whisper_model_manager = dependencies.whisper_model_manager or WhisperModelManager()
     reazonspeech_model_manager = dependencies.reazonspeech_model_manager or ReazonSpeechModelManager()
     managed_session_store = dependencies.managed_session_store or ManagedSessionStore(
@@ -158,7 +151,6 @@ def create_http_routers(dependencies: HttpRouterDependencies) -> tuple[APIRouter
             ollama_status=dependencies.ollama_status,
         ),
         stt_models.create_router(
-            vosk_model_manager=vosk_model_manager,
             whisper_model_manager=whisper_model_manager,
             reazonspeech_model_manager=reazonspeech_model_manager,
         ),
@@ -288,11 +280,6 @@ def create_openapi_app() -> FastAPI:
         ai_assignments=AiRouteAssignments(),
     )
     dummy_event_bus = EventBus()
-    dummy_vosk_model_manager = VoskModelManager(
-        user_data_dir=Path(_NONEXISTENT),
-        settings_store=dummy_store,
-        event_bus=dummy_event_bus,
-    )
     dummy_whisper_model_manager = WhisperModelManager()
     dummy_secret_store = FileSecretStore(path=Path(_NONEXISTENT) / "secrets.toml")
     dummy_state = AppState(config=dummy_config, secret_store=dummy_secret_store)
@@ -311,7 +298,6 @@ def create_openapi_app() -> FastAPI:
             history_service=dummy_history_service,
             user_data_dir=Path("/tmp"),
             get_minutes_runtime=lambda: dummy_minutes_runtime,
-            vosk_model_manager=dummy_vosk_model_manager,
             whisper_model_manager=dummy_whisper_model_manager,
         )
     )

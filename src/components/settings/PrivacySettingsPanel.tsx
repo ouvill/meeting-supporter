@@ -185,8 +185,9 @@ export function PrivacySettingsPanel({
           : `${result.deleted_meeting_ids.length}件を削除しました。`,
       );
     } catch {
+      setCleanupPreview(null);
       setCleanupMessage(
-        "削除できませんでした。会議履歴は保持されています。再試行してください。",
+        "削除結果を確認できませんでした。削除対象を再確認してください。",
       );
       setCleanupConfirmationOpen(false);
     } finally {

@@ -30,7 +30,7 @@ ADR-011は一般設定へroute cardを表示しつつ、API keyを含む構成�
 
 ### 4. Advancedに残す構成値を限定する
 
-provider固有のmodel、Ollama/OpenAI-compatible endpoint、Vosk model path、ACP command、runtime診断はAdvancedに残す。API credentialの全provider一覧はAdvancedから削除する。一般surfaceへ表示できる構成値は、上記provider固有のSettings controlにある未保存API key入力と接続状態だけであり、保存済み値、model、endpoint、command、runtime診断は表示しない。
+provider固有のmodel、Ollama/OpenAI-compatible endpoint、ACP command、runtime診断はAdvancedに残す。API credentialの全provider一覧はAdvancedから削除する。一般surfaceへ表示できる構成値は、上記provider固有のSettings controlにある未保存API key入力と接続状態だけであり、保存済み値、model、endpoint、command、runtime診断は表示しない。
 
 ## Rejected Alternatives
 

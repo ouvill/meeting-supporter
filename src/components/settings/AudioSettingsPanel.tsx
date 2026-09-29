@@ -80,7 +80,6 @@ export function AudioSettingsPanel({
       : null;
   const cloud = cloudProvider ? CLOUD_STT[cloudProvider] : null;
   const usesLocalSpeechModel =
-    form.sttBackend === "vosk" ||
     form.sttBackend === "whisper" ||
     form.sttBackend === "reazonspeech";
   return (
@@ -115,7 +114,6 @@ export function AudioSettingsPanel({
                 <option value="reazonspeech">
                   端末内・日本語高精度（ReazonSpeech）
                 </option>
-                <option value="vosk">端末内・軽量</option>
                 <option value="managed" disabled={!managedStt.selectable}>
                   Meeting Supporter AI（共通利用枠）
                 </option>

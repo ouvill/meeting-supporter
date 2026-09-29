@@ -251,9 +251,13 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 /.claude/worktrees/
+/.claude/settings.local.json
 
 # Playwright CLI
 .playwright-cli/
 
 # Metrics output (generated, not committed)
 metrics/out/
+
+# Shared frozen Python worker (generated per target platform)
+generated/python-worker/

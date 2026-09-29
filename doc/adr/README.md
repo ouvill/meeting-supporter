@@ -16,6 +16,14 @@ ADRは、architecture boundary、protocol、永続schema、security/privacy/dist
 | [ADR-013](./013-contextual-api-credential-controls.md) | Accepted | provider-specific credential controls at points of use |
 | [ADR-015](./015-localized-ui-message-contract.md) | Accepted | frontend-owned localizationとlocale-neutral `UiMessage` protocol |
 
+## Proposed decisions
+
+| ADR | Status | Review scope |
+| --- | --- | --- |
+| [ADR-016](./016-rust-runtime-and-ownership-boundaries.md) | Proposed | Rust 移行時の起動分離、会議状態の所有、推論 process 隔離、保存・UI 契約 |
+
+Proposed は設計案であり、上記の Accepted authorities を置き換えない。
+
 ## Required structure
 
 - **Status**: Proposed / Accepted / Superseded / Rejected

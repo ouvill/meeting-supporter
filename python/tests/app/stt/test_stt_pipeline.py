@@ -91,10 +91,6 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
         p = self._make_pipeline("whisper")
         self.assertTrue(p.supports_prewarm())
 
-    def test_supports_prewarm_true_for_vosk(self) -> None:
-        p = self._make_pipeline("vosk")
-        self.assertTrue(p.supports_prewarm())
-
     def test_supports_prewarm_true_for_reazonspeech(self) -> None:
         p = self._make_pipeline("reazonspeech")
         self.assertTrue(p.supports_prewarm())
@@ -183,83 +179,6 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
             finally:
                 acquire_can_finish.set()
                 initialize_thread.join(timeout=1.0)
-
-    async def test_initialize_vosk_deduplicates_inflight_load_and_calls_ready(self) -> None:
-        p = self._make_pipeline("vosk")
-        loop = asyncio.get_running_loop()
-        acquire_started = threading.Event()
-        acquire_can_finish = threading.Event()
-        initialize_returned = threading.Event()
-        initialize_errors: list[BaseException] = []
-        ready_called = asyncio.Event()
-
-        async def on_ready() -> None:
-            ready_called.set()
-
-        def acquire_slowly(_cfg: SttConfig, *, publisher: OutgoingPublisher | None = None) -> object:
-            _ = publisher
-            acquire_started.set()
-            _ = acquire_can_finish.wait()
-            return object()
-
-        def call_initialize() -> None:
-            try:
-                p.initialize(loop)
-            except BaseException as exc:
-                initialize_errors.append(exc)
-            finally:
-                initialize_returned.set()
-
-        p.on_ready = on_ready
-
-        with patch("app.stt.pipeline.VoskEngine.acquire", side_effect=acquire_slowly) as acquire:
-            initialize_thread = threading.Thread(target=call_initialize, name="test-vosk-initialize", daemon=True)
-            try:
-                initialize_thread.start()
-                self.assertTrue(
-                    initialize_returned.wait(0.5),
-                    "initialize() waited for slow VoskEngine.acquire to finish",
-                )
-                self.assertEqual(initialize_errors, [])
-                self.assertTrue(acquire_started.wait(0.5))
-
-                p.initialize(loop)
-                self.assertEqual(acquire.call_count, 1)
-                self.assertFalse(ready_called.is_set())
-
-                acquire_can_finish.set()
-                _ = await asyncio.wait_for(ready_called.wait(), timeout=0.5)
-                self.assertEqual(acquire.call_count, 1)
-            finally:
-                acquire_can_finish.set()
-                initialize_thread.join(timeout=1.0)
-
-    async def test_initialize_vosk_calls_error_without_ready_when_acquire_fails(self) -> None:
-        p = self._make_pipeline("vosk")
-        loop = asyncio.get_running_loop()
-        ready_called = asyncio.Event()
-        error_called = asyncio.Event()
-        observed_errors: list[Exception] = []
-        load_error = RuntimeError("Vosk model is unavailable")
-
-        async def on_ready() -> None:
-            ready_called.set()
-
-        async def on_error(error: Exception) -> None:
-            observed_errors.append(error)
-            error_called.set()
-
-        p.on_ready = on_ready
-        p.on_error = on_error
-
-        with patch("app.stt.pipeline.VoskEngine.acquire", side_effect=load_error) as acquire:
-            p.initialize(loop)
-            _ = await asyncio.wait_for(error_called.wait(), timeout=0.5)
-
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(len(observed_errors), 1)
-        self.assertIs(observed_errors[0], load_error)
-        self.assertFalse(ready_called.is_set())
 
     async def test_initialize_whisper_calls_on_ready(self) -> None:
         p = self._make_pipeline("whisper")
@@ -384,41 +303,6 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
             finally:
                 p.stop()
 
-    async def test_vosk_emits_final_text_after_vad_marked_speech_segment(self) -> None:
-        stt_q = queue.Queue[_AudioFrame | None]()
-        cfg = self._make_config("vosk")
-        cfg.silence_duration = 0.06
-        cfg.min_voiced_ms = 60
-        received: list[tuple[str, str]] = []
-
-        async def handle_speech(role: str, text: str) -> None:
-            received.append((role, text))
-
-        p = SttPipeline(
-            stt_queue=cast("queue.Queue[AudioFrame | None]", stt_q),
-            cfg=cfg,
-            role="other",
-            broadcast_fn=FakeBroadcast(),
-            handle_speech_fn=handle_speech,
-        )
-        loop = asyncio.get_running_loop()
-
-        with (
-            patch("app.stt.pipeline.WebRtcVadEngine", _MarkedVadEngine),
-            patch("app.stt.stages.stt_vosk.VoskEngine.acquire"),
-            patch("app.stt.stages.stt_vosk.VoskEngine.transcribe", return_value="ローカル文字起こし"),
-        ):
-            try:
-                p.start(loop)
-                for index in range(3):
-                    stt_q.put(_AudioFrame(pcm=_LOUD_SPEECH_PCM, is_speech=False, timestamp_ms=index * 30.0))
-                for index in range(2):
-                    stt_q.put(_AudioFrame(pcm=_SILENCE_PCM, is_speech=False, timestamp_ms=(index + 3) * 30.0))
-
-                await _wait_until(lambda: received == [("other", "ローカル文字起こし")])
-            finally:
-                p.stop()
-
     async def test_idempotent_start(self) -> None:
         p = self._make_pipeline("deepgram")
         loop = asyncio.get_running_loop()
@@ -459,57 +343,6 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
 
         mock_engine.release.assert_called_once()  # pyright: ignore[reportAny]
         self.assertFalse(p._reazonspeech_initialized)  # pyright: ignore[reportPrivateUsage]
-
-    async def test_shutdown_during_vosk_load_suppresses_callbacks_and_releases_engine(self) -> None:
-        p = self._make_pipeline("vosk")
-        loop = asyncio.get_running_loop()
-        acquire_started = threading.Event()
-        acquire_can_finish = threading.Event()
-        release_called = threading.Event()
-        ready_called = asyncio.Event()
-        error_called = asyncio.Event()
-
-        async def on_ready() -> None:
-            ready_called.set()
-
-        async def on_error(_error: Exception) -> None:
-            error_called.set()
-
-        def acquire_slowly(_cfg: SttConfig, *, publisher: OutgoingPublisher | None = None) -> object:
-            _ = publisher
-            acquire_started.set()
-            _ = acquire_can_finish.wait()
-            return object()
-
-        def release() -> None:
-            release_called.set()
-
-        p.on_ready = on_ready
-        p.on_error = on_error
-
-        with (
-            patch("app.stt.pipeline.VoskEngine.acquire", side_effect=acquire_slowly) as acquire,
-            patch("app.stt.pipeline.VoskEngine.release", side_effect=release) as release_engine,
-        ):
-            try:
-                p.initialize(loop)
-                self.assertTrue(acquire_started.wait(0.5))
-                loader = next(thread for thread in threading.enumerate() if thread.name == "vosk-init-other")
-                p.shutdown()
-
-                acquire_can_finish.set()
-                await _wait_until(release_called.is_set)
-                loader.join(timeout=0.5)
-                self.assertFalse(loader.is_alive(), "Vosk loader did not finish after shutdown")
-            finally:
-                acquire_can_finish.set()
-
-            release_engine.assert_called_once()
-
-        self.assertEqual(acquire.call_count, 1)
-        self.assertTrue(release_called.is_set())
-        self.assertFalse(ready_called.is_set())
-        self.assertFalse(error_called.is_set())
 
     async def test_start_failure_rolls_back_and_allows_retry(self) -> None:
         p = self._make_pipeline("deepgram")

@@ -1,0 +1,10 @@
+{
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "bundle": {
+    "active": false,
+    "resources": null
+  }
+}

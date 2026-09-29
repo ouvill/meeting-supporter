@@ -1,3 +1,5 @@
+import { isTauri } from "@tauri-apps/api/core";
+import { runtimeMode } from "./platform/nativeSpeechClient";
 import {
   Suspense,
   lazy,
@@ -134,7 +136,56 @@ function ConfiguredClientBoundary({
   return configured ? children : fallback;
 }
 
+const NativeSpeechScreen = lazy(() =>
+  import("./components/native/NativeSpeechScreen").then((module) => ({
+    default: module.NativeSpeechScreen,
+  })),
+);
+
 export default function App() {
+  const [mode, setMode] = useState<"rust" | "python" | "rust-backend" | null>(
+    () => (isTauri() ? null : "python"),
+  );
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!isTauri()) return;
+    let alive = true;
+    void runtimeMode()
+      .then((value) => {
+        if (alive) setMode(value);
+      })
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (mode === null)
+    return (
+      <main role={failed ? "alert" : "status"} className="p-6">
+        {failed
+          ? "起動状態を取得できませんでした。アプリを再起動してください。"
+          : "準備しています…"}
+      </main>
+    );
+  if (mode === "rust") {
+    if (getCurrentAppWindowLabel() === "assistant")
+      return (
+        <main className="p-6">
+          ローカル文字起こしはメイン画面で操作してください。
+        </main>
+      );
+    return (
+      <Suspense fallback={<ScreenLoadingState />}>
+        <NativeSpeechScreen />
+      </Suspense>
+    );
+  }
+  return <PythonApp />;
+}
+
+function PythonApp() {
   if (
     import.meta.env.DEV &&
     isAssistantPanelPreviewEnabled(window.location.search, import.meta.env.DEV)
@@ -333,12 +384,12 @@ function MainWindowApp() {
 
   useEffect(() => {
     if (prevRunningRef.current && !state.isRunning && state.connected) {
-      setSavedToastVisible(true);
+      setSavedToastVisible(state.meetingSaved !== false);
     } else if (!prevRunningRef.current && state.isRunning) {
       setSavedToastVisible(false);
     }
     prevRunningRef.current = state.isRunning;
-  }, [state.isRunning, state.connected]);
+  }, [state.isRunning, state.connected, state.meetingSaved]);
 
   useEffect(() => {
     if (!state.isRunning || !showFirstRunGuidance) return;

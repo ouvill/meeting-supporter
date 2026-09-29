@@ -12,7 +12,7 @@ import {
 
 const INITIAL_BOOTSTRAP: BootstrapStatus = {
   phase: "initializing",
-  message: "Pythonバックエンドを起動しています...",
+  message: "バックエンドを起動しています...",
 };
 
 const POLL_INTERVAL_MS = 1200;

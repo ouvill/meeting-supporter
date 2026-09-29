@@ -273,7 +273,6 @@
             "required": true,
             "schema": {
               "enum": [
-                "vosk",
                 "whisper",
                 "reazonspeech"
               ],
@@ -398,7 +397,6 @@
             "required": true,
             "schema": {
               "enum": [
-                "vosk",
                 "whisper",
                 "reazonspeech"
               ],
@@ -3086,7 +3084,6 @@
           "backend": {
             "type": "string",
             "enum": [
-              "vosk",
               "whisper",
               "reazonspeech"
             ],
@@ -3134,7 +3131,6 @@
           "backend": {
             "type": "string",
             "enum": [
-              "vosk",
               "whisper",
               "reazonspeech"
             ],
@@ -3313,17 +3309,6 @@
               }
             ],
             "title": "Openai Model"
-          },
-          "vosk_model_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vosk Model Path"
           },
           "language": {
             "anyOf": [

@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, cast
 
 logger = logging.getLogger(__name__)
 
+from app.audio.media_pipeline import MediaAudioPipeline
+from app.audio.native_pipeline import NativeAudioPipeline
 from app.core.messages import (
     DevicesListMsg,
     ErrorMsg,
@@ -16,6 +18,8 @@ from app.core.messages import (
 )
 from app.core.protocols import AudioPipelineLike, SttState, SttStreamLike, WebSocketLike
 from app.core.types import InputDevice
+from app.stt.media_pipeline import MediaSttPipeline
+from app.stt.native_pipeline import NativeSttPipeline
 
 if TYPE_CHECKING:
     from app.services.config_loader import ConfigLoader
@@ -97,7 +101,10 @@ class SttController:
         ):
             try:
                 pipeline: AudioPipelineLike = self._make_audio(device, role)
-                pipeline.start(loop)
+                if isinstance(pipeline, (NativeAudioPipeline, MediaAudioPipeline)):
+                    await asyncio.to_thread(pipeline.start, loop)
+                else:
+                    pipeline.start(loop)
                 setattr(self, attr, pipeline)
             except Exception as e:
                 logger.warning("AudioPipeline 作成失敗 (%s): %s", role, e)
@@ -289,6 +296,17 @@ class SttController:
     # ── STT prewarm ───────────────────────────────────────────────────────────
 
     async def init_stt(self) -> None:
+        if self._state.stt_initializing:
+            return
+        if any(
+            isinstance(stream, (NativeSttPipeline, MediaSttPipeline))
+            for stream in (self._state.stt_other, self._state.stt_self)
+        ):
+            if self._state.is_running:
+                await self._broadcast(ErrorMsg(text="会議を停止してから音声認識を再準備してください。"))
+                return
+            if not self._state.stt_initialized:
+                await self.shutdown_stt()
         if self._state.stt_initializing or self._state.stt_initialized:
             return
         if self._audio_other is None:
@@ -430,7 +448,10 @@ class SttController:
             await self._broadcast(MeetingStateMsg(running=False))
 
         try:
-            self._state.stt_other.shutdown()
+            if isinstance(self._state.stt_other, (NativeSttPipeline, MediaSttPipeline)):
+                await self._state.stt_other.shutdown_and_wait()
+            else:
+                self._state.stt_other.shutdown()
         except Exception as e:
             logger.error("STT shutdown(other) 失敗: %s", e)
             traceback.print_exc()
@@ -440,7 +461,10 @@ class SttController:
 
         if self._state.stt_self:
             try:
-                self._state.stt_self.shutdown()
+                if isinstance(self._state.stt_self, (NativeSttPipeline, MediaSttPipeline)):
+                    await self._state.stt_self.shutdown_and_wait()
+                else:
+                    self._state.stt_self.shutdown()
             except Exception as e:
                 logger.error("STT shutdown(self) 失敗: %s", e)
                 traceback.print_exc()
@@ -494,10 +518,23 @@ class SttController:
             return False
 
         try:
+            for audio in (self._audio_other, self._audio_self):
+                if isinstance(audio, (NativeAudioPipeline, MediaAudioPipeline)):
+                    audio.ensure_running()
             stt_other.start(loop)
             if self._state.stt_self:
                 self._state.stt_self.start(loop)
         except Exception as e:
+            native_streams = [
+                stream
+                for stream in (self._state.stt_other, self._state.stt_self)
+                if isinstance(stream, (NativeSttPipeline, MediaSttPipeline))
+            ]
+            for stream in native_streams:
+                await stream.shutdown_and_wait()
+            if native_streams:
+                self._state.stt_initialized = False
+                await self._broadcast(SttStateMsg(backend=self._backend, initialized=False, initializing=False))
             logger.error("STT start 失敗: %s", e)
             traceback.print_exc()
             await self._broadcast(ErrorMsg(text=f"音声認識の開始に失敗しました: {e}"))
@@ -507,19 +544,36 @@ class SttController:
         await self._broadcast(MeetingStateMsg(running=True))
         return True
 
-    async def stop_meeting(self) -> None:
+    async def stop_meeting(self, *, require_complete: bool = False, publish_state: bool = True) -> None:
+        failed = False
+        # Freeze both input boundaries before waiting for either source to flush.
+        for stream in (self._state.stt_other, self._state.stt_self):
+            if isinstance(stream, (NativeSttPipeline, MediaSttPipeline)):
+                stream.stop()
         for attr, label in (("stt_other", "other"), ("stt_self", "self")):
             stt: SttStreamLike | None = cast(SttStreamLike | None, getattr(self._state, attr))
             if stt is None:
                 continue
             try:
-                stt.stop()
+                if isinstance(stt, (NativeSttPipeline, MediaSttPipeline)):
+                    await stt.stop_and_drain()
+                else:
+                    stt.stop()
             except Exception as e:
+                failed = True
+                if isinstance(stt, (NativeSttPipeline, MediaSttPipeline)):
+                    self._state.stt_initialized = False
+                    await self._broadcast(SttStateMsg(backend=self._backend, initialized=False, initializing=False))
                 logger.error("STT stop(%s) 失敗: %s", label, e)
                 traceback.print_exc()
                 await self._broadcast(ErrorMsg(text=f"音声認識の停止に失敗しました: {e}"))
             if not stt.supports_prewarm():
                 setattr(self._state, attr, None)
 
-        await self._broadcast(StatusMsg(text="待機中"))
-        await self._broadcast(MeetingStateMsg(running=False))
+        if failed and require_complete:
+            await self.shutdown_stt()
+            raise RuntimeError("Speech finalisation failed")
+
+        if publish_state:
+            await self._broadcast(StatusMsg(text="待機中"))
+            await self._broadcast(MeetingStateMsg(running=False))

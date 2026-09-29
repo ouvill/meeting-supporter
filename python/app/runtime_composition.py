@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 from collections.abc import Awaitable, Callable, Coroutine
 from typing import final
 
@@ -16,6 +17,10 @@ from app.agents.managed_runtime import ManagedReplyAgentRuntime
 from app.agents.models import ReplyAgentDefinition
 from app.agents.route_catalog import CodexStatusProvider, ManagedStatusProvider, RouteCatalog
 from app.audio import AudioPipeline, SoundcardSource
+from app.audio.media_pipeline import MediaAudioPipeline
+from app.audio.media_transport import enabled as native_media_enabled
+from app.audio.native_pipeline import NativeAudioPipeline
+from app.audio.native_transport import enabled as native_audio_enabled
 from app.core.config import RouteDefinition
 from app.core.events import ConfigChanged
 from app.core.protocols import AudioPipelineLike, SecretStore
@@ -27,7 +32,10 @@ from app.services.conversation_orchestrator import ConversationOrchestrator
 from app.services.managed_session import ManagedSessionStore
 from app.services.stt_controller import SttController
 from app.services.usage_logger import UsageLogger
-from app.stt import SttPipeline, build_pipeline
+from app.stt import build_pipeline
+from app.stt.media_pipeline import MediaSttPipeline
+from app.stt.native_pipeline import NativeSttPipeline
+from app.stt.pipeline import SttPipeline
 
 logger = logging.getLogger(__name__)
 
@@ -76,13 +84,27 @@ class RuntimeCompositionCoordinator:
         ).read_assigned_route("info")
         return route is not None and route.readiness == "ready" and route.selectable and "info" in route.capabilities
 
-    def make_audio(self, device: int | str | None, role: str) -> AudioPipeline:
+    def make_audio(
+        self, device: int | str | None, role: str
+    ) -> AudioPipeline | NativeAudioPipeline | MediaAudioPipeline:
         cfg = self.config.stt_config
+        if native_audio_enabled() or native_media_enabled():
+            if (
+                cfg.backend != "reazonspeech"
+                or os.environ.get("MEETING_REAZON_RUNTIME") != "rust"
+                or cfg.sample_rate != 16000
+            ):
+                raise ValueError("Rust音声取得は現在、Rust ReazonSpeechと16 kHz入力に対応しています。")
+            if native_media_enabled():
+                return MediaAudioPipeline(device, role, self._broadcast_manager.broadcast)
+            return NativeAudioPipeline(device, role, self._broadcast_manager.broadcast)
         source = SoundcardSource(device, role, cfg.sample_rate)
         return AudioPipeline(source, role, self._broadcast_manager.broadcast)
 
-    def make_stt(self, audio: AudioPipelineLike, role: str) -> SttPipeline:
+    def make_stt(self, audio: AudioPipelineLike, role: str) -> SttPipeline | NativeSttPipeline | MediaSttPipeline:
         cfg = self.config.stt_config
+        if isinstance(audio, MediaAudioPipeline):
+            return MediaSttPipeline(audio, cfg, role, self._broadcast_manager.broadcast, self._handle_speech)
         return build_pipeline(
             audio.stt_queue,
             role,

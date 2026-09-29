@@ -30,7 +30,6 @@ from app.stt.stages.stt_managed import ManagedSttStage
 from app.stt.stages.stt_openai import OpenAIStage
 from app.stt.stages.stt_reazonspeech import ReazonSpeechEngine, ReazonSpeechStage
 from app.stt.stages.stt_remote import RemoteStage
-from app.stt.stages.stt_vosk import VoskEngine, VoskStage
 from app.stt.stages.stt_whisper import WhisperEngine, WhisperStage
 from app.stt.stages.stt_xai import XaiStage
 from app.stt.stages.vad import SileroVadEngine, VadEngine, VadStage, WebRtcVadEngine
@@ -64,7 +63,6 @@ def _make_stt_stage(
     | OpenAIStage
     | ReazonSpeechStage
     | RemoteStage
-    | VoskStage
     | XaiStage
 ):
     if cfg.backend == "whisper":
@@ -92,8 +90,6 @@ def _make_stt_stage(
         return ReazonSpeechStage(in_q, cfg, role, publisher, handle_speech_fn)
     if cfg.backend == "remote":
         return RemoteStage(in_q, cfg, role, publisher, handle_speech_fn)
-    if cfg.backend == "vosk":
-        return VoskStage(in_q, cfg, role, publisher, handle_speech_fn)
     if cfg.backend == "xai":
         return XaiStage(in_q, cfg, role, publisher, handle_speech_fn)
     raise ValueError(f"未知の STT バックエンド: {cfg.backend!r}")
@@ -131,12 +127,9 @@ class SttPipeline:
         self._publisher: ThreadSafePublisher | None = None
         self._started: bool = False
         self._whisper_initialized: bool = False
-        self._vosk_initialized: bool = False
         self._reazonspeech_initialized: bool = False
         self._whisper_initializing: bool = False
         self._whisper_shutdown_requested: bool = False
-        self._vosk_initializing: bool = False
-        self._vosk_shutdown_requested: bool = False
         self._reazonspeech_initializing: bool = False
         self._reazonspeech_shutdown_requested: bool = False
         self.on_ready: Callable[[], Coroutine[Never, Never, None]] | None = None
@@ -148,15 +141,12 @@ class SttPipeline:
     # ── SttStreamLike protocol ────────────────────────────────────────────────
 
     def supports_prewarm(self) -> bool:
-        return self._cfg.backend in {"whisper", "vosk", "reazonspeech"}
+        return self._cfg.backend in {"whisper", "reazonspeech"}
 
     def initialize(self, loop: asyncio.AbstractEventLoop) -> None:
         """Pre-warm local STT models. No-op for cloud/remote/dummy backends."""
         if self._cfg.backend == "whisper":
             self._initialize_whisper(loop)
-            return
-        if self._cfg.backend == "vosk":
-            self._initialize_vosk(loop)
             return
         if self._cfg.backend == "reazonspeech":
             self._initialize_reazonspeech(loop)
@@ -209,85 +199,6 @@ class SttPipeline:
             self._publish_ready(loop)
 
         thread = threading.Thread(target=load_whisper, name=f"whisper-init-{self._role}", daemon=True)
-        thread.start()
-
-    def _initialize_vosk(self, loop: asyncio.AbstractEventLoop) -> None:
-        publisher: ThreadSafePublisher | None = None
-        cfg: SttConfig | None = None
-        with self._lock:
-            if self._vosk_initialized:
-                already_initialized = True
-            elif self._vosk_initializing:
-                return
-            else:
-                already_initialized = False
-                self._loop = loop
-                publisher = ThreadSafePublisher(self._broadcast, loop)
-                cfg = self._cfg
-                self._vosk_initializing = True
-                self._vosk_shutdown_requested = False
-
-        if already_initialized:
-            self._publish_ready(loop)
-            return
-
-        assert cfg is not None
-        assert publisher is not None
-
-        def load_vosk(
-            model_cfg: SttConfig,
-            progress_publisher: ThreadSafePublisher,
-            callback_loop: asyncio.AbstractEventLoop,
-        ) -> None:
-            try:
-                VoskEngine.acquire(model_cfg, publisher=progress_publisher)
-            except Exception as e:
-                import traceback
-
-                logger.error("Vosk初期化エラー(%s): %s", self._role, e)
-                traceback.print_exc()
-                with self._lock:
-                    self._vosk_initializing = False
-                    if self._vosk_shutdown_requested:
-                        self.on_ready = None
-                        self.on_error = None
-                        return
-                    on_error = self.on_error
-                    self.on_error = None
-                    self.on_ready = None
-                if on_error is not None:
-                    _ = asyncio.run_coroutine_threadsafe(on_error(e), callback_loop)
-                else:
-                    _ = asyncio.run_coroutine_threadsafe(
-                        self._broadcast(ErrorMsg(text=f"Vosk初期化エラー({self._role}): {e}")),
-                        callback_loop,
-                    )
-                return
-
-            with self._lock:
-                self._vosk_initializing = False
-                if self._vosk_shutdown_requested:
-                    self.on_ready = None
-                    self.on_error = None
-                    release_after_load = True
-                    on_ready = None
-                else:
-                    release_after_load = self._vosk_initialized
-                    self._vosk_initialized = True
-                    on_ready = self.on_ready
-                    self.on_ready = None
-
-            if release_after_load:
-                VoskEngine.release()
-            if on_ready is not None:
-                _ = asyncio.run_coroutine_threadsafe(on_ready(), callback_loop)
-
-        thread = threading.Thread(
-            target=load_vosk,
-            args=(cfg, publisher, loop),
-            name=f"vosk-init-{self._role}",
-            daemon=True,
-        )
         thread.start()
 
     def _initialize_reazonspeech(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -376,7 +287,6 @@ class SttPipeline:
             if self._started:
                 return
             whisper_was_initialized = self._whisper_initialized
-            vosk_was_initialized = self._vosk_initialized
             reazonspeech_was_initialized = self._reazonspeech_initialized
             self._loop = loop
             self._publisher = ThreadSafePublisher(self._broadcast, loop)
@@ -389,9 +299,6 @@ class SttPipeline:
                 if not whisper_was_initialized and self._whisper_initialized:
                     WhisperEngine.release()
                     self._whisper_initialized = False
-                if not vosk_was_initialized and self._vosk_initialized:
-                    VoskEngine.release()
-                    self._vosk_initialized = False
                 if not reazonspeech_was_initialized and self._reazonspeech_initialized:
                     ReazonSpeechEngine.release()
                     self._reazonspeech_initialized = False
@@ -415,11 +322,7 @@ class SttPipeline:
         """stop() + release local STT models."""
         self._whisper_shutdown_requested = True
         with self._lock:
-            self._vosk_shutdown_requested = True
             self._reazonspeech_shutdown_requested = True
-            if self._vosk_initializing:
-                self.on_ready = None
-                self.on_error = None
             if self._reazonspeech_initializing:
                 self.on_ready = None
                 self.on_error = None
@@ -429,12 +332,8 @@ class SttPipeline:
             self._whisper_initialized = False
         self._whisper_initializing = False
         with self._lock:
-            release_vosk = self._vosk_initialized
-            self._vosk_initialized = False
             release_reazonspeech = self._reazonspeech_initialized
             self._reazonspeech_initialized = False
-        if release_vosk:
-            VoskEngine.release()
         if release_reazonspeech:
             ReazonSpeechEngine.release()
 
@@ -457,9 +356,6 @@ class SttPipeline:
         if isinstance(stt, WhisperStage) and not self._whisper_initialized:
             WhisperEngine.acquire(self._cfg, publisher=self._publisher)
             self._whisper_initialized = True
-        if isinstance(stt, VoskStage) and not self._vosk_initialized:
-            VoskEngine.acquire(self._cfg, publisher=self._publisher)
-            self._vosk_initialized = True
         if isinstance(stt, ReazonSpeechStage) and not self._reazonspeech_initialized:
             ReazonSpeechEngine.acquire(self._cfg, publisher=self._publisher)
             self._reazonspeech_initialized = True

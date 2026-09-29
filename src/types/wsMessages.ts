@@ -43,7 +43,11 @@ const SuggestionModeSchema = z.enum([
 
 export const InboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("status"), text: z.string() }),
-  z.object({ type: z.literal("meeting_state"), running: z.boolean() }),
+  z.object({
+    type: z.literal("meeting_state"),
+    running: z.boolean(),
+    saved: z.boolean().optional(),
+  }),
   z.object({
     type: z.literal("stt_state"),
     backend: z.string(),

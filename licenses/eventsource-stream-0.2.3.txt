@@ -1,0 +1,12 @@
+eventsource-stream 0.2.3
+Author: Julian Popescu
+Repository: https://github.com/jpopesculian/eventsource-stream
+Release source commit: 3d46f1c758f9ee4681e9da0427556d24c53f9c01
+Declaration source: https://github.com/jpopesculian/eventsource-stream/blob/3d46f1c758f9ee4681e9da0427556d24c53f9c01/README.md
+
+The published Cargo manifest declares: MIT OR Apache-2.0
+The README at the release source commit declares: License: MIT OR Apache-2.0
+Neither the published crate nor that source commit includes a LICENSE or NOTICE file.
+Meeting Supporter uses the Apache-2.0 option and supplies the unmodified standard
+license text obtained from https://www.apache.org/licenses/LICENSE-2.0.txt.
+No copyright notice is invented or removed from the upstream source.

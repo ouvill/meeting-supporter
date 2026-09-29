@@ -7,7 +7,6 @@ import secrets
 from functools import partial
 from pathlib import Path
 
-import soundcard as sc
 from dotenv import load_dotenv
 from platformdirs import user_data_path
 
@@ -37,11 +36,11 @@ from app.core.events import ConfigChanged
 from app.core.state import AppState
 from app.core.types import InputDevice
 from app.lifespan import create_lifespan
-from app.meetings.lifecycle import MeetingLifecycleCoordinator
+from app.meetings.lifecycle_factory import lifecycle_coordinator_type
 from app.meetings.models import Turn, _new_utterance_id
 from app.meetings.recording import RecordingService
+from app.meetings.repository_factory import build_history_repository
 from app.meetings.service import MeetingHistoryService
-from app.meetings.sqlite_repository import SqliteMeetingHistoryRepository
 from app.runtime_composition import RuntimeCompositionCoordinator
 from app.services.broadcast import BroadcastManager
 from app.services.config_loader import ConfigLoader
@@ -55,7 +54,6 @@ from app.services.secret_store import create_secret_store
 from app.services.settings_store import SettingsStore
 from app.services.stt_controller import SttController
 from app.services.usage_logger import UsageLogger
-from app.services.vosk_model_manager import VoskModelManager
 from app.services.whisper_model_manager import WhisperModelManager
 
 # ── 設定 ─────────────────────────────────────────────────────────────────────
@@ -82,11 +80,6 @@ ensure_default_context_directory(
 state = AppState(config=config, secret_store=secret_store)
 broadcast_manager = BroadcastManager()
 event_bus = EventBus()
-vosk_model_manager = VoskModelManager(
-    user_data_dir=_user_data_dir,
-    settings_store=store,
-    event_bus=event_bus,
-)
 whisper_model_manager = WhisperModelManager()
 reazonspeech_model_manager = ReazonSpeechModelManager()
 usage_logger = UsageLogger(
@@ -130,6 +123,14 @@ runtime_composition = RuntimeCompositionCoordinator(
 
 
 def get_input_devices() -> list[InputDevice]:
+    from app.audio.media_transport import enabled as native_media_enabled
+    from app.audio.native_pipeline import get_native_devices
+    from app.audio.native_transport import enabled as native_audio_enabled
+
+    if native_audio_enabled() or native_media_enabled():
+        return get_native_devices()
+    import soundcard as sc
+
     default_ids: set[str] = set()
     for role in ("other", "self"):
         try:
@@ -165,7 +166,7 @@ stt_controller = SttController(
 
 # ── 会議履歴 (ADR-003 Phase 1) ───────────────────────────────────────────────
 
-history_repository = SqliteMeetingHistoryRepository(_user_data_dir / "meeting_history.sqlite3")
+history_repository = build_history_repository(_user_data_dir / "meeting_history.sqlite3")
 history_service = MeetingHistoryService(repository=history_repository)
 
 # ── 会話オーケストレーション ──────────────────────────────────────────────────
@@ -195,7 +196,7 @@ conversation_orchestrator = ConversationOrchestrator(
 recording_service = RecordingService(user_data_dir=_user_data_dir)
 
 
-meeting_lifecycle = MeetingLifecycleCoordinator(
+meeting_lifecycle = lifecycle_coordinator_type()(
     state=state,
     stt_controller=stt_controller,
     broadcast=broadcast_manager.broadcast,
@@ -233,7 +234,6 @@ app = create_app(
         history_service=history_service,
         user_data_dir=_user_data_dir,
         get_minutes_runtime=lambda: runtime_composition.bundle.minutes_runtime,
-        vosk_model_manager=vosk_model_manager,
         whisper_model_manager=whisper_model_manager,
         reazonspeech_model_manager=reazonspeech_model_manager,
         codex_status=codex_route_status,
@@ -255,7 +255,6 @@ app = create_app(
         stt_controller=stt_controller,
         config=runtime_composition.config,
         state=state,
-        vosk_model_manager=vosk_model_manager,
         history_repository=history_repository,
         history_service=history_service,
         meeting_lifecycle=meeting_lifecycle,

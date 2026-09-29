@@ -16,7 +16,7 @@ from typing import Final, Literal, cast, final
 
 import httpx
 
-from app.services.vosk_model_manager import ModelErrorCode, ModelLanguage, SpeechModelStatus
+from app.services.speech_model_status import ModelErrorCode, ModelLanguage, SpeechModelStatus
 
 WhisperModelAlias = Literal["tiny", "base", "small", "medium", "large-v2", "large-v3-turbo"]
 

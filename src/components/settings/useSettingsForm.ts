@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -52,31 +52,19 @@ export function useSettingsForm({
   const [ollamaMessageIsError, setOllamaMessageIsError] = useState(false);
 
   const speechModelBackend =
-    form.sttBackend === "vosk" ||
-    form.sttBackend === "whisper" ||
-    form.sttBackend === "reazonspeech"
+    form.sttBackend === "whisper" || form.sttBackend === "reazonspeech"
       ? form.sttBackend
       : null;
   const speechModelLanguage =
     form.sttLang === "ja" || form.sttLang === "en" ? form.sttLang : null;
   const speechModel = useSpeechModel(
-    speechModelBackend ?? "vosk",
+    speechModelBackend ?? "reazonspeech",
     speechModelBackend === "whisper"
       ? (form.sttWhisperModel as WhisperModelAlias)
       : null,
     speechModelLanguage,
     persistence.loaded && speechModelBackend !== null,
   );
-  const preparedSpeechModelPath =
-    speechModel.backend === "vosk" && speechModel.status?.state === "ready"
-      ? speechModel.status.model_path
-      : null;
-  persistence.trackPreparedSpeechModelPath(preparedSpeechModelPath);
-
-  useEffect(() => {
-    persistence.synchronizePreparedSpeechModelPath(preparedSpeechModelPath);
-  }, [persistence.synchronizePreparedSpeechModelPath, preparedSpeechModelPath]);
-
   const selectedRoutes = useMemo(
     () =>
       routes.routes.filter(
@@ -246,7 +234,6 @@ export function useSettingsForm({
   const save = () =>
     persistence.save({
       blocksSettingsSave: speechModel.blocksSettingsSave,
-      speechModelBackend: speechModel.backend,
       selectedRoutes,
       connectionStates: connections.connectionStates,
       pendingDeleteSecrets: connections.pendingDeleteSecrets,

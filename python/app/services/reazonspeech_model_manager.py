@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import errno
+import os
 import threading
 from dataclasses import replace
 from typing import final
 
 import httpx
 
-from app.services.vosk_model_manager import ModelErrorCode, SpeechModelStatus
+from app.services.speech_model_status import ModelErrorCode, SpeechModelStatus
 from app.stt.reazonspeech_model import (
     REAZONSPEECH_DOWNLOAD_BYTES,
     cached_reazonspeech_snapshot,
@@ -53,6 +54,15 @@ class ReazonSpeechModelManager:
             current = self.status()
             if current.state == "ready" and current.model_path is not None:
                 return current
+            if os.environ.get("MEETING_REAZON_RUNTIME") == "rust" and os.environ.get("MEETING_REAZON_MODEL"):
+                self._status = replace(
+                    self._missing_status(),
+                    state="failed",
+                    error_code="unknown",
+                    message="指定されたローカルモデルが不完全です。MEETING_REAZON_MODELを確認してください。",
+                    retryable=False,
+                )
+                return self._status
             self._status = replace(
                 self._missing_status(),
                 state="downloading",
@@ -96,6 +106,10 @@ class ReazonSpeechModelManager:
 
     @staticmethod
     def _cache_path() -> str:
+        if os.environ.get("MEETING_REAZON_RUNTIME") == "rust":
+            native_model = os.environ.get("MEETING_REAZON_MODEL")
+            if native_model:
+                return native_model
         from huggingface_hub.constants import HF_HUB_CACHE
 
         return HF_HUB_CACHE

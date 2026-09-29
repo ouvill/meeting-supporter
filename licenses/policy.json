@@ -17,7 +17,9 @@
     "Unlicense",
     "Zlib"
   ],
-  "allowed_exceptions": ["LLVM-exception"],
+  "allowed_exceptions": [
+    "LLVM-exception"
+  ],
   "license_aliases": {
     "Apache 2.0": "Apache-2.0",
     "Apache License 2.0": "Apache-2.0",
@@ -46,7 +48,9 @@
     "secretstorage@3.5.0": "BSD-3-Clause",
     "sherpa-onnx@1.12.31": "Apache-2.0",
     "uvloop@0.22.1": "Apache-2.0 OR MIT",
-    "vosk@0.3.45": "Apache-2.0"
+    "cobble@0.1.4": "BSD-2-Clause",
+    "markdownify@1.2.3": "MIT",
+    "defusedxml@0.7.1": "PSF-2.0"
   },
   "source_license_overrides": {
     "cargo:libappindicator-sys@0.9.0": {
@@ -73,9 +77,58 @@
       "repository": "https://github.com/strawgate/py-key-value",
       "commit": "ec9dfd6c18205aa1880f46842677f27d7275cbc7"
     },
-    "python:vosk@0.3.45": {
-      "repository": "https://github.com/alphacep/vosk-api",
-      "commit": "cf2560c9f8a49d3d366b433fdabd78c518231bec"
+    "cargo:eventsource-stream@0.2.3": {
+      "selected_license": "Apache-2.0",
+      "supplemental_documents": [
+        {
+          "path": "licenses/eventsource-stream-0.2.3.txt",
+          "sha256": "d9d236fe644217cdba6438ed61e81a9064ebdb022dbebcc18e74c192d23f7a27"
+        },
+        {
+          "path": "licenses/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        }
+      ]
+    },
+    "python:markitdown@0.1.8": {
+      "selected_license": "MIT",
+      "supplemental_documents": [
+        {
+          "path": "licenses/markitdown-0.1.8.txt",
+          "sha256": "1ab1966918c67e58538b271d5e19b60a5c895f161192427480dab3088085bcfd"
+        }
+      ]
+    },
+    "python:magika@0.6.3": {
+      "selected_license": "Apache-2.0",
+      "supplemental_documents": [
+        {
+          "path": "licenses/magika-0.6.3.txt",
+          "sha256": "3f5ac6903d0b5abf4ed5f9e4ca73c94a857f6e9c598f89277607d686bf680d6c"
+        }
+      ]
+    },
+    "python:cobble@0.1.4": {
+      "selected_license": "BSD-2-Clause",
+      "supplemental_documents": [
+        {
+          "path": "licenses/cobble-0.1.4.txt",
+          "sha256": "695a6084326b42fcdf2eff4c41d23b087a58d2165054644cdb17cd3f7326ae8a"
+        }
+      ]
+    },
+    "cargo:whisper-rs-sys@0.15.0": {
+      "selected_license": "Unlicense",
+      "supplemental_documents": [
+        {
+          "path": "licenses/whisper-rs-0.16.0.txt",
+          "sha256": "f0510d3b9d1223c45e8fdd2b49270ec8734fff491c7f7d1b948ee70162e1ceff"
+        },
+        {
+          "path": "licenses/whisper-cpp-1.8.3.txt",
+          "sha256": "e562a2ddfaf8280537795ac5ecd34e3012b6582a147ef69ba6a6a5c08c84757d"
+        }
+      ]
     }
   },
   "provisioned_artifacts": [
@@ -109,6 +162,37 @@
           "sha256": "2e63e9a38b6e8fc0c7bc37ce174caca1862870856c6daf5697cfb785e925520b"
         }
       ]
+    },
+    {
+      "name": "cpython",
+      "version": "3.12.12",
+      "license": "PSF-2.0",
+      "source": "https://github.com/python/cpython/tree/v3.12.12",
+      "license_files": [
+        {
+          "name": "LICENSE",
+          "url": "https://raw.githubusercontent.com/python/cpython/v3.12.12/LICENSE",
+          "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+        }
+      ]
+    },
+    {
+      "name": "pyinstaller-bootloader",
+      "version": "6.22.3",
+      "license": "GPL-2.0-or-later WITH Bootloader-exception",
+      "source": "https://github.com/pyinstaller/pyinstaller/tree/v6.22.3",
+      "license_files": [
+        {
+          "name": "COPYING.txt",
+          "url": "https://raw.githubusercontent.com/pyinstaller/pyinstaller/v6.22.3/COPYING.txt",
+          "sha256": "0598064c7d2718e38d7914a7d08343b2fa008e3bea9ebba2aa7a6ffa5900dd64"
+        }
+      ]
     }
-  ]
+  ],
+  "allowed_package_expressions": {
+    "provisioned:pyinstaller-bootloader@6.22.3": [
+      "GPL-2.0-or-later WITH Bootloader-exception"
+    ]
+  }
 }

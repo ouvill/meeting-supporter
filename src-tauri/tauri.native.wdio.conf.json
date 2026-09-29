@@ -1,0 +1,29 @@
+{
+  "identifier": "net.ouvill.meeting-supporter.native-test",
+  "build": {
+    "beforeBuildCommand": "npm run build:wdio"
+  },
+  "bundle": {
+    "active": false,
+    "resources": null
+  },
+  "app": {
+    "security": {
+      "capabilities": [
+        "default",
+        {
+          "identifier": "wdio",
+          "description": "Native speech desktop test permissions",
+          "windows": [
+            "main",
+            "assistant"
+          ],
+          "permissions": [
+            "wdio:default",
+            "wdio-webdriver:default"
+          ]
+        }
+      ]
+    }
+  }
+}

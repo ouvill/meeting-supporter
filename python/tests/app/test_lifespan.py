@@ -49,6 +49,9 @@ class _RecordingMeetingLifecycle:
     async def stop_meeting(self) -> None:
         self.stop_meeting_called = True
 
+    async def close(self) -> None:
+        pass
+
 
 class _DummyBundle:
     """An application with no assigned AI routes has no runtime to start or close."""
@@ -64,18 +67,6 @@ class _RecordingCodex:
 
     async def close(self) -> None:
         self.close_called = True
-
-
-class _RecordingVoskModelManager:
-    """Records manager cleanup relative to STT teardown."""
-
-    _events: list[str]
-
-    def __init__(self, events: list[str]) -> None:
-        self._events = events
-
-    async def shutdown(self) -> None:
-        self._events.append("model_manager.shutdown")
 
 
 class _DummyConfig:
@@ -150,13 +141,11 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
         events: list[str] = []
         stt = _RecordingSttController(events)
         lifecycle = _RecordingMeetingLifecycle()
-        model_manager = _RecordingVoskModelManager(events)
         codex = _RecordingCodex()
         lifespan_fn = create_lifespan(
             get_bundle=lambda: _DummyBundle(),  # pyright: ignore[reportArgumentType]
             codex=codex,  # pyright: ignore[reportArgumentType]
             stt_controller=stt,  # pyright: ignore[reportArgumentType]
-            vosk_model_manager=model_manager,  # pyright: ignore[reportArgumentType]
             config=_DummyConfig(),  # pyright: ignore[reportArgumentType]
             state=_DummyState(),  # pyright: ignore[reportArgumentType]
             meeting_lifecycle=lifecycle,  # pyright: ignore[reportArgumentType]
@@ -182,7 +171,6 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
         called directly."""
         events: list[str] = []
         stt = _RecordingSttController(events)
-        model_manager = _RecordingVoskModelManager(events)
 
         # All stubs below satisfy the expected protocol structurally.
         codex = _RecordingCodex()
@@ -190,7 +178,6 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
             get_bundle=lambda: _DummyBundle(),  # pyright: ignore[reportArgumentType]
             codex=codex,  # pyright: ignore[reportArgumentType]
             stt_controller=stt,  # pyright: ignore[reportArgumentType]
-            vosk_model_manager=model_manager,  # pyright: ignore[reportArgumentType]
             config=_DummyConfig(),  # pyright: ignore[reportArgumentType]
             state=_DummyState(),  # pyright: ignore[reportArgumentType]
         )
@@ -207,13 +194,11 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
         """Shutdown cleans the manager before STT teardown and then drains history."""
         events: list[str] = []
         stt = _RecordingSttController(events)
-        model_manager = _RecordingVoskModelManager(events)
         codex = _RecordingCodex()
         lifespan_fn = create_lifespan(
             get_bundle=lambda: _DummyBundle(),  # pyright: ignore[reportArgumentType]
             codex=codex,  # pyright: ignore[reportArgumentType]
             stt_controller=stt,  # pyright: ignore[reportArgumentType]
-            vosk_model_manager=model_manager,  # pyright: ignore[reportArgumentType]
             config=_DummyConfig(),  # pyright: ignore[reportArgumentType]
             state=_DummyState(),  # pyright: ignore[reportArgumentType]
             history_repository=_RecordingHistoryRepository(events),  # pyright: ignore[reportArgumentType]
@@ -227,8 +212,6 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
             ["repository.initialize", "history.flush", "repository.close"],
             [event for event in events if event in {"repository.initialize", "history.flush", "repository.close"}],
         )
-
-        self.assertLess(events.index("model_manager.shutdown"), events.index("stt.shutdown"))
 
 
 def _make_dummy_app() -> "FastAPI":

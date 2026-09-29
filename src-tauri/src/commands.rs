@@ -26,35 +26,65 @@ pub fn get_backend_bootstrap_status(
 }
 
 #[tauri::command]
-pub fn get_api_port(state: State<BackendState>) -> Result<Option<u16>, AppError> {
-    let mut backend = state
-        .lock()
-        .map_err(|e| AppError::MutexPoison(e.to_string()))?;
-    if refresh_backend_state(&mut backend) {
-        Ok(backend.port)
-    } else {
-        Ok(None)
+pub fn get_api_port(
+    _app: tauri::AppHandle,
+    _state: State<BackendState>,
+) -> Result<Option<u16>, AppError> {
+    #[cfg(feature = "rust-backend")]
+    {
+        Ok(crate::desktop_runtime::connection(&_app).map(|v| v.0))
+    }
+    #[cfg(not(feature = "rust-backend"))]
+    {
+        let mut backend = _state
+            .lock()
+            .map_err(|e| AppError::MutexPoison(e.to_string()))?;
+        if refresh_backend_state(&mut backend) {
+            Ok(backend.port)
+        } else {
+            Ok(None)
+        }
     }
 }
 
 #[tauri::command]
-pub fn get_api_auth_token(state: State<BackendState>) -> Result<Option<String>, AppError> {
-    let mut backend = state
-        .lock()
-        .map_err(|e| AppError::MutexPoison(e.to_string()))?;
-    if refresh_backend_state(&mut backend) {
-        Ok(backend.auth_token.clone())
-    } else {
-        Ok(None)
+pub fn get_api_auth_token(
+    _app: tauri::AppHandle,
+    _state: State<BackendState>,
+) -> Result<Option<String>, AppError> {
+    #[cfg(feature = "rust-backend")]
+    {
+        Ok(crate::desktop_runtime::connection(&_app).map(|v| v.1))
+    }
+    #[cfg(not(feature = "rust-backend"))]
+    {
+        let mut backend = _state
+            .lock()
+            .map_err(|e| AppError::MutexPoison(e.to_string()))?;
+        if refresh_backend_state(&mut backend) {
+            Ok(backend.auth_token.clone())
+        } else {
+            Ok(None)
+        }
     }
 }
 
 #[tauri::command]
-pub fn is_backend_running(state: State<BackendState>) -> Result<bool, AppError> {
-    let mut backend = state
-        .lock()
-        .map_err(|e| AppError::MutexPoison(e.to_string()))?;
-    Ok(refresh_backend_state(&mut backend))
+pub fn is_backend_running(
+    _app: tauri::AppHandle,
+    _state: State<BackendState>,
+) -> Result<bool, AppError> {
+    #[cfg(feature = "rust-backend")]
+    {
+        Ok(crate::desktop_runtime::connection(&_app).is_some())
+    }
+    #[cfg(not(feature = "rust-backend"))]
+    {
+        let mut backend = _state
+            .lock()
+            .map_err(|e| AppError::MutexPoison(e.to_string()))?;
+        Ok(refresh_backend_state(&mut backend))
+    }
 }
 
 #[tauri::command]

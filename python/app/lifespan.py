@@ -19,7 +19,6 @@ from app.openapi_utils import write_openapi_json
 from app.services.config_loader import ConfigLoader
 from app.services.context_loader import load_context_files
 from app.services.stt_controller import SttController
-from app.services.vosk_model_manager import VoskModelManager
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,6 @@ def create_lifespan(
     stt_controller: SttController,
     config: ConfigLoader,
     state: AppState,
-    vosk_model_manager: VoskModelManager,
     history_repository: MeetingHistoryRepository | None = None,
     history_service: MeetingHistoryService | None = None,
     meeting_lifecycle: MeetingLifecycleCoordinator | None = None,
@@ -67,9 +65,7 @@ def create_lifespan(
         )
 
         if config.stt_backend == "local":
-            logger.warning(
-                "backend=local は未対応です。backend=whisper / reazonspeech / vosk / remote を使用してください"
-            )
+            logger.warning("backend=local は未対応です。backend=whisper / reazonspeech / remote を使用してください")
         elif config.stt_backend == "dummy":
             logger.info("STT: backend=dummy  外部サービスなしの軽量 smoke 用バックエンド")
         elif config.stt_backend == "remote":
@@ -102,15 +98,6 @@ def create_lifespan(
             logger.info(
                 "STT: backend=reazonspeech  model=reazonspeech-k2-v2-int8  lang=%s"
                 + "  vad_aggressiveness=%s  silence=%ss",
-                cfg.language,
-                cfg.vad_aggressiveness,
-                cfg.silence_duration,
-            )
-        elif config.stt_backend == "vosk":
-            cfg = config.stt_config
-            logger.info(
-                "STT: backend=vosk  model_path=%s  lang=%s  vad_aggressiveness=%s  silence=%ss",
-                cfg.vosk_model_path,
                 cfg.language,
                 cfg.vad_aggressiveness,
                 cfg.silence_duration,
@@ -166,9 +153,6 @@ def create_lifespan(
 
         # ── shutdown ──────────────────────────────────────────────────────────
         logger.info("シャットダウン開始")
-        # Let a final managed-model configuration event finish before STT
-        # resources are torn down; its handler may reconfigure the controller.
-        await vosk_model_manager.shutdown()
 
         try:
             if meeting_lifecycle is not None:
@@ -180,6 +164,9 @@ def create_lifespan(
         except Exception as e:
             logger.error("shutdown cleanup 失敗: %s", e, exc_info=True)
             traceback.print_exc()
+
+        if meeting_lifecycle is not None:
+            await meeting_lifecycle.close()
 
         if history_service is not None:
             await history_service.flush_pending()

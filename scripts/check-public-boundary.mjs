@@ -17,6 +17,7 @@ const ALLOWED_TOP_LEVEL = new Set([
   "README.md",
   "SECURITY.md",
   "THIRD-PARTY-NOTICES.txt",
+  "crates",
   "doc",
   "flake.lock",
   "flake.nix",
@@ -29,6 +30,7 @@ const ALLOWED_TOP_LEVEL = new Set([
   "public",
   "python",
   "python-server",
+  "python-worker",
   "renovate.json",
   "scripts",
   "src",
@@ -45,6 +47,8 @@ const ALLOWED_TOP_LEVEL = new Set([
 
 const ALLOWED_DOCS = new Set([
   "doc/README.md",
+  "doc/development/rust-local-speech.md",
+  "doc/development/rust-desktop-backend.md",
   "doc/product/vision.md",
   "doc/product/prd.md",
   "doc/ui/README.md",
@@ -59,6 +63,7 @@ const ALLOWED_DOCS = new Set([
   "doc/adr/012-native-window-chrome-and-pin-preference.md",
   "doc/adr/013-contextual-api-credential-controls.md",
   "doc/adr/015-localized-ui-message-contract.md",
+  "doc/adr/016-rust-runtime-and-ownership-boundaries.md",
 ]);
 
 const PATH_RULES = [

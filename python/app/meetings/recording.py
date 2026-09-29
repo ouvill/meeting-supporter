@@ -9,10 +9,13 @@ Recording failures are logged but not raised — the meeting flow continues.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from app.audio.media_pipeline import MediaAudioPipeline
+from app.audio.native_pipeline import NativeAudioPipeline
 from app.meetings.history_models import RecordingAsset, RecordingRole
 from app.meetings.models import _new_utterance_id
 
@@ -68,7 +71,10 @@ class RecordingService:
                 continue
             path = recordings_dir / f"{role}.wav"
             try:
-                pipeline.start_recording(path)
+                if isinstance(pipeline, (NativeAudioPipeline, MediaAudioPipeline)):
+                    await asyncio.to_thread(pipeline.start_recording, path)
+                else:
+                    pipeline.start_recording(path)
                 logger.info("Recording started for %s → %s", role, path)
             except Exception:
                 logger.exception("Failed to start recording for %s", role)
@@ -97,7 +103,10 @@ class RecordingService:
             if pipeline is None:
                 continue
             try:
-                result = pipeline.stop_recording()
+                if isinstance(pipeline, (NativeAudioPipeline, MediaAudioPipeline)):
+                    result = await asyncio.to_thread(pipeline.stop_recording)
+                else:
+                    result = pipeline.stop_recording()
             except Exception:
                 failed_roles.append(role)
                 logger.exception("Failed to stop recording for %s", role)

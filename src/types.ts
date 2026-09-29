@@ -104,6 +104,7 @@ export interface SocketState {
   connected: boolean;
   statusText: string;
   isRunning: boolean;
+  meetingSaved?: boolean;
   sttBackend: string;
   sttInitialized: boolean;
   sttInitializing: boolean;

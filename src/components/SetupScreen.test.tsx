@@ -318,7 +318,7 @@ describe("SetupScreen", () => {
     render(
       <SetupScreen
         {...replyRouteProps}
-        state={idleState({ sttBackend: "vosk" })}
+        state={idleState({ sttBackend: "whisper" })}
         send={vi.fn<SendFn>()}
         onSettings={noopVoid}
       />,

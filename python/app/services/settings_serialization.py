@@ -20,7 +20,6 @@ STT_PUBLIC_KEYS = frozenset(
         "whisper_model",
         "deepgram_model",
         "openai_model",
-        "vosk_model_path",
         "language",
         "vad_engine",
         "vad_sensitivity",

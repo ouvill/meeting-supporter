@@ -89,6 +89,9 @@ class MeetingLifecycleCoordinator:
         self._recording: RecordingService | None = recording
         self._user_data_dir: Path | None = user_data_dir
 
+    async def close(self) -> None:
+        """Release lifecycle resources after stop; Python implementation has none."""
+
     async def start_meeting(
         self,
         ws: WebSocketLike,

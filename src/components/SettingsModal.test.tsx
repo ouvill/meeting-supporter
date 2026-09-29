@@ -186,6 +186,33 @@ describe("SettingsModal connection UX", () => {
     });
   });
 
+  it("shows the Rust backend's audio-settings conflict instead of a generic save failure", async () => {
+    sdkMocks.saveSettings.mockResolvedValueOnce({
+      data: undefined,
+      error: {
+        detail: {
+          code: "AUDIO_SETTINGS_LOCKED",
+          message: "会議中・準備中は音声認識の設定を変更できません。",
+        },
+      },
+      request,
+      response: new Response(null, { status: 409 }),
+    });
+    await renderModal(
+      settings({ stt: { backend: "dummy", language: "ja" } }),
+      routeCatalog(),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "発話ごとに自動で作る" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(
+      await screen.findByText(
+        "会議中・準備中は音声認識の設定を変更できません。",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("focuses the native dialog title and restores the opening control after close", async () => {
     sdkMocks.getSettings.mockResolvedValueOnce({
       data: settings(),
@@ -244,9 +271,7 @@ describe("SettingsModal connection UX", () => {
     fireEvent.change(screen.getByLabelText("OpenAI APIキー"), {
       target: { value: "test-only-openai-key" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "OpenAI 接続を確認" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "OpenAI 接続を確認" }));
 
     await waitFor(() =>
       expect(testConnectionApiSettingsConnectionsTestPost).toHaveBeenCalledWith(
@@ -327,7 +352,9 @@ describe("SettingsModal connection UX", () => {
           body: { provider, api_key: draft },
         }),
       );
-      expect(testConnectionApiSettingsConnectionsTestPost).toHaveBeenCalledOnce();
+      expect(
+        testConnectionApiSettingsConnectionsTestPost,
+      ).toHaveBeenCalledOnce();
       expect(saveSettingsApiSettingsPost).not.toHaveBeenCalled();
     },
   );
@@ -369,7 +396,9 @@ describe("SettingsModal connection UX", () => {
           body: { provider, api_key: draft },
         }),
       );
-      expect(testConnectionApiSettingsConnectionsTestPost).toHaveBeenCalledOnce();
+      expect(
+        testConnectionApiSettingsConnectionsTestPost,
+      ).toHaveBeenCalledOnce();
       expect(saveSettingsApiSettingsPost).not.toHaveBeenCalled();
     },
   );
@@ -483,9 +512,9 @@ describe("SettingsModal connection UX", () => {
     expect(screen.getByRole("heading", { name: "要設定" })).toBeInTheDocument();
     expect(screen.getByText("アプリにおまかせ")).toBeInTheDocument();
     expect(
-      screen.getAllByRole("button", { name: "返答案" }).some(
-        (button) => button.getAttribute("aria-pressed") === "true",
-      ),
+      screen
+        .getAllByRole("button", { name: "返答案" })
+        .some((button) => button.getAttribute("aria-pressed") === "true"),
     ).toBe(true);
     expect(screen.getByText("Ollama")).toBeInTheDocument();
     expect(screen.getByText("ACP")).toBeInTheDocument();
@@ -575,7 +604,6 @@ describe("SettingsModal connection UX", () => {
     ).not.toBeChecked();
   });
 
-
   it("keeps a missing BYOK credential on its selected Support card", async () => {
     const openaiRoute = route({
       id: "openai",
@@ -602,7 +630,9 @@ describe("SettingsModal connection UX", () => {
         "この支援方法を利用するには、利用可能なAPIキーが必要です。",
       ),
     ).toBeInTheDocument();
-    expect(document.querySelector('[data-route-id="openai"]')).toHaveTextContent(
+    expect(
+      document.querySelector('[data-route-id="openai"]'),
+    ).toHaveTextContent(
       "この支援方法を利用するには、利用可能なAPIキーが必要です。",
     );
     expect(
@@ -934,18 +964,15 @@ describe("SettingsModal connection UX", () => {
       target: { value: "gpt-4o-mini-transcribe" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /データとプライバシー/ }));
-    fireEvent.change(
-      await screen.findByLabelText("録音の最大合計容量（MB）"),
-      { target: { value: "64" } },
+    fireEvent.click(
+      screen.getByRole("button", { name: /データとプライバシー/ }),
     );
+    fireEvent.change(await screen.findByLabelText("録音の最大合計容量（MB）"), {
+      target: { value: "64" },
+    });
 
     rendered.rerender(
-      <SettingsModal
-        onClose={onClose}
-        routes={routes}
-        audioSettingsLocked
-      />,
+      <SettingsModal onClose={onClose} routes={routes} audioSettingsLocked />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /音声/ }));
@@ -962,7 +989,9 @@ describe("SettingsModal connection UX", () => {
       "whisper-1",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /データとプライバシー/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /データとプライバシー/ }),
+    );
     expect(
       await screen.findByLabelText("録音の最大合計容量（MB）"),
     ).toHaveValue(64);
@@ -1005,11 +1034,7 @@ describe("SettingsModal connection UX", () => {
     ).toBeInTheDocument();
 
     rendered.rerender(
-      <SettingsModal
-        onClose={onClose}
-        routes={routes}
-        audioSettingsLocked
-      />,
+      <SettingsModal onClose={onClose} routes={routes} audioSettingsLocked />,
     );
     await waitFor(() =>
       expect(
@@ -1034,11 +1059,12 @@ describe("SettingsModal connection UX", () => {
     await renderModal(settings(), routeCatalog(), vi.fn(), true);
     await waitFor(() => expect(sdkMocks.getSpeechStatus).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: /データとプライバシー/ }));
-    fireEvent.change(
-      await screen.findByLabelText("録音の最大合計容量（MB）"),
-      { target: { value: "32" } },
+    fireEvent.click(
+      screen.getByRole("button", { name: /データとプライバシー/ }),
     );
+    fireEvent.change(await screen.findByLabelText("録音の最大合計容量（MB）"), {
+      target: { value: "32" },
+    });
     const saveButton = screen.getByRole("button", { name: "保存" });
     expect(saveButton).toBeEnabled();
     fireEvent.click(saveButton);

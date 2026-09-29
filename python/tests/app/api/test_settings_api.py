@@ -319,7 +319,6 @@ backend = "whisper"
 whisper_model = "large-v3-turbo"
 deepgram_model = "nova-3"
 openai_model = "gpt-4o-transcribe"
-vosk_model_path = "vosk-model-small-ja-0.22"
 language = "ja"
 vad_engine = "silero"
 vad_sensitivity = 0.4
@@ -443,7 +442,6 @@ hallucination_phrase_blocklist = ["preserve me"]
                         "whisper_model": "large-v3-turbo",
                         "deepgram_model": "nova-3",
                         "openai_model": "gpt-4o-transcribe",
-                        "vosk_model_path": "vosk-model-small-ja-0.22",
                         "language": "ja",
                         "vad_engine": "silero",
                         "vad_sensitivity": 0.4,

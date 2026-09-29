@@ -41,21 +41,24 @@ class MeetingHistoryService:
     def __init__(self, repository: MeetingHistoryRepository) -> None:
         self._repository: MeetingHistoryRepository = repository
         self._pending_tasks: set[asyncio.Task[None]] = set()
+        self._failed_meetings: set[str] = set()
 
     @property
     def repository(self) -> MeetingHistoryRepository:
         return self._repository
 
-    def _track_persistence_task(self, task: asyncio.Task[None]) -> asyncio.Task[None]:
+    def _track_persistence_task(self, task: asyncio.Task[None], meeting_id: str) -> asyncio.Task[None]:
         self._pending_tasks.add(task)
 
         def _on_done(done_task: asyncio.Task[None]) -> None:
             self._pending_tasks.discard(done_task)
             if done_task.cancelled():
+                self._failed_meetings.add(meeting_id)
                 logger.warning("Persistence task was cancelled")
                 return
             exc = done_task.exception()
             if exc is not None:
+                self._failed_meetings.add(meeting_id)
                 logger.error(
                     "Persistence task failed",
                     exc_info=(type(exc), exc, exc.__traceback__),
@@ -64,7 +67,9 @@ class MeetingHistoryService:
         task.add_done_callback(_on_done)
         return task
 
-    async def flush_pending(self, timeout: float = 5.0) -> None:
+    async def flush_pending(
+        self, timeout: float = 5.0, *, require_complete: bool = False, meeting_id: str | None = None
+    ) -> None:
         """Wait for currently pending and newly scheduled persistence tasks."""
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
@@ -75,6 +80,8 @@ class MeetingHistoryService:
                     "Timed out waiting for %d persistence task(s)",
                     len(self._pending_tasks),
                 )
+                if require_complete:
+                    raise RuntimeError("Meeting persistence did not finish")
                 return
             pending_snapshot = set(self._pending_tasks)
             _done, pending = await asyncio.wait(pending_snapshot, timeout=remaining)
@@ -83,7 +90,12 @@ class MeetingHistoryService:
                     "Timed out waiting for %d persistence task(s)",
                     len(pending),
                 )
+                if require_complete:
+                    raise RuntimeError("Meeting persistence did not finish")
                 return
+
+        if require_complete and (meeting_id in self._failed_meetings if meeting_id else self._failed_meetings):
+            raise RuntimeError("Meeting persistence failed")
 
     # ── Meeting lifecycle (may raise) ─────────────────────────────────────────
 
@@ -147,11 +159,14 @@ class MeetingHistoryService:
         try:
             await self._repository.insert_turn(record)
         except Exception:
+            self._failed_meetings.add(meeting_id)
             logger.exception("Failed to persist turn %s for meeting %s", turn.id, meeting_id)
 
     def schedule_insert_turn(self, meeting_id: str, sequence: int, turn: Turn) -> asyncio.Task[None]:
         """Schedule turn persistence as a tracked background task."""
-        return self._track_persistence_task(asyncio.create_task(self.insert_turn(meeting_id, sequence, turn)))
+        return self._track_persistence_task(
+            asyncio.create_task(self.insert_turn(meeting_id, sequence, turn)), meeting_id
+        )
 
     # ── Reply suggestions (fire-and-forget — errors are logged) ───────────────
 
@@ -179,6 +194,7 @@ class MeetingHistoryService:
         try:
             await self._repository.insert_reply_suggestion(record)
         except Exception:
+            self._failed_meetings.add(meeting_id)
             logger.exception(
                 "Failed to persist reply suggestion %s for meeting %s",
                 suggestion.id,
@@ -190,7 +206,7 @@ class MeetingHistoryService:
     ) -> asyncio.Task[None]:
         """Schedule reply suggestion persistence as a tracked background task."""
         return self._track_persistence_task(
-            asyncio.create_task(self.save_reply_suggestion(meeting_id, sequence, suggestion))
+            asyncio.create_task(self.save_reply_suggestion(meeting_id, sequence, suggestion)), meeting_id
         )
 
     # ── Query / mutation (delegates to repository) ─────────────────────────────

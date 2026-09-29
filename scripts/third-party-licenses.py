@@ -78,6 +78,8 @@ def root_license_documents(
             for path in directory.iterdir()
             if path.is_file() and LICENSE_NAME.match(path.name)
         )
+    # REUSE packages keep SPDX-named license texts in LICENSES/.
+    candidates.extend(sorted((directory / "LICENSES").glob("*.txt")))
     documents: list[tuple[str, str]] = []
     seen: set[Path] = set()
     for path in candidates:
@@ -147,6 +149,7 @@ def cargo_packages(
     features: list[str] | None = None,
     include_roots: bool = False,
     workspace_source: str | None = None,
+    exclude_names: list[str] | None = None,
 ) -> list[Package]:
     metadata_command = ["cargo", "metadata", "--locked", "--format-version", "1"]
     if features:
@@ -164,7 +167,8 @@ def cargo_packages(
         resolved_roots = {root_package["name"]}
 
     available_names = {package["name"] for package in metadata["packages"]}
-    missing = resolved_roots - available_names
+    excluded_names = set(exclude_names or [])
+    missing = (resolved_roots | excluded_names) - available_names
     if missing:
         raise RuntimeError(
             f"Cargo roots not found in {project_dir}: {', '.join(sorted(missing))}"
@@ -204,7 +208,7 @@ def cargo_packages(
     root_versions = {
         (package["name"], package["version"])
         for package in metadata["packages"]
-        if package["name"] in resolved_roots
+        if package["name"] in resolved_roots | excluded_names
     }
     if not include_roots:
         selected_keys -= root_versions
@@ -264,16 +268,16 @@ def cargo_packages(
     return packages
 
 
-def python_site_packages() -> list[Path]:
-    venv = ROOT / "python" / ".venv"
+def python_site_packages(project_dir: Path) -> list[Path]:
+    venv = project_dir / ".venv"
     candidates = list((venv / "lib").glob("python*/site-packages"))
     candidates.extend((venv / "Lib").glob("site-packages"))
     return [path for path in candidates if path.is_dir()]
 
 
-def python_metadata() -> dict[str, tuple[Any, Path]]:
+def python_metadata(project_dir: Path) -> dict[str, tuple[Any, Path]]:
     result: dict[str, tuple[Any, Path]] = {}
-    for site_packages in python_site_packages():
+    for site_packages in python_site_packages(project_dir):
         for dist_info in site_packages.glob("*.dist-info"):
             metadata_path = dist_info / "METADATA"
             if not metadata_path.is_file():
@@ -404,7 +408,7 @@ def archive_python_metadata(data: bytes, url: str) -> Any | None:
     return BytesParser(policy=email.policy.compat32).parsebytes(candidates[0])
 
 
-def python_packages(policy: dict[str, Any]) -> list[Package]:
+def python_packages(policy: dict[str, Any], project_dir: Path = ROOT / "python") -> list[Package]:
     exported = run(
         [
             "uv",
@@ -416,7 +420,7 @@ def python_packages(policy: dict[str, Any]) -> list[Package]:
             "--no-annotate",
             "--no-header",
         ],
-        ROOT / "python",
+        project_dir,
     )
     requirements: set[tuple[str, str]] = set()
     for line in exported.splitlines():
@@ -424,12 +428,12 @@ def python_packages(policy: dict[str, Any]) -> list[Package]:
         if match:
             requirements.add((match.group(1), match.group(2)))
 
-    lock = tomllib.loads((ROOT / "python" / "uv.lock").read_text(encoding="utf-8"))
+    lock = tomllib.loads((project_dir / "uv.lock").read_text(encoding="utf-8"))
     locked_by_key = {
         (canonical_name(item["name"]), item["version"]): item
         for item in lock["package"]
     }
-    installed = python_metadata()
+    installed = python_metadata(project_dir)
     overrides = policy["python_overrides"]
     packages: list[Package] = []
     for name, version in sorted(requirements, key=lambda item: canonical_name(item[0])):
@@ -492,7 +496,14 @@ def provisioned_packages(policy: dict[str, Any]) -> list[Package]:
     )
     if not runtime_uv_version:
         raise RuntimeError("src-tauri/src/paths/uv.rs does not declare UV_VERSION")
+    worker_lock = tomllib.loads((ROOT / "python-worker" / "uv.lock").read_text(encoding="utf-8"))
+    worker_build_version = next(p["version"] for p in worker_lock["package"] if p["name"] == "pyinstaller")
+    worker_python_version = (ROOT / "python-worker" / ".python-version").read_text().strip()
     for artifact in policy["provisioned_artifacts"]:
+        if artifact["name"] == "pyinstaller-bootloader" and artifact["version"] != worker_build_version:
+            raise RuntimeError("PyInstaller license policy version differs from the worker lockfile")
+        if artifact["name"] == "cpython" and artifact["version"] != worker_python_version:
+            raise RuntimeError("CPython license policy version differs from the worker Python pin")
         if artifact["name"] == "uv" and artifact["version"] != runtime_uv_version.group(
             1
         ):
@@ -639,6 +650,27 @@ def recover_pinned_repository_documents(
         if package.documents:
             continue
         override = overrides.get(package.reference, {})
+        supplements = override.get("supplemental_documents")
+        if supplements:
+            # Version-specific, reviewed license material for incomplete upstream artifacts.
+            selected = override["selected_license"]
+            if selected not in TOKEN.findall(package.license_expression):
+                raise RuntimeError(f"{package.reference}: selected license is not declared upstream")
+            documents = []
+            for item in supplements:
+                path = (ROOT / item["path"]).resolve()
+                if not path.is_relative_to(ROOT / "licenses"):
+                    raise RuntimeError("supplemental license must be inside licenses/")
+                data = path.read_bytes()
+                if hashlib.sha256(data).hexdigest() != item["sha256"]:
+                    raise RuntimeError(f"{package.reference}: supplemental license checksum mismatch")
+                text = clean_text(data)
+                if text is None:
+                    raise RuntimeError(f"{package.reference}: invalid supplemental license text")
+                documents.append((f"{item['path']} (reviewed supplement)", text))
+            package.license_expression = selected
+            package.documents = documents
+            continue
         repository = override.get("repository") or package.repository
         commit = override.get("commit") or package.source_commit
         if not repository or not commit:
@@ -657,6 +689,10 @@ def audit(packages: list[Package], policy: dict[str, Any]) -> list[str]:
         expression = normalized_expression(package.license_expression, policy)
         try:
             accepted = ExpressionParser(expression, allowed, exceptions).parse()
+            # Package-specific permission keeps the bootloader exception from allowing bare GPL.
+            accepted = accepted or expression in policy.get("allowed_package_expressions", {}).get(
+                package.reference, []
+            )
         except ValueError as error:
             errors.append(
                 f"{package.reference}: invalid or unknown license expression {expression!r} ({error})"
@@ -677,9 +713,10 @@ def render(packages: list[Package]) -> str:
         "============================",
         "",
         "Meeting Supporter includes or provisions the third-party software listed below.",
-        "Python packages are resolved from python/uv.lock with `uv sync --locked --no-dev`.",
+        "Python packages are resolved from python/uv.lock and python-worker/uv.lock with `uv sync --locked --no-dev`.",
         "Corresponding source is available from each package URL. License and attribution",
-        "texts are copied from the locked package artifacts; identical texts are deduplicated.",
+        "texts come from locked artifacts, pinned sources, or reviewed license supplements.",
+        "Identical texts are deduplicated.",
         "",
         "This file is generated by scripts/third-party-licenses.py. Do not edit manually.",
         "",
@@ -733,10 +770,39 @@ def main() -> int:
     try:
         packages = (
             npm_packages()
-            + cargo_packages()
+            + cargo_packages(
+                root_names=["meeting-supporter"],
+                exclude_names=[
+                    "meeting-speech-runtime", "meeting-desktop-runtime",
+                    "meeting-media-runtime", "meeting-session", "meeting-storage",
+                ],
+                features=["rust-backend"],
+            )
+            + cargo_packages(project_dir=ROOT / "crates" / "meeting-audio-runtime")
+            + cargo_packages(project_dir=ROOT / "crates" / "meeting-storage")
+            + cargo_packages(project_dir=ROOT / "crates" / "meeting-session")
+            + cargo_packages(project_dir=ROOT / "crates" / "meeting-media-runtime")
+            + cargo_packages(
+                project_dir=ROOT / "crates" / "meeting-desktop-runtime",
+                exclude_names=["meeting-media-runtime", "meeting-session", "meeting-storage"],
+            )
+            + cargo_packages(project_dir=ROOT / "test" / "rust-whisper-backend")
             + python_packages(policy)
+            + python_packages(policy, ROOT / "python-worker")
             + provisioned_packages(policy)
         )
+        # Desktop and workers have independent lockfiles but share crates.
+        unique: dict[tuple[str, str], Package] = {}
+        for package in packages:
+            key = (package.reference, package.source)
+            previous = unique.get(key)
+            if previous is None:
+                unique[key] = package
+            else:
+                if previous.license_expression != package.license_expression:
+                    raise RuntimeError(f"Conflicting license metadata: {package.reference}")
+                previous.documents.extend(doc for doc in package.documents if doc not in previous.documents)
+        packages = list(unique.values())
         recover_pinned_repository_documents(packages, policy)
         errors = audit(packages, policy)
         if errors:

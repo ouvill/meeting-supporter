@@ -14,7 +14,6 @@ const FORM: SettingsForm = {
   sttWhisperModel: "large-v3-turbo",
   sttDeepgramModel: "nova-3",
   sttOpenaiModel: "gpt-4o-transcribe",
-  sttVoskModelPath: "vosk-model-small-ja-0.22",
   sttLang: "ja",
   sttVadEngine: "silero",
   sttVadSensitivity: 0.4,
@@ -90,6 +89,9 @@ describe("AudioSettingsPanel", () => {
       />,
     );
 
+    expect(
+      screen.queryByRole("option", { name: "端末内・軽量" }),
+    ).not.toBeInTheDocument();
     const vadEngine = screen.getByLabelText("声の検出方法");
     expect(vadEngine).toHaveValue("silero");
     expect(

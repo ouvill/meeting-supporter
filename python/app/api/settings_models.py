@@ -135,7 +135,6 @@ class SttSettingsPatch(BaseModel):
     whisper_model: str | None = None
     deepgram_model: str | None = None
     openai_model: str | None = None
-    vosk_model_path: str | None = None
     language: str | None = None
     vad_engine: Literal["silero", "webrtc"] | None = None
     vad_sensitivity: float | None = Field(default=None, ge=0.05, le=0.95)

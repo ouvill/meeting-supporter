@@ -347,7 +347,6 @@ def _load_effective_audio_stt_config(
         whisper_model=cfg_get("stt", "whisper_model", "large-v3-turbo"),
         deepgram_model=cfg_get("stt", "deepgram_model", "nova-3"),
         openai_model=cfg_get("stt", "openai_model", "gpt-4o-transcribe"),
-        vosk_model_path=cfg_get("stt", "vosk_model_path", "vosk-model-small-ja-0.22"),
         language=cfg_get("stt", "language", "ja"),
         vad_engine=_parse_vad_engine(cfg_get("stt", "vad_engine", "silero")),
         vad_sensitivity=cfg_get("stt", "vad_sensitivity", 0.4),

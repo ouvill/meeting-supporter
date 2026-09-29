@@ -122,26 +122,6 @@ export function AdvancedSettingsPanel({
           </InlineNotice>
         </div>
       </SettingsCard>
-      {form.sttBackend === "vosk" && (
-        <SettingsCard
-          title="Vosk 音声認識"
-          description="端末に展開したVoskモデルのパスを指定します。"
-        >
-          <FieldRow label="モデルパス">
-            <input
-              type="text"
-              value={form.sttVoskModelPath}
-              disabled={audioSettingsLocked}
-              onChange={(event) =>
-                update("sttVoskModelPath", event.target.value)
-              }
-              placeholder="vosk-model-small-ja-0.22"
-              className="field"
-              aria-label="Voskモデルパス"
-            />
-          </FieldRow>
-        </SettingsCard>
-      )}
       <SettingsCard
         title="ACP（実験的機能）"
         description="外部ACP agentをstdioで起動するruntime設定です。"
