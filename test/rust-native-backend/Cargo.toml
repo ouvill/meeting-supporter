@@ -7,6 +7,11 @@ license = "AGPL-3.0-only"
 publish = false
 
 [features]
+default = ["whisper"]
+whisper = ["dep:whisper-rs"]
+vulkan = ["whisper", "whisper-rs/vulkan"]
+cuda = ["whisper", "whisper-rs/cuda"]
+metal = ["whisper", "whisper-rs/metal"]
 reazonspeech = ["dep:sherpa-onnx"]
 
 [dependencies]
@@ -21,3 +26,5 @@ rubato = { version = "0.16.2", default-features = false }
 ringbuf = "0.4.8"
 ctrlc = "3.4"
 sherpa-onnx = { version = "=1.13.8", default-features = false, features = ["shared"], optional = true }
+
+whisper-rs = { version = "=0.16.0", default-features = false, optional = true }

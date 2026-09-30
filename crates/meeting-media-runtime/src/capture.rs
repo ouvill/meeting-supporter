@@ -22,6 +22,7 @@ pub struct Frame {
 pub struct ActiveInput {
     pub sender: mpsc::Sender<Result<Frame, Error>>,
     pub failed: Arc<AtomicBool>,
+    pub lag_notified: bool,
 }
 pub type Route = Arc<Mutex<Option<ActiveInput>>>;
 
@@ -187,7 +188,13 @@ async fn read(
                     return Err(Error::Protocol);
                 }
                 let mut routing = route.lock().unwrap();
-                if let Some(active) = routing.as_ref() {
+                if let Some(active) = routing.as_mut() {
+                    let queued = active.sender.max_capacity() - active.sender.capacity();
+                    if queued > 200 && !active.lag_notified {
+                        active.lag_notified = events.try_send(Event::SpeechLag {}).is_ok();
+                    } else if queued < 50 {
+                        active.lag_notified = false;
+                    }
                     if active.sender.try_send(Ok(Frame { sequence, pcm })).is_err() {
                         // Retire inference on overload; capture and WAV continue.
                         active.failed.store(true, Ordering::Release);

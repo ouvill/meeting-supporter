@@ -1,8 +1,11 @@
 //! Owns capture/inference child lifetimes and PCM routing independently of Python.
+mod capabilities;
 mod capture;
 mod process;
 mod speech;
 pub mod wire;
+
+pub use capabilities::whisper_gpu_supported;
 
 use capture::Capture;
 use speech::{Prepared, Running};
@@ -55,9 +58,28 @@ impl Supervisor {
             generation: 0,
         })
     }
+    pub fn detach_speech_input(&mut self) {
+        self.capture.route.lock().unwrap().take();
+    }
+    pub fn is_prepared(&self) -> bool {
+        matches!(self.speech, Speech::Prepared(_)) && self.capture.healthy()
+    }
+    /// Wait for the owner to commit all events produced before this barrier.
+    pub async fn drain_events(&self) -> Result<(), Error> {
+        let (done, received) = tokio::sync::oneshot::channel();
+        self.events
+            .send(Event::Drained { done })
+            .await
+            .map_err(|_| Error::Protocol)?;
+        tokio::time::timeout(std::time::Duration::from_secs(10), received)
+            .await
+            .map_err(|_| Error::Timeout)?
+            .map_err(|_| Error::Protocol)
+    }
     pub async fn execute(&mut self, command: Command) -> Result<Option<Recording>, Error> {
         match command {
             Command::Prepare {
+                recognizer,
                 model,
                 punctuation,
                 config,
@@ -70,10 +92,17 @@ impl Supervisor {
                 self.speech = Speech::Preparing(Box::new(Prepared::spawn(
                     &self.options.speech_worker,
                     &model,
+                    &recognizer,
                     punctuation.as_deref(),
                 )?));
                 if let Speech::Preparing(worker) = &mut self.speech {
                     worker.prepare(config).await?;
+                    if let Some(device) = worker.execution_device {
+                        self.events
+                            .send(Event::ExecutionDevice { device })
+                            .await
+                            .map_err(|_| Error::Protocol)?;
+                    }
                 }
                 let Speech::Preparing(worker) = std::mem::replace(&mut self.speech, Speech::Failed)
                 else {

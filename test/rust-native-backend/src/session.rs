@@ -12,6 +12,11 @@ use std::path::PathBuf;
 #[derive(Clone)]
 pub enum SpeechPlan {
     SileroOnly,
+    SileroWhisper {
+        model: PathBuf,
+        device: crate::whisper::Device,
+        language: crate::whisper::Language,
+    },
     SileroReazon {
         model_directory: PathBuf,
         punctuation_directory: Option<PathBuf>,
@@ -29,7 +34,7 @@ pub struct Prepared {
     vad: Vad,
     segmentation: Config,
     vad_threshold: f32,
-    recognizer: Option<Reazon>,
+    recognizer: Option<Recognizer>,
     punctuator: Option<Punctuator>,
     sources: [Source; 2],
 }
@@ -60,11 +65,21 @@ impl SpeechSession<Unprepared> {
         let vad = Vad::load(&config.runtime_library)?;
         let (recognizer, punctuator) = match config.plan {
             SpeechPlan::SileroOnly => (None, None),
+            SpeechPlan::SileroWhisper {
+                model,
+                device,
+                language,
+            } => (
+                Some(Recognizer::Whisper(crate::whisper::Whisper::load(
+                    &model, device, language,
+                )?)),
+                None,
+            ),
             SpeechPlan::SileroReazon {
                 model_directory,
                 punctuation_directory,
             } => (
-                Some(Reazon::load(&model_directory)?),
+                Some(Recognizer::Reazon(Reazon::load(&model_directory)?)),
                 punctuation_directory
                     .as_deref()
                     .map(Punctuator::load)
@@ -84,6 +99,19 @@ impl SpeechSession<Unprepared> {
                 ],
             },
         })
+    }
+}
+
+enum Recognizer {
+    Reazon(Reazon),
+    Whisper(crate::whisper::Whisper),
+}
+impl Recognizer {
+    fn transcribe(&mut self, audio: &[f32]) -> Result<String, SpeechError> {
+        match self {
+            Self::Reazon(model) => model.transcribe(audio),
+            Self::Whisper(model) => model.transcribe(audio),
+        }
     }
 }
 
@@ -113,6 +141,13 @@ impl Source {
 }
 
 impl SpeechSession<Prepared> {
+    pub fn execution_device(&self) -> Option<&'static str> {
+        match &self.state.recognizer {
+            Some(Recognizer::Whisper(model)) => Some(model.device()),
+            _ => None,
+        }
+    }
+
     pub fn execute(&mut self, command: Command) -> Result<Reply, SpeechError> {
         match command {
             Command::Configure {
@@ -225,5 +260,69 @@ impl SpeechSession<Prepared> {
             source.generation,
             recognition,
         )?))
+    }
+}
+
+#[cfg(all(test, feature = "whisper"))]
+mod tests {
+    use super::*;
+    #[test]
+    #[ignore = "requires predownloaded Whisper model, ORT and synthetic WAV"]
+    fn whisper_recognizes_synthetic_audio_and_reuses_prepared_state() {
+        let model = std::env::var_os("MEETING_TEST_WHISPER_MODEL").expect("model");
+        let runtime = std::env::var_os("MEETING_TEST_ORT_LIBRARY").expect("ORT");
+        let wav = std::env::var_os("MEETING_TEST_WHISPER_WAV").expect("synthetic WAV");
+        let mut reader = hound::WavReader::open(wav).unwrap();
+        assert_eq!(reader.spec().sample_rate, 16000);
+        assert_eq!(reader.spec().channels, 1);
+        let samples: Vec<i16> = reader.samples().collect::<Result<_, _>>().unwrap();
+        let mut session = SpeechSession::new(SessionConfig {
+            runtime_library: runtime.into(),
+            plan: SpeechPlan::SileroWhisper {
+                model: model.into(),
+                device: crate::whisper::Device::Cpu,
+                language: crate::whisper::Language::Ja,
+            },
+        })
+        .prepare()
+        .unwrap();
+        assert_eq!(session.execution_device(), Some("cpu"));
+        for generation in 1..=2 {
+            session
+                .execute(Command::Reset { role: Role::User })
+                .unwrap();
+            let mut segments = Vec::new();
+            for chunk in samples.chunks(FRAME_SAMPLES) {
+                let mut frame = [0i16; FRAME_SAMPLES];
+                frame[..chunk.len()].copy_from_slice(chunk);
+                if let Reply::Audio {
+                    segment: Some(segment),
+                    ..
+                } = session.audio(Role::User, &frame).unwrap()
+                {
+                    segments.push(segment);
+                }
+            }
+            if let Reply::Finished {
+                segment: Some(segment),
+            } = session.finish(Role::User).unwrap()
+            {
+                segments.push(segment);
+            }
+            assert!(segments.iter().any(|s| matches!(&s.recognition, Recognition::Recognized {text, punctuation: None} if !text.trim().is_empty())));
+            assert!(
+                segments
+                    .iter()
+                    .all(|s| s.generation == generation && s.end_sample > s.start_sample)
+            );
+            assert!(matches!(
+                session.finish(Role::User).unwrap(),
+                Reply::Finished { segment: None }
+            ));
+            assert!(matches!(
+                session.audio(Role::User, &[0; FRAME_SAMPLES]),
+                Err(SpeechError::SourceFinished)
+            ));
+        }
     }
 }

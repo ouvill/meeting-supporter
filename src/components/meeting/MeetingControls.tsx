@@ -24,6 +24,10 @@ export function MeetingControls({ state, send }: Props) {
   const [seconds, setSeconds] = useState<number | null>(() =>
     elapsedSeconds(state.session?.startedAt),
   );
+  const [stopping, setStopping] = useState(false);
+  useEffect(() => {
+    if (!state.isRunning || !state.connected) setStopping(false);
+  }, [state.isRunning, state.connected, state.session?.id]);
   const [confirmingStop, setConfirmingStop] = useState(false);
   const continueButtonRef = useRef<HTMLButtonElement>(null);
   const [audioExpanded, setAudioExpanded] = useState(false);
@@ -42,6 +46,8 @@ export function MeetingControls({ state, send }: Props) {
   }, [state.session?.startedAt]);
 
   function stopMeeting() {
+    if (stopping) return;
+    setStopping(true);
     send({ type: "stop_meeting" });
     setConfirmingStop(false);
   }
@@ -121,14 +127,23 @@ export function MeetingControls({ state, send }: Props) {
             variant="quiet"
             size="sm"
             onClick={() => setConfirmingStop(true)}
-            aria-label="会議を終了"
+            disabled={stopping}
+            aria-label={stopping ? "会議の終了処理中" : "会議を終了"}
             className="text-ink-muted hover:bg-danger-soft hover:text-danger max-[800px]:w-9 max-[800px]:px-0"
           >
             <Square aria-hidden="true" size={12} />
-            <span className="max-[800px]:sr-only">終了</span>
+            <span className="max-[800px]:sr-only">
+              {stopping ? "終了処理中…" : "終了"}
+            </span>
           </Button>
         )}
       </div>
+
+      {stopping && (
+        <p role="status" className="mt-2 text-sm text-ink-muted">
+          会議を終了しています。残りの音声認識と保存を処理しています。
+        </p>
+      )}
 
       {(audioExpanded || !audioHealthy) && (
         <div

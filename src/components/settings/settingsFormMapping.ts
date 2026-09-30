@@ -48,6 +48,7 @@ export const INITIAL_SETTINGS_FORM: SettingsForm = {
   acpCommand: "",
   sttBackend: "reazonspeech",
   sttWhisperModel: "large-v3-turbo",
+  sttDevice: "auto",
   sttDeepgramModel: "nova-2",
   sttOpenaiModel: "gpt-4o-transcribe",
   sttLang: "ja",
@@ -116,6 +117,7 @@ export function mapSettingsResponseToForm(
     ollamaBaseUrl: settings.ollama?.base_url ?? "http://localhost:11434/v1",
     acpCommand: settings.acp?.command.join("\n") ?? "",
     sttBackend,
+    sttDevice: getTomlString(settings.stt, "device") ?? "auto",
     sttWhisperModel:
       getTomlString(settings.stt, "whisper_model") ?? "large-v3-turbo",
     sttDeepgramModel: getTomlString(settings.stt, "deepgram_model") ?? "nova-2",
@@ -190,6 +192,7 @@ export function mapSettingsFormToPayload(
           stt: {
             backend: form.sttBackend,
             whisper_model: form.sttWhisperModel,
+            device: form.sttDevice,
             deepgram_model: form.sttDeepgramModel,
             openai_model: form.sttOpenaiModel,
             language: form.sttLang,

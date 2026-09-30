@@ -122,6 +122,8 @@ pub enum Reply {
     },
     Prepared {
         load_ms: f64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        execution_device: Option<&'static str>,
     },
     Audio {
         speech: bool,

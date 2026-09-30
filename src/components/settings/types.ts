@@ -42,6 +42,7 @@ export interface SettingsForm {
   acpCommand: string;
   sttBackend: string;
   sttWhisperModel: string;
+  sttDevice: string;
   sttDeepgramModel: string;
   sttOpenaiModel: string;
   sttLang: string;
@@ -64,6 +65,7 @@ export interface SettingsForm {
 export const STT_FORM_FIELDS = [
   "sttBackend",
   "sttWhisperModel",
+  "sttDevice",
   "sttDeepgramModel",
   "sttOpenaiModel",
   "sttLang",
@@ -72,7 +74,6 @@ export const STT_FORM_FIELDS = [
   "sttVad",
   "sttSilence",
 ] as const satisfies readonly (keyof SettingsForm)[];
-
 
 export interface SettingsFieldErrors {
   support?: string;

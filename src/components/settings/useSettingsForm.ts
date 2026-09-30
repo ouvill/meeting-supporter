@@ -55,8 +55,13 @@ export function useSettingsForm({
     form.sttBackend === "whisper" || form.sttBackend === "reazonspeech"
       ? form.sttBackend
       : null;
+  // Whisper uses the same multilingual model for automatic language detection.
   const speechModelLanguage =
-    form.sttLang === "ja" || form.sttLang === "en" ? form.sttLang : null;
+    form.sttLang === "ja" || form.sttLang === "en"
+      ? form.sttLang
+      : form.sttBackend === "whisper" && form.sttLang === "auto"
+        ? "ja"
+        : null;
   const speechModel = useSpeechModel(
     speechModelBackend ?? "reazonspeech",
     speechModelBackend === "whisper"

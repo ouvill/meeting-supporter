@@ -166,6 +166,16 @@ describe("MainMeetingControlScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "会議を終了" }));
     fireEvent.click(screen.getByRole("button", { name: "終了する" }));
     expect(send).toHaveBeenCalledWith({ type: "stop_meeting" });
+    expect(
+      screen.getByRole("button", { name: "会議の終了処理中" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "会議を終了しています。残りの音声認識と保存を処理しています。",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "会議の終了処理中" }));
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it("shows an empty conversation history without requiring another action", () => {
@@ -414,7 +424,11 @@ describe("MainMeetingControlScreen", () => {
       const onSettings = vi.fn();
       const session = {
         ...activeSession([
-          { id: "note-source", speaker: "other" as const, text: "確認します。" },
+          {
+            id: "note-source",
+            speaker: "other" as const,
+            text: "確認します。",
+          },
         ]),
         aiNote: "## 決まったこと\n- 保存済みの内容",
       };
@@ -455,7 +469,9 @@ describe("MainMeetingControlScreen", () => {
       />,
     );
 
-    expect(screen.getByText("会話メモの支援方法を確認しています。")).toBeInTheDocument();
+    expect(
+      screen.getByText("会話メモの支援方法を確認しています。"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "設定を確認" }),
     ).not.toBeInTheDocument();

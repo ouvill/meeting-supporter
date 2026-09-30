@@ -99,20 +99,12 @@ struct Fixture {
     stall: bool,
     requests: AtomicUsize,
 }
-const COMMIT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const COMMIT: &str = super::catalog::WHISPER_REVISION;
 const DATA: &[u8] = b"synthetic model";
 fn metadata() -> serde_json::Value {
     json!({"sha": COMMIT, "siblings": [
-        {"rfilename":"config.json", "size":DATA.len(), "blobId":git_hash(DATA)},
-        {"rfilename":"tokenizer.json", "size":DATA.len(), "blobId":git_hash(DATA)},
-        {"rfilename":"model.bin", "size":DATA.len(), "lfs":{"size":DATA.len(), "sha256":format!("{:x}",Sha256::digest(DATA))}}
+        {"rfilename":"ggml-tiny-q8_0.bin", "size":DATA.len(), "lfs":{"size":DATA.len(), "sha256":format!("{:x}",Sha256::digest(DATA))}}
     ]})
-}
-fn git_hash(data: &[u8]) -> String {
-    let mut h = sha1::Sha1::new();
-    h.update(format!("blob {}\0", data.len()));
-    h.update(data);
-    format!("{:x}", h.finalize())
 }
 async fn respond(HttpState(fixture): HttpState<Arc<Fixture>>, uri: Uri) -> Response {
     fixture.requests.fetch_add(1, Ordering::SeqCst);
@@ -184,13 +176,13 @@ async fn download_verifies_shared_blobs_and_reuses_cache_offline() {
     for name in req.key().unwrap().required() {
         assert_eq!(std::fs::read(snapshot.join(name)).unwrap(), DATA);
     }
-    assert_eq!(fixture.requests.load(Ordering::SeqCst), 3); // metadata + two distinct content hashes
+    assert_eq!(fixture.requests.load(Ordering::SeqCst), 2); // metadata + selected Q8 model
     assert!(manager.status(&english).unwrap().language == Language::En);
     manager.shutdown().await;
     server.abort();
     let cached = super::tests::manager(temp.path().into());
     assert!(cached.status(&req).unwrap().state == State::Ready);
-    std::fs::remove_file(snapshot.join("model.bin")).unwrap();
+    std::fs::remove_file(snapshot.join("ggml-tiny-q8_0.bin")).unwrap();
     assert!(cached.status(&req).unwrap().state == State::Missing);
 }
 #[tokio::test]
@@ -233,9 +225,7 @@ async fn shutdown_cancels_stream_and_removes_owned_temporary_files() {
         .await
         .unwrap();
     assert!(manager.status(&request()).unwrap().state == State::Cancelled);
-    let blobs = temp
-        .path()
-        .join("models--Systran--faster-whisper-tiny/blobs");
+    let blobs = temp.path().join("models--ggerganov--whisper.cpp/blobs");
     assert_eq!(std::fs::read_dir(blobs).unwrap().count(), 0);
     assert!(matches!(
         manager.start(&request()),

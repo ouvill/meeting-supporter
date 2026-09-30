@@ -1,3 +1,5 @@
+import { useRustBackend } from "../../platform/runtimeContext";
+import { useSpeechCapabilities } from "../../hooks/useSpeechCapabilities";
 import type { SpeechModelController } from "../../hooks/useSpeechModel";
 import type { ManagedSttAvailability } from "../../hooks/useManagedService";
 import { InlineNotice } from "../ui/InlineNotice";
@@ -74,14 +76,25 @@ export function AudioSettingsPanel({
     audioSettingsLocked ||
     speechModel.blocksSettingsSave ||
     speechModelActionsDisabled;
+  const rustBackend = useRustBackend();
+  const gpuSupport = useSpeechCapabilities(rustBackend);
+  const gpuDisabled = rustBackend && gpuSupport !== "supported";
+  const deviceHint = !rustBackend
+    ? undefined
+    : gpuSupport === "supported"
+      ? "自動はGPUを優先し、使えない場合はCPUで実行します"
+      : gpuSupport === "unsupported"
+        ? "このビルドはGPUに対応していません。「自動」または「CPU」を選んでください。"
+        : gpuSupport === "loading"
+          ? "GPUへの対応状況を確認しています。"
+          : "GPUへの対応状況を確認できませんでした。設定を開き直して再確認するか、「自動」または「CPU」を選んでください。";
   const cloudProvider =
     form.sttBackend in CLOUD_STT
       ? (form.sttBackend as keyof typeof CLOUD_STT)
       : null;
   const cloud = cloudProvider ? CLOUD_STT[cloudProvider] : null;
   const usesLocalSpeechModel =
-    form.sttBackend === "whisper" ||
-    form.sttBackend === "reazonspeech";
+    form.sttBackend === "whisper" || form.sttBackend === "reazonspeech";
   return (
     <SettingsPage
       title="音声"
@@ -182,27 +195,61 @@ export function AudioSettingsPanel({
             )}
 
             {form.sttBackend === "whisper" && (
-              <FieldRow
-                label="精度と速さ"
-                hint="高精度ほど端末への負荷が大きくなります"
-              >
-                <select
-                  aria-label="聞き取りの精度と速さ"
-                  value={form.sttWhisperModel}
-                  disabled={speechModelControlsDisabled}
-                  onChange={(event) =>
-                    update("sttWhisperModel", event.target.value)
-                  }
-                  className="field"
+              <>
+                <FieldRow
+                  label="精度と速さ"
+                  hint="高精度ほど端末への負荷が大きくなります"
                 >
-                  <option value="tiny">最速</option>
-                  <option value="base">軽量</option>
-                  <option value="small">バランス</option>
-                  <option value="medium">高精度</option>
-                  <option value="large-v2">より高精度</option>
-                  <option value="large-v3-turbo">最高精度（おすすめ）</option>
-                </select>
-              </FieldRow>
+                  <select
+                    aria-label="聞き取りの精度と速さ"
+                    value={form.sttWhisperModel}
+                    disabled={speechModelControlsDisabled}
+                    onChange={(event) =>
+                      update("sttWhisperModel", event.target.value)
+                    }
+                    className="field"
+                  >
+                    <option value="tiny">最速</option>
+                    <option value="base">軽量</option>
+                    <option value="small">バランス</option>
+                    <option value="medium">高精度</option>
+                    <option value="large-v2">より高精度</option>
+                    <option value="large-v3-turbo">最高精度（おすすめ）</option>
+                  </select>
+                </FieldRow>
+                <FieldRow label="音声認識の実行デバイス" hint={deviceHint}>
+                  <select
+                    aria-label="音声認識の実行デバイス"
+                    className="field"
+                    value={form.sttDevice}
+                    onChange={(event) => {
+                      if (event.target.value === "gpu" && gpuDisabled) return;
+                      update("sttDevice", event.target.value);
+                    }}
+                  >
+                    <option value="auto">自動</option>
+                    <option value="cpu">CPU</option>
+                    {!["auto", "cpu", rustBackend ? "gpu" : "cuda"].includes(
+                      form.sttDevice,
+                    ) && (
+                      <option value={form.sttDevice} disabled>
+                        未対応の設定（{form.sttDevice}）
+                      </option>
+                    )}
+                    <option
+                      value={rustBackend ? "gpu" : "cuda"}
+                      disabled={gpuDisabled}
+                    >
+                      {rustBackend ? "GPU" : "CUDA"}
+                    </option>
+                  </select>
+                </FieldRow>
+                {rustBackend && (
+                  <InlineNotice tone="info">
+                    Whisper.cppのQ8モデルを使います。大きなモデルでは文字起こしの表示が会話より遅れることがあります。
+                  </InlineNotice>
+                )}
+              </>
             )}
             <FieldRow
               label="会議の言語"
@@ -228,7 +275,16 @@ export function AudioSettingsPanel({
                 {form.sttBackend !== "reazonspeech" && (
                   <option value="en">英語</option>
                 )}
-                {!["ja", "en"].includes(form.sttLang) && (
+                {rustBackend && form.sttBackend === "whisper" && (
+                  <option value="auto">自動判定</option>
+                )}
+                {![
+                  "ja",
+                  "en",
+                  ...(rustBackend && form.sttBackend === "whisper"
+                    ? ["auto"]
+                    : []),
+                ].includes(form.sttLang) && (
                   <option value={form.sttLang}>{form.sttLang}</option>
                 )}
               </select>

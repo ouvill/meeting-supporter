@@ -35,13 +35,16 @@ impl Whisper {
         }
     }
     pub fn repo(self) -> &'static str {
+        "ggerganov/whisper.cpp"
+    }
+    pub fn files(self) -> &'static [&'static str] {
         match self {
-            Self::Tiny => "Systran/faster-whisper-tiny",
-            Self::Base => "Systran/faster-whisper-base",
-            Self::Small => "Systran/faster-whisper-small",
-            Self::Medium => "Systran/faster-whisper-medium",
-            Self::LargeV2 => "Systran/faster-whisper-large-v2",
-            Self::LargeV3Turbo => "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+            Self::Tiny => &["ggml-tiny-q8_0.bin"],
+            Self::Base => &["ggml-base-q8_0.bin"],
+            Self::Small => &["ggml-small-q8_0.bin"],
+            Self::Medium => &["ggml-medium-q8_0.bin"],
+            Self::LargeV2 => &["ggml-large-v2-q8_0.bin"],
+            Self::LargeV3Turbo => &["ggml-large-v3-turbo-q8_0.bin"],
         }
     }
 }
@@ -89,21 +92,13 @@ impl Key {
         if self == Self::Reazon {
             REAZON_REVISION
         } else {
-            "main"
+            WHISPER_REVISION
         }
     }
     pub fn accepts(self, name: &str) -> bool {
         match self {
             Self::Reazon => REAZON_FILES.iter().any(|(n, _)| *n == name),
-            Self::Whisper(_) => matches!(
-                name,
-                "config.json"
-                    | "preprocessor_config.json"
-                    | "model.bin"
-                    | "tokenizer.json"
-                    | "vocabulary.txt"
-                    | "vocabulary.json"
-            ),
+            Self::Whisper(model) => model.files().contains(&name),
         }
     }
     pub fn required(self) -> &'static [&'static str] {
@@ -114,7 +109,7 @@ impl Key {
                 "decoder-epoch-99-avg-1.int8.onnx",
                 "joiner-epoch-99-avg-1.int8.onnx",
             ],
-            Self::Whisper(_) => &["config.json", "model.bin", "tokenizer.json"],
+            Self::Whisper(model) => model.files(),
         }
     }
 }
@@ -137,3 +132,5 @@ pub(crate) const REAZON_FILES: &[(&str, &str)] = &[
         "49cc7ea1d3d35a40a27442db5e89996da64bf0e683a903dce76e99e57a12e4de",
     ),
 ];
+
+pub(crate) const WHISPER_REVISION: &str = "5359861c739e955e79d9a303bcbc70fb988958b1";

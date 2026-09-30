@@ -90,6 +90,42 @@ async fn start(ws: &mut Socket) {
     until(ws, |v| v["type"] == "meeting_state" && v["running"] == true).await;
     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 }
+
+#[tokio::test]
+async fn speech_capabilities_come_from_the_configured_worker_without_preparing_models() {
+    for (name, expected) in [
+        ("cpu-worker", json!(false)),
+        ("gpu-worker", json!(true)),
+        ("invalid-worker", Value::Null),
+        ("old-worker", Value::Null),
+        ("failed-worker", Value::Null),
+        ("missing-worker", Value::Null),
+        ("hanging-worker", Value::Null),
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        let mut settings = config(&temp, "model");
+        let worker = temp
+            .path()
+            .join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
+        if name != "missing-worker" {
+            std::fs::copy(&settings.speech_worker, &worker).unwrap();
+        }
+        settings.speech_worker = worker;
+        let server = Server::start(settings.clone()).await.unwrap();
+        let (status, body) = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            http(&server, "GET", "/api/stt/capabilities", ""),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, 200, "{name}");
+        let value: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value, json!({"whisper_gpu":expected}), "{name}");
+        assert!(!settings.model.unwrap().join("preparing").exists());
+        server.shutdown().await.unwrap();
+    }
+}
+
 #[tokio::test]
 async fn existing_ui_flow_drains_both_final_transcripts_and_serves_recording_ranges() {
     let temp = tempfile::tempdir().unwrap();
@@ -544,7 +580,9 @@ async fn invalid_or_unsupported_settings_do_not_change_file_or_prepared_state() 
         json!({"stt":{"vad_sensitivity":9}}),
         json!({"stt":{"min_voiced_ms":true}}),
         json!({"stt":{"unknown":1}}),
-        json!({"stt":{"backend":"whisper"}}),
+        json!({"stt":{"backend":"openai"}}),
+        json!({"stt":{"backend":"whisper","device":"cuda"}}),
+        json!({"stt":{"backend":"whisper","whisper_model":"unknown"}}),
         json!({"audio":{"sample_rate":48000}}),
         json!({"recording_retention":{"cutoff_date":"bad"}}),
     ] {
@@ -1450,5 +1488,126 @@ async fn model_api_reuses_huggingface_snapshot_and_rejects_removed_backend() {
         serde_json::from_slice::<Value>(&body).unwrap()["state"],
         "ready"
     );
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn whisper_uses_ggml_cache_and_reuses_workers_across_meetings() {
+    let temp = tempfile::tempdir().unwrap();
+    let settings = config(&temp, "model");
+    let root = settings.hub_cache.join("models--ggerganov--whisper.cpp");
+    let revision = "5359861c739e955e79d9a303bcbc70fb988958b1";
+    let snapshot = root.join("snapshots").join(revision);
+    std::fs::create_dir_all(&snapshot).unwrap();
+    std::fs::write(
+        snapshot.join("ggml-tiny-q8_0.bin"),
+        b"synthetic ggml fixture",
+    )
+    .unwrap();
+    let server = Server::start(settings).await.unwrap();
+    assert_eq!(post_settings(&server, json!({"stt":{"backend":"whisper","whisper_model":"tiny","device":"cpu","language":"auto"}})).await.0, 200);
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    for meeting in 0..2 {
+        if meeting > 0 {
+            send(&mut ws, json!({"type":"start_meeting","meeting_context":{"scenario":"synthetic","objective":"reuse"},"references":[]})).await;
+            until(&mut ws, |v| {
+                v["type"] == "meeting_state" && v["running"] == true
+            })
+            .await;
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        }
+        send(&mut ws, json!({"type":"stop_meeting"})).await;
+        assert_eq!(
+            until(&mut ws, |v| v["type"] == "meeting_state"
+                && v["running"] == false)
+            .await["saved"],
+            true
+        );
+    }
+    let pids: Vec<_> = std::fs::read_dir(&snapshot)
+        .unwrap()
+        .flatten()
+        .filter(|f| f.file_name().to_string_lossy().starts_with("pid-"))
+        .collect();
+    assert_eq!(pids.len(), 2, "one prepared worker per input is reused");
+    for pid in &pids {
+        let args = std::fs::read_to_string(snapshot.join(format!(
+            "args-{}.json",
+            pid.file_name().to_string_lossy().trim_start_matches("pid-")
+        )))
+        .unwrap();
+        assert!(
+            args.contains("--whisper-model")
+                && args.contains("--inference-device")
+                && args.contains("cpu")
+                && args.contains("auto")
+        );
+        assert!(!args.contains("--punctuation-model"));
+    }
+    let (_, body) = http(&server, "GET", "/meetings", "").await;
+    let page: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(page["total"], 2);
+    for item in page["items"].as_array().unwrap() {
+        let (_, body) = http(
+            &server,
+            "GET",
+            &format!("/meetings/{}", item["id"].as_str().unwrap()),
+            "",
+        )
+        .await;
+        let detail: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(detail["turns"].as_array().unwrap().len(), 2);
+    }
+    drop(ws);
+    server.shutdown().await.unwrap();
+    for pid in pids {
+        assert!(!std::path::Path::new("/proc")
+            .join(pid.file_name().to_string_lossy().trim_start_matches("pid-"))
+            .exists());
+    }
+}
+
+#[tokio::test]
+async fn stopping_detaches_both_inputs_before_parallel_inference_drain() {
+    let temp = tempfile::tempdir().unwrap();
+    let settings = config(&temp, "slow-finish");
+    let model = settings.model.clone().unwrap();
+    let server = Server::start(settings).await.unwrap();
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    let started = std::time::Instant::now();
+    send(&mut ws, json!({"type":"stop_meeting"})).await;
+    let status = until(&mut ws, |v| {
+        v["type"] == "meeting_state" && v["running"] == false
+    })
+    .await;
+    assert_eq!(status["saved"], true);
+    assert!(
+        started.elapsed() < std::time::Duration::from_millis(3800),
+        "inputs must drain concurrently"
+    );
+    let counts: Vec<usize> = std::fs::read_dir(model)
+        .unwrap()
+        .flatten()
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("finished-samples-")
+        })
+        .map(|entry| {
+            std::fs::read_to_string(entry.path())
+                .unwrap()
+                .parse()
+                .unwrap()
+        })
+        .collect();
+    assert_eq!(counts.len(), 2);
+    assert!(
+        counts.iter().all(|count| *count > 0 && *count < 24000),
+        "neither input may capture during the two-second drain: {counts:?}"
+    );
+    drop(ws);
     server.shutdown().await.unwrap();
 }

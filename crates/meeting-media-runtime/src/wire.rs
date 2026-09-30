@@ -15,6 +15,8 @@ pub enum Error {
     Capture,
     #[error("input_discontinuity")]
     Discontinuity,
+    #[error("gpu_unavailable")]
+    GpuUnavailable,
     #[error("speech_failed")]
     Speech,
     #[error("recording_failed")]
@@ -57,10 +59,68 @@ pub struct SpeechConfig {
     pub min_voiced_ratio: f64,
     pub min_rms_dbfs: f64,
 }
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(tag = "engine", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Recognizer {
+    #[default]
+    Reazonspeech,
+    Whisper {
+        device: InferenceDevice,
+        language: Language,
+    },
+}
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InferenceDevice {
+    Auto,
+    Cpu,
+    Gpu,
+}
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Language {
+    Ja,
+    En,
+    Auto,
+}
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionDevice {
+    Cpu,
+    Gpu,
+}
+impl ExecutionDevice {
+    pub fn argument(self) -> &'static str {
+        match self {
+            Self::Cpu => "cpu",
+            Self::Gpu => "gpu",
+        }
+    }
+}
+impl InferenceDevice {
+    pub fn argument(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Cpu => "cpu",
+            Self::Gpu => "gpu",
+        }
+    }
+}
+impl Language {
+    pub fn argument(self) -> &'static str {
+        match self {
+            Self::Ja => "ja",
+            Self::En => "en",
+            Self::Auto => "auto",
+        }
+    }
+}
 #[derive(Debug, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
     Prepare {
+        #[serde(default)]
+        recognizer: Recognizer,
         model: PathBuf,
         punctuation: Option<PathBuf>,
         config: SpeechConfig,
@@ -121,7 +181,10 @@ pub enum SpeechBody {
         protocol: u8,
         transcription_available: bool,
     },
-    Prepared {},
+    Prepared {
+        #[serde(default)]
+        execution_device: Option<ExecutionDevice>,
+    },
     Configured {},
     Reset {},
     Audio {
@@ -130,7 +193,16 @@ pub enum SpeechBody {
     Finished {
         segment: Option<Segment>,
     },
-    Error {},
+    Error {
+        code: SpeechFailure,
+    },
+}
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeechFailure {
+    GpuUnavailable,
+    #[serde(other)]
+    Other,
 }
 #[derive(Debug, Deserialize)]
 pub struct Segment {
@@ -159,11 +231,19 @@ pub enum Punctuation {
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
+    #[serde(skip)]
+    Drained {
+        done: tokio::sync::oneshot::Sender<()>,
+    },
     Ready {
         protocol: u8,
         name: String,
         rate: u32,
     },
+    ExecutionDevice {
+        device: ExecutionDevice,
+    },
+    SpeechLag {},
     Level {
         peak: f64,
     },

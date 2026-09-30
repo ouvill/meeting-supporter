@@ -41,7 +41,7 @@ fn repo_folder(key: Key) -> String {
 }
 pub(super) fn cached(cache: &Path, key: Key) -> Option<PathBuf> {
     let root = cache.join(repo_folder(key));
-    let revision = if key == Key::Reazon {
+    let revision = if key.revision() != "main" {
         key.revision().to_owned()
     } else {
         std::fs::read_to_string(root.join("refs/main"))
@@ -69,7 +69,7 @@ fn manifest(bytes: &[u8], key: Key) -> Result<(String, Vec<FileSpec>), ModelErro
     let repo: Repository = serde_json::from_slice(bytes).map_err(|_| ModelError::Archive)?;
     if !hex(&repo.sha, 40)
         || repo.siblings.len() > 1024
-        || (key == Key::Reazon && repo.sha != key.revision())
+        || (key.revision() != "main" && repo.sha != key.revision())
     {
         return Err(ModelError::Archive);
     }
@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn manifests_reject_incomplete_duplicate_oversized_and_invalid_content_ids() {
         let key = Key::Whisper(Whisper::Tiny);
-        let valid = json!({"sha":"a".repeat(40), "siblings":key.required().iter().map(|name| json!({"rfilename":name,"size":10,"blobId":"b".repeat(40)})).collect::<Vec<_>>()});
+        let valid = json!({"sha":key.revision(), "siblings":key.required().iter().map(|name| json!({"rfilename":name,"size":10,"blobId":"b".repeat(40)})).collect::<Vec<_>>()});
         assert!(manifest(&serde_json::to_vec(&valid).unwrap(), key).is_ok());
         for variant in 0..5 {
             let mut value = valid.clone();

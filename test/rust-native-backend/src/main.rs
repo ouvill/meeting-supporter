@@ -41,7 +41,10 @@ fn worker(
     for request in jobs {
         let reply = if matches!(request.command, Command::Prepare {}) {
             if core.is_some() {
-                Reply::Prepared { load_ms: 0.0 }
+                Reply::Prepared {
+                    load_ms: 0.0,
+                    execution_device: core.as_ref().and_then(SpeechSession::execution_device),
+                }
             } else {
                 *status
                     .lock()
@@ -56,6 +59,9 @@ fn worker(
                             ModelStatus::Ready;
                         Reply::Prepared {
                             load_ms: start.elapsed().as_secs_f64() * 1000.0,
+                            execution_device: core
+                                .as_ref()
+                                .and_then(SpeechSession::execution_device),
                         }
                     }
                     Err(code) => {
@@ -118,7 +124,7 @@ fn read_request(reader: &mut impl BufRead, bytes: &mut Vec<u8>) -> io::Result<bo
 }
 
 fn run(config: SessionConfig) -> io::Result<()> {
-    let transcription_available = matches!(config.plan, SpeechPlan::SileroReazon { .. });
+    let transcription_available = !matches!(config.plan, SpeechPlan::SileroOnly);
     let output = Arc::new(Mutex::new(io::stdout()));
     let status = Arc::new(Mutex::new(ModelStatus::Unloaded));
     let (sender, receiver) = mpsc::sync_channel(8);
@@ -206,6 +212,7 @@ enum Input {
 }
 
 enum Options {
+    Capabilities,
     ListDevices,
     Start { config: SessionConfig, input: Input },
 }
@@ -213,10 +220,21 @@ enum Options {
 fn options(
     arguments: impl IntoIterator<Item = std::ffi::OsString>,
 ) -> Result<Options, &'static str> {
-    let mut arguments = arguments.into_iter();
+    let mut arguments = arguments.into_iter().peekable();
+    if arguments.peek().is_some_and(|arg| arg == "--capabilities") {
+        arguments.next();
+        return if arguments.next().is_none() {
+            Ok(Options::Capabilities)
+        } else {
+            Err("--capabilities must be used alone")
+        };
+    }
     let mut library = None;
     let mut model = None;
     let mut punctuation = None;
+    let mut whisper = None;
+    let mut inference_device = None;
+    let mut language = None;
     let mut wav = None;
     let mut mic = false;
     let mut desktop = false;
@@ -261,6 +279,9 @@ fn options(
         let slot = match option.to_str() {
             Some("--ort-library") => &mut library,
             Some("--reazon-model") => &mut model,
+            Some("--whisper-model") => &mut whisper,
+            Some("--inference-device") => &mut inference_device,
+            Some("--language") => &mut language,
             Some("--punctuation-model") => &mut punctuation,
             Some("--wav") => &mut wav,
             _ => return Err("unknown or duplicate option"),
@@ -279,6 +300,9 @@ fn options(
             || punctuation.is_some()
             || model.is_some()
             || library.is_some()
+            || whisper.is_some()
+            || inference_device.is_some()
+            || language.is_some()
         {
             return Err("--list-input-devices must be used alone");
         }
@@ -293,10 +317,35 @@ fn options(
     if mic && wav.is_some() {
         return Err("--mic and --wav are mutually exclusive");
     }
+    if whisper.is_some() && !cfg!(feature = "whisper") {
+        return Err("build with --features whisper");
+    }
+    if whisper.is_some() && (model.is_some() || punctuation.is_some()) {
+        return Err("Whisper cannot be combined with ReazonSpeech or punctuation restoration");
+    }
+    if whisper.is_none() && (inference_device.is_some() || language.is_some()) {
+        return Err("--inference-device and --language require --whisper-model");
+    }
+    let inference_device = match inference_device
+        .as_deref()
+        .and_then(|v| v.to_str())
+        .unwrap_or("auto")
+    {
+        "auto" => meeting_native_backend::whisper::Device::Auto,
+        "cpu" => meeting_native_backend::whisper::Device::Cpu,
+        "gpu" => meeting_native_backend::whisper::Device::Gpu,
+        _ => return Err("invalid inference device"),
+    };
+    let language = match language.as_deref().and_then(|v| v.to_str()).unwrap_or("ja") {
+        "ja" => meeting_native_backend::whisper::Language::Ja,
+        "en" => meeting_native_backend::whisper::Language::En,
+        "auto" => meeting_native_backend::whisper::Language::Auto,
+        _ => return Err("invalid language"),
+    };
     if model.is_some() && !cfg!(feature = "reazonspeech") {
         return Err("build with --features reazonspeech");
     }
-    if (wav.is_some() || mic) && model.is_none() {
+    if (wav.is_some() || mic) && model.is_none() && whisper.is_none() {
         return Err("--wav and --mic require --reazon-model");
     }
     if punctuation.is_some() && model.is_none() {
@@ -338,12 +387,20 @@ fn options(
     Ok(Options::Start {
         config: SessionConfig {
             runtime_library: library,
-            plan: match model {
-                Some(model_directory) => SpeechPlan::SileroReazon {
-                    model_directory,
-                    punctuation_directory: punctuation,
-                },
-                None => SpeechPlan::SileroOnly,
+            plan: if let Some(model) = whisper {
+                SpeechPlan::SileroWhisper {
+                    model,
+                    device: inference_device,
+                    language,
+                }
+            } else {
+                match model {
+                    Some(model_directory) => SpeechPlan::SileroReazon {
+                        model_directory,
+                        punctuation_directory: punctuation,
+                    },
+                    None => SpeechPlan::SileroOnly,
+                }
             },
         },
         input,
@@ -356,12 +413,23 @@ fn main() {
         Err(message) => {
             eprintln!("{message}");
             eprintln!(
-                "usage: meeting-native-backend [--ort-library <library>] [--reazon-model <directory>] [--punctuation-model <directory>] [--wav <16 kHz mono PCM16 WAV> | --mic [--desktop] [--input-device <index>] [--seconds <n>]] | --list-input-devices"
+                "usage: meeting-native-backend [--ort-library <library>] [--reazon-model <directory> [--punctuation-model <directory>] | --whisper-model <ggml.bin> [--inference-device auto|cpu|gpu] [--language ja|en|auto]] [--wav <16 kHz mono PCM16 WAV> | --mic [--desktop] [--input-device <index>] [--seconds <n>]] | --list-input-devices | --capabilities"
             );
             std::process::exit(2);
         }
     };
     let result = match options {
+        Options::Capabilities => {
+            // Report build support without opening models, audio devices or GPU drivers.
+            let capabilities = serde_json::json!({
+                "protocol": 1,
+                "whisper_gpu": meeting_native_backend::whisper::gpu_supported(),
+            });
+            let mut output = io::stdout().lock();
+            serde_json::to_writer(&mut output, &capabilities)
+                .map_err(io::Error::other)
+                .and_then(|()| output.write_all(b"\n"))
+        }
         Options::ListDevices => microphone::list_devices().map_err(io::Error::other),
         Options::Start { config, input } => match input {
             Input::Wav(path) => wav::transcribe(config, &path),
@@ -401,6 +469,11 @@ mod tests {
             vec!["--list-input-devices", "--mic"],
             vec!["--mic", "--mic"],
             vec!["--mic"],
+            vec!["--whisper-model", "model", "--reazon-model", "model"],
+            vec!["--whisper-model", "model", "--punctuation-model", "model"],
+            vec!["--whisper-model", "model", "--language", "invalid"],
+            vec!["--whisper-model", "model", "--inference-device", "cuda"],
+            vec!["--language", "ja"],
             vec!["--desktop"],
             vec!["--punctuation-model", "model"],
             vec!["--list-input-devices", "--punctuation-model", "model"],

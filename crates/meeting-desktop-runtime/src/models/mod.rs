@@ -1,5 +1,5 @@
 //! Model preparation is owned by Rust. Shared Hugging Face files are never deleted wholesale.
-mod catalog;
+pub(crate) mod catalog;
 mod hub;
 #[cfg(test)]
 mod tests;
@@ -323,6 +323,11 @@ impl Manager {
     }
     pub fn reazon_path(&self) -> Result<PathBuf, ModelError> {
         self.cached(Key::Reazon).ok_or(ModelError::NotReady)
+    }
+    pub fn whisper_path(&self, model: catalog::Whisper) -> Result<PathBuf, ModelError> {
+        self.cached(Key::Whisper(model))
+            .map(|path| path.join(model.files()[0]))
+            .ok_or(ModelError::NotReady)
     }
     pub async fn shutdown(&self) {
         let tasks = {

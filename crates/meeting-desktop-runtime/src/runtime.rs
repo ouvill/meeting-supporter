@@ -49,6 +49,17 @@ impl Shared {
         let _ = self.events.send(event);
     }
     pub fn error(&self, error: &Error) {
+        let message = match error {
+            Error::Media(media::Error::Timeout) => Some("音声処理が制限時間内に完了しませんでした。未確定の文字起こしが残る可能性があります。取得済みの履歴と録音は未確定の会議として保持します。"),
+            Error::Media(media::Error::GpuUnavailable) => Some("GPUを初期化できません。GPU対応ワーカーを確認するか、実行デバイスを自動またはCPUに変更してください。"),
+            Error::Media(media::Error::Discontinuity) => Some("音声処理の待ち行列が上限に達したか、入力が途切れたため認識を停止しました。録音が有効な場合は録音を確認してください。"),
+            _ => None,
+        };
+        if let Some(text) = message {
+            self.emit(Event::Error { text: text.into() });
+            return;
+        }
+
         self.emit(Event::Error {
             text: error.to_string(),
         });
@@ -184,9 +195,18 @@ impl Shared {
                 device: name,
                 rate,
             }),
+            media::Event::ExecutionDevice { device } => self.emit(Event::Status {
+                text: format!(
+                    "Whisper.cpp: {}で音声認識を実行します。",
+                    device.argument().to_uppercase()
+                ),
+            }),
+            media::Event::SpeechLag {} => self.emit(Event::Status {
+                text: "音声認識が会話に追いついていません。軽いモデルへの変更を検討してください。"
+                    .into(),
+            }),
             media::Event::Level { peak } => self.emit(Event::AudioLevel { role, level: peak }),
             media::Event::Transcript {
-                generation: 1,
                 text,
                 punctuation_failed,
                 ..
@@ -210,7 +230,11 @@ impl Shared {
                     initialized: false,
                     initializing: live.initializing,
                 });
-                self.error(&Error::Media(media::Error::Capture));
+                let code = match event {
+                    media::Event::SpeechError { code } => code,
+                    _ => media::Error::Capture,
+                };
+                self.error(&Error::Media(code));
             }
             media::Event::RecordingError {} => self.error(&Error::Media(media::Error::Recording)),
             _ => {}
@@ -236,6 +260,10 @@ impl Source {
         let expected_close = closing.clone();
         let collector = tokio::spawn(async move {
             while let Some(event) = rx.recv().await {
+                if let media::Event::Drained { done } = event {
+                    let _ = done.send(());
+                    continue;
+                }
                 if matches!(event, media::Event::CaptureError {})
                     && expected_close.load(Ordering::Acquire)
                 {
@@ -430,6 +458,11 @@ impl Runtime {
         }
         self.idle()?;
         self.shared.settings.lock().await.speech()?;
+        let initialized = self.shared.live.lock().await.initialized;
+        if initialized {
+            self.stt_state(true, false).await;
+            return Ok(());
+        }
         self.close_sources().await?;
         self.stt_state(false, true).await;
         let mut stopping = self.stopping.clone();
@@ -445,8 +478,16 @@ impl Runtime {
         result
     }
     async fn prepare_sources(&mut self) -> Result<(), Error> {
-        let speech = self.shared.settings.lock().await.speech()?;
-        let model = self.shared.models.reazon_path()?;
+        let settings = self.shared.settings.lock().await;
+        let speech = settings.speech()?;
+        let recognizer = settings.recognizer()?;
+        let model = match recognizer {
+            media::Recognizer::Reazonspeech => self.shared.models.reazon_path()?,
+            media::Recognizer::Whisper { .. } => {
+                self.shared.models.whisper_path(settings.whisper_model()?)?
+            }
+        };
+        drop(settings);
         let selected = self.shared.live.lock().await.selected.clone();
         for (role, device) in [media::Role::User, media::Role::Other]
             .into_iter()
@@ -460,8 +501,12 @@ impl Runtime {
                 .unwrap()
                 .supervisor
                 .execute(media::Command::Prepare {
+                    recognizer: recognizer.clone(),
                     model: model.clone(),
-                    punctuation: config.punctuation.clone(),
+                    punctuation: match recognizer {
+                        media::Recognizer::Reazonspeech => config.punctuation.clone(),
+                        _ => None,
+                    },
                     config: speech.clone(),
                 })
                 .await?;
@@ -743,17 +788,22 @@ impl Runtime {
                 }
             }
             Effect::StopSpeech => {
-                let mut failure = None;
+                shared.emit(Event::Status {
+                    text: "会議を終了しています。残りの音声認識を最大30秒待って保存します。".into(),
+                });
+                // Freeze both queues before awaiting either input. Otherwise the
+                // second input keeps accumulating audio while the first drains.
                 for source in &mut self.sources {
-                    if let Err(error) = source
-                        .supervisor
-                        .execute(media::Command::StopSpeech {})
-                        .await
-                    {
-                        failure = Some(error);
-                    }
+                    source.supervisor.detach_speech_input();
                 }
-                if let Some(error) = failure {
+                let results = futures_util::future::join_all(
+                    self.sources
+                        .iter_mut()
+                        .map(|source| source.supervisor.execute(media::Command::StopSpeech {})),
+                )
+                .await;
+                if let Some(error) = results.into_iter().find_map(Result::err) {
+                    shared.live.lock().await.failed = true;
                     return Err(error.into());
                 }
             }
@@ -820,7 +870,9 @@ impl Runtime {
                 }
             }
             Effect::FlushHistory => {
-                self.close_sources().await?;
+                for source in &self.sources {
+                    source.supervisor.drain_events().await?;
+                }
                 if self.shared.live.lock().await.failed {
                     return Err(Error::Media(media::Error::Speech));
                 }
@@ -855,7 +907,18 @@ impl Runtime {
                     .await?;
             }
             Effect::ReloadAudio => {
-                self.close_sources().await?;
+                let live = self.shared.live.lock().await;
+                let reusable = live.initialized
+                    && !live.failed
+                    && self.sources.len() == 2
+                    && self
+                        .sources
+                        .iter()
+                        .all(|source| source.supervisor.is_prepared());
+                drop(live);
+                if !reusable {
+                    self.close_sources().await?;
+                }
             }
             Effect::CancelReplies | Effect::CancelFinalReplies => {
                 shared.live.lock().await.ai_accepting = false;

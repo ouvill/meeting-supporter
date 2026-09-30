@@ -786,6 +786,11 @@ def main() -> int:
                 project_dir=ROOT / "crates" / "meeting-desktop-runtime",
                 exclude_names=["meeting-media-runtime", "meeting-session", "meeting-storage"],
             )
+            + cargo_packages(
+                project_dir=ROOT / "test" / "rust-native-backend",
+                exclude_names=["meeting-audio-core"],
+                features=["reazonspeech"],
+            )
             + cargo_packages(project_dir=ROOT / "test" / "rust-whisper-backend")
             + python_packages(policy)
             + python_packages(policy, ROOT / "python-worker")

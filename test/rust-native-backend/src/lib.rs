@@ -8,3 +8,5 @@ mod vad;
 pub mod wav;
 
 mod punctuation;
+
+pub mod whisper;

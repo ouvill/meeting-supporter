@@ -122,6 +122,7 @@ export function useSettingsPersistence({
       ...previous,
       sttBackend: savedBaseline.sttBackend,
       sttWhisperModel: savedBaseline.sttWhisperModel,
+      sttDevice: savedBaseline.sttDevice,
       sttDeepgramModel: savedBaseline.sttDeepgramModel,
       sttOpenaiModel: savedBaseline.sttOpenaiModel,
       sttLang: savedBaseline.sttLang,

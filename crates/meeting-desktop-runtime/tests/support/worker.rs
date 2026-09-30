@@ -13,6 +13,26 @@ fn packet(value: Value, pcm: &[u8]) {
 }
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.get(1).is_some_and(|s| s == "--capabilities") {
+        let executable = std::env::current_exe().unwrap();
+        let name = executable.file_stem().unwrap().to_str().unwrap();
+        if name == "hanging-worker" {
+            std::thread::sleep(std::time::Duration::from_secs(180));
+        }
+        println!(
+            "{}",
+            match name {
+                "gpu-worker" => json!({"protocol":1,"whisper_gpu":true}),
+                "invalid-worker" => json!({"protocol":1,"whisper_gpu":"false"}),
+                "old-worker" => json!({"protocol":2,"whisper_gpu":true}),
+                _ => json!({"protocol":1,"whisper_gpu":false}),
+            }
+        );
+        if name == "failed-worker" {
+            std::process::exit(1);
+        }
+        return;
+    }
     if args.get(1).is_some_and(|s| s == "convert-document") {
         // Protocol fixture, not a second DOCX implementation.
         let request: Value = serde_json::from_reader(std::io::stdin().lock()).unwrap();
@@ -39,15 +59,34 @@ fn main() {
         );
         return;
     }
-    if args.iter().any(|s| s == "--reazon-model") {
+    if args
+        .iter()
+        .any(|s| s == "--reazon-model" || s == "--whisper-model")
+    {
         speech(args);
     } else {
         capture();
     }
 }
 fn speech(args: Vec<String>) {
-    let model =
-        std::path::Path::new(&args[args.iter().position(|s| s == "--reazon-model").unwrap() + 1]);
+    let whisper = args.iter().any(|s| s == "--whisper-model");
+    let model = std::path::Path::new(
+        &args[args
+            .iter()
+            .position(|s| s == "--reazon-model" || s == "--whisper-model")
+            .unwrap()
+            + 1],
+    );
+    let model = if whisper {
+        model.parent().unwrap()
+    } else {
+        model
+    };
+    std::fs::write(
+        model.join(format!("args-{}.json", std::process::id())),
+        serde_json::to_vec(&args).unwrap(),
+    )
+    .unwrap();
     std::fs::write(model.join(format!("pid-{}", std::process::id())), "").unwrap();
     println!(
         "{}",
@@ -66,6 +105,9 @@ fn speech(args: Vec<String>) {
                     std::thread::sleep(std::time::Duration::from_secs(180));
                 }
                 response["type"] = json!("prepared");
+                if whisper {
+                    response["execution_device"] = json!("cpu");
+                }
             }
             "configure" => {
                 std::fs::write(
@@ -89,6 +131,14 @@ fn speech(args: Vec<String>) {
                 response["segment"] = Value::Null;
             }
             "finish" => {
+                if model.ends_with("slow-finish") {
+                    std::fs::write(
+                        model.join(format!("finished-samples-{}", std::process::id())),
+                        samples.to_string(),
+                    )
+                    .unwrap();
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                }
                 response["type"] = json!("finished");
                 response["segment"] = if samples == 0 {
                     Value::Null

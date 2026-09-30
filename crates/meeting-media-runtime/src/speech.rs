@@ -21,6 +21,7 @@ use tokio::{
 };
 
 pub struct Prepared {
+    pub execution_device: Option<ExecutionDevice>,
     child: Child,
     input: ChildStdin,
     output: BufReader<ChildStdout>,
@@ -32,14 +33,34 @@ pub struct Running {
     task: JoinHandle<Result<Prepared, Error>>,
 }
 impl Prepared {
-    pub fn spawn(path: &Path, model: &Path, punctuation: Option<&Path>) -> Result<Self, Error> {
+    pub fn spawn(
+        path: &Path,
+        model: &Path,
+        recognizer: &Recognizer,
+        punctuation: Option<&Path>,
+    ) -> Result<Self, Error> {
         if !model.is_absolute() || punctuation.is_some_and(|p| !p.is_absolute()) {
             return Err(Error::Protocol);
         }
-        let mut args = vec![
-            "--reazon-model".into(),
-            model.to_string_lossy().into_owned(),
-        ];
+        let mut args = match recognizer {
+            Recognizer::Reazonspeech => vec![
+                "--reazon-model".into(),
+                model.to_string_lossy().into_owned(),
+            ],
+            Recognizer::Whisper { device, language } => {
+                if punctuation.is_some() {
+                    return Err(Error::Protocol);
+                }
+                vec![
+                    "--whisper-model".into(),
+                    model.to_string_lossy().into_owned(),
+                    "--inference-device".into(),
+                    device.argument().into(),
+                    "--language".into(),
+                    language.argument().into(),
+                ]
+            }
+        };
         if let Some(path) = punctuation {
             args.extend([
                 "--punctuation-model".into(),
@@ -50,6 +71,7 @@ impl Prepared {
         let input = child.stdin.take().ok_or(Error::Worker)?;
         let output = BufReader::new(child.stdout.take().ok_or(Error::Worker)?);
         Ok(Self {
+            execution_device: None,
             child,
             input,
             output,
@@ -77,12 +99,12 @@ impl Prepared {
             ) {
                 return Err(Error::Protocol);
             }
-            if !matches!(
-                self.request(json!({"op":"prepare"}), 120).await?,
-                SpeechBody::Prepared {}
-            ) {
+            let SpeechBody::Prepared { execution_device } =
+                self.request(json!({"op":"prepare"}), 120).await?
+            else {
                 return Err(Error::Protocol);
-            }
+            };
+            self.execution_device = execution_device;
             let mut configure = serde_json::to_value(config)?;
             configure["op"] = json!("configure");
             if !matches!(
@@ -117,8 +139,15 @@ impl Prepared {
         )
         .await
         .map_err(|_| Error::Timeout)??;
-        if response.id != Some(self.sequence) || matches!(response.body, SpeechBody::Error {}) {
+        if response.id != Some(self.sequence) {
             return Err(Error::Speech);
+        }
+        if let SpeechBody::Error { code } = &response.body {
+            return Err(if matches!(code, SpeechFailure::GpuUnavailable) {
+                Error::GpuUnavailable
+            } else {
+                Error::Speech
+            });
         }
         Ok(response.body)
     }
@@ -134,11 +163,12 @@ impl Prepared {
             return Err(Error::Speech);
         }
         self.generation += 1;
-        let (sender, input) = mpsc::channel(200);
+        let (sender, input) = mpsc::channel(2000);
         let failed = Arc::new(AtomicBool::new(false));
         *route.lock().unwrap() = Some(ActiveInput {
             sender,
             failed: failed.clone(),
+            lag_notified: false,
         });
         let (cancel, cancelled) = oneshot::channel();
         let task = tokio::spawn(async move {
@@ -189,7 +219,7 @@ impl Prepared {
                 .map(|p| i16::from_le_bytes([p[0], p[1]]))
                 .collect();
             let response = self
-                .request(json!({"op":"audio","role":role,"pcm":pcm}), 30)
+                .request(json!({"op":"audio","role":role,"pcm":pcm}), 120)
                 .await?;
             let SpeechBody::Audio { segment } = response else {
                 return Err(Error::Protocol);
@@ -199,7 +229,9 @@ impl Prepared {
         if failed.load(Ordering::Acquire) {
             return Err(Error::Discontinuity);
         }
-        let response = self.request(json!({"op":"finish","role":role}), 30).await?;
+        let response = self
+            .request(json!({"op":"finish","role":role}), 120)
+            .await?;
         let SpeechBody::Finished { segment } = response else {
             return Err(Error::Protocol);
         };
@@ -258,9 +290,13 @@ impl Prepared {
     }
 }
 impl Running {
-    pub async fn finish(mut self) -> Result<Prepared, Error> {
-        // The caller detached capture before entering here. Drain the finite queue.
-        match timeout(Duration::from_secs(40), &mut self.task).await {
+    pub async fn finish(self) -> Result<Prepared, Error> {
+        self.finish_with_deadline(Duration::from_secs(30)).await
+    }
+    async fn finish_with_deadline(mut self, deadline: Duration) -> Result<Prepared, Error> {
+        // The caller detached every input before entering here. Bound the whole
+        // drain, including in-flight inference, rather than each queued frame.
+        match timeout(deadline, &mut self.task).await {
             Ok(result) => result.map_err(|_| Error::Speech)?,
             Err(_) => {
                 if let Some(cancel) = self.cancel.take() {
@@ -282,3 +318,30 @@ impl Running {
 }
 // Dropping an in-flight operation closes the cancellation sender, so its child
 // is explicitly killed and reaped inside the task rather than detached forever.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn stop_deadline_cancels_and_joins_inference() {
+        let (cancel, cancelled) = oneshot::channel();
+        let reaped = Arc::new(AtomicBool::new(false));
+        let finished = reaped.clone();
+        let task = tokio::spawn(async move {
+            let _ = cancelled.await;
+            finished.store(true, Ordering::Release);
+            Err(Error::Speech)
+        });
+        let running = Running {
+            cancel: Some(cancel),
+            task,
+        };
+        assert!(matches!(
+            running
+                .finish_with_deadline(Duration::from_millis(20))
+                .await,
+            Err(Error::Timeout)
+        ));
+        assert!(reaped.load(Ordering::Acquire));
+    }
+}

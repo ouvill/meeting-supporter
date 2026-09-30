@@ -111,12 +111,16 @@ impl Store {
     }
     pub fn speech(&self) -> Result<SpeechConfig, Error> {
         let stt = &self.document["stt"];
-        if stt["backend"] != "reazonspeech"
+        if (stt["backend"] != "reazonspeech" && stt["backend"] != "whisper")
             || stt["vad_engine"] != "silero"
-            || stt["language"] != "ja"
+            || (stt["backend"] == "reazonspeech" && stt["language"] != "ja")
             || self.document["audio"]["sample_rate"] != 16000
         {
             return Err(Error::Unsupported);
+        }
+        self.recognizer()?;
+        if stt["backend"] == "whisper" {
+            self.whisper_model()?;
         }
         let defaults = parse(DEFAULTS)?;
         let known = stt
@@ -135,6 +139,30 @@ impl Store {
             min_voiced_ratio: stt["min_voiced_ratio"].as_f64().ok_or_else(invalid)?,
             min_rms_dbfs: stt["min_rms_dbfs"].as_f64().ok_or_else(invalid)?,
         })
+    }
+    pub(crate) fn recognizer(&self) -> Result<meeting_media_runtime::wire::Recognizer, Error> {
+        use meeting_media_runtime::wire::{InferenceDevice, Language, Recognizer};
+        match self.backend().as_str() {
+            "reazonspeech" => Ok(Recognizer::Reazonspeech),
+            "whisper" => {
+                let device = match self.document["stt"]["device"].as_str() {
+                    Some("auto") => InferenceDevice::Auto,
+                    Some("cpu") => InferenceDevice::Cpu,
+                    Some("gpu") => InferenceDevice::Gpu,
+                    // CUDA is a legacy Python setting, not a promise of Vulkan availability.
+                    _ => return Err(Error::Settings),
+                };
+                let language: Language =
+                    serde_json::from_value(self.document["stt"]["language"].clone())
+                        .map_err(|_| Error::Settings)?;
+                Ok(Recognizer::Whisper { device, language })
+            }
+            _ => Err(Error::Unsupported),
+        }
+    }
+    pub(crate) fn whisper_model(&self) -> Result<crate::models::catalog::Whisper, Error> {
+        serde_json::from_value(self.document["stt"]["whisper_model"].clone())
+            .map_err(|_| Error::Settings)
     }
     pub fn backend(&self) -> String {
         self.document["stt"]["backend"]

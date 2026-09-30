@@ -5,6 +5,10 @@ use thiserror::Error;
 #[derive(Debug, Error, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SpeechError {
+    #[error("whisper_unavailable")]
+    WhisperUnavailable,
+    #[error("gpu_unavailable")]
+    GpuUnavailable,
     #[error("punctuation_load_failed")]
     PunctuationLoadFailed,
     #[error("runtime_unavailable")]

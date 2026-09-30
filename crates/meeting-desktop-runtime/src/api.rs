@@ -113,6 +113,7 @@ fn router(api: Api) -> Router {
         )
         .route("/ws", get(websocket))
         .route("/api/settings", get(settings_get).post(settings_save))
+        .route("/api/stt/capabilities", get(speech_capabilities))
         .route("/api/stt/model", get(model_status))
         .route(
             "/api/stt/model/download",
@@ -564,6 +565,14 @@ async fn settings_save(State(api): State<Api>, Json(patch): Json<crate::settings
         json!({"ok":true,"settings":settings_value(&api).await?}),
     ))
 }
+async fn speech_capabilities(State(api): State<Api>) -> Json<Value> {
+    let supported = meeting_media_runtime::whisper_gpu_supported(&api.shared.config.speech_worker)
+        .await
+        .ok();
+    // null means unknown (missing, outdated or failing worker), never CPU-only.
+    Json(json!({"whisper_gpu": supported}))
+}
+
 async fn model_status(
     State(api): State<Api>,
     Query(query): Query<crate::models::Request>,

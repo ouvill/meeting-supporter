@@ -1,4 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
+import { RuntimeContext } from "./platform/runtimeContext";
 import { runtimeMode } from "./platform/nativeSpeechClient";
 import {
   Suspense,
@@ -182,7 +183,11 @@ export default function App() {
       </Suspense>
     );
   }
-  return <PythonApp />;
+  return (
+    <RuntimeContext.Provider value={mode}>
+      <PythonApp />
+    </RuntimeContext.Provider>
+  );
 }
 
 function PythonApp() {

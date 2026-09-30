@@ -34,7 +34,7 @@ ONNX はモデル形式であり、トークナイザー、特徴量抽出、パ
 
 - **Silero VAD**: 既存の約 208 KB の int8 モデルをそのまま使えます。今回 Rust の `ort` から実際に推論しました。
 - **ReazonSpeech K2-v2**: 既存の encoder / decoder / joiner はすでに ONNX です。現在使っている sherpa-onnx の native API を Rust から呼ぶ方式を第一候補とします。推論 runtime は ONNX Runtime、特徴量抽出と transducer decoding は sherpa-onnx に任せ、Python binding を外します。Rust binding `sherpa-onnx 1.13.8` で接続し、合成日本語音声の認識結果を既存 Python 関数と比較済みです。CPU、1 thread、80 次元の特徴量、greedy search、前後各 0.9 秒の無音追加を維持します。
-- **Whisper**: ONNX への統一を要求せず、whisper-rs / whisper.cpp を第一候補とします。モデルの互換性、現行 faster-whisper との比較、代替案は [ADR-016](../../doc/adr/016-rust-runtime-and-ownership-boundaries.md)にまとめています。この試作には Whisper の実装をまだ含めていません。
+- **Whisper**: ONNX への統一を要求せず、whisper-rs / whisper.cpp を第一候補とします。モデルの互換性、現行 faster-whisper との比較、代替案は [ADR-016](../../doc/adr/016-rust-runtime-and-ownership-boundaries.md)にまとめています。`SileroWhisper` plan を実装しています。実行方法とモデル管理は [Rust バックエンドの Whisper.cpp](../../doc/development/rust-desktop-backend.md#whispercpp-の実行)を参照してください。
 - **クラウド音声認識**: クライアントは Rust にできますが、サービス内部のモデル形式はこのアプリから制御できません。
 - **ローカル LLM**: 今回は対象外です。音声系の移行後に ONNX Runtime GenAI などの対応モデル・実行環境を評価します。
 
@@ -361,3 +361,19 @@ Apache-2.0 のライセンス本文と必要な通知を配布物へ統合して
 `--mic --desktop` は desktop supervisor 専用の protocol 1 を使用します。
 標準入力の stop または EOF で取得を止め、確定結果を flush して終了します。
 通常の `--mic` と PCM JSONL protocol 2 の出力形式は変更しません。
+
+## Whisper ワーカーの単体入力
+
+既定の `whisper` feature で組み込みます。ReazonSpeech と併用したビルドでは共通の ONNX Runtime で Silero を実行します。
+`--no-default-features` は Whisper を含めないビルドです。
+
+```bash
+test/rust-native-backend/target/release/meeting-native-backend \
+  --whisper-model /path/to/ggml-large-v3-turbo-q8_0.bin \
+  --inference-device cpu --language ja --wav /path/to/synthetic.wav
+```
+
+`--wav` を省略すると既存の protocol 2 の JSON Lines を受け付けます。
+`prepare` 応答には `execution_device`（`cpu` / `gpu`）が追加されます。
+`--inference-device` は `auto` / `cpu` / `gpu`、`--language` は `ja` / `en` / `auto` です。
+ReazonSpeech・句読点モデルとの同時指定は拒否します。

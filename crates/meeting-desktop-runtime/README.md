@@ -12,7 +12,7 @@
 - 既存 TOML 設定の検証・保存、認証情報ストアへの接続、利用量の記録と予算チェック。
 - 資料の保存・返答への反映、前提資料フォルダの再読み込み。DOCX は共通 Python worker の MarkItDown に委譲します。
 - 終了済み会議の期限・容量による削除対象確認と明示的な削除実行。
-- Hugging Face 共有キャッシュを使う ReazonSpeech / Whisper のモデル取得・検証・キャンセル。Whisper 推論は未移植です。
+- Hugging Face 共有キャッシュを使う ReazonSpeech / Whisper のモデル取得・検証・キャンセル。Whisper.cpp Q8 推論を専用 worker で実行します。
 - rig によるモデル API 接続と既存の返答生成・停止・保存。生成 ID と会議 ID により遅延した結果を分離します。
 
 会議の変更操作は直列化します。音声結果の受信・保存は別タスクで継続し、

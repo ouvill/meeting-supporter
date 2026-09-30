@@ -14,7 +14,7 @@ flowchart LR
     Runtime --> Media[meeting-media-runtime]
   end
   Media --> Capture[音声取得・WAV worker × 2]
-  Media --> Speech[Silero・ReazonSpeech・句読点 worker × 2]
+  Media --> Speech[Silero・ReazonSpeech / Whisper.cpp worker × 2]
   Storage --> DB[(既存形式の SQLite)]
 ```
 
@@ -49,7 +49,8 @@ ReazonSpeech モデルは設定画面から取得できます。既にビルド�
 明示した句読点モデルをロードできない場合は準備エラーになります。
 Silero threshold と無音時間は既存の設定画面で変更できます。既定値はそれぞれ 0.4、0.4 秒です。
 取得レートは 16 kHz です。デバイスは画面接続時に開き、モデル未準備でも両入力の音量メーターが動きます。
-モデルは「音声認識を準備」で開きます。会議終了時にモデルを閉じて入力監視を再開するため、次の会議では再度準備してください。
+モデルは「音声認識を準備」で開きます。正常に会議を保存した後もモデルを保持し、次の会議で再利用します。
+音声設定・入力デバイスの変更、準備解除、アプリ終了時には解放します。
 
 `dev:rust` は `rust-backend` feature と `tauri.rust.conf.json` を使い、Python resource の準備をスキップします。
 起動ログに `Rust in-process backend is ready (Python worker starts only on demand).` と表示します。
@@ -153,13 +154,55 @@ Vosk の認識・モデル管理・設定項目は削除しました。以前取
 ReazonSpeech は既存の K2-v2 int8 の固定 revision を取得し、ファイルの SHA-256 を検証します。
 `MEETING_REAZON_MODEL` は読み取り専用の配置指定です。明示指定が不完全なら準備エラーとし、その場所にダウンロードしません。
 指定がなければ共有キャッシュを優先し、開発時だけ旧 `test/rust-native-backend/target/models/reazonspeech` も読み取ります。
-Whisper は既存 Python と同じ faster-whisper / CTranslate2 モデルの管理です。Rust での Whisper 推論対応とは別です。
+Whisper は `ggerganov/whisper.cpp` の `ggml-{model}-q8_0.bin` を取得します。
+`tiny`、`base`、`small`、`medium`、`large-v2`、`large-v3-turbo` を選択できます。
+固定 revision `5359861c739e955e79d9a303bcbc70fb988958b1` の選択ファイルだけを SHA-256 検証して保存します。
+同じ revision の Hugging Face キャッシュは `refs/main` がなくても再利用します。
+既存 Python の faster-whisper / CTranslate2 モデルとは別形式・別リポジトリであり、上書きや変換はしません。
 取得途中の一時ファイルはキャンセル時に消し、検証済みの共有 blob は再利用のため残します。
+
+## Whisper.cpp の実行
+
+設定の「聞き取り方法」で端末内・高精度を選ぶと、Rust 経路は `whisper-rs 0.16.0` / whisper.cpp 1.8.3 を使います。
+モデル取得後に音声認識を準備してください。既存 Python 経路は引き続き faster-whisper です。
+
+- Silero が発話を区切り、Whisper の確定結果を自分・相手別に表示・保存します。途中認識はありません。
+- 無音時間は設定に従い、連続発話は約 28 秒で分割します。日本語・英語・自動判定に対応します。
+- 句読点は Whisper の出力を使い、追加の句読点モデルはロードしません。
+- 入力ごとにモデルと推論状態を保持するため、2 入力ではモデル 2 個分のメモリが必要です。
+- 待ち行列は入力ごとに最大 60 秒です。遅延を通知し、上限超過・欠落時は認識を停止してエラーを表示します。
+- 1 回の推論期限は 120 秒、停止時の排出期限は 30 秒です。失敗時には保存完了を通知しません。
+- 録音は推論と独立しています。録音の再認識機能はまだありません。
+
+CPU 版は次のコマンドでビルドします。共有ライブラリの準備・配置は上記の音声 worker ビルド手順と共通です。
+
+```bash
+cargo build --release --locked --manifest-path test/rust-native-backend/Cargo.toml --features reazonspeech
+```
+
+Linux / Windows の Vulkan 版は Vulkan SDK（`glslc` を含む）と対応ドライバーを用意し、次の feature を指定します。
+
+```bash
+cargo build --release --locked --manifest-path test/rust-native-backend/Cargo.toml --features reazonspeech,vulkan
+```
+
+CUDA は `reazonspeech,cuda`、Metal は `reazonspeech,metal` を指定します。これらはビルド時の選択であり、
+CPU 版に実行時設定だけで GPU 対応を追加することはできません。Windows / macOS の音声取得・配布は未対応です。
+
+実行デバイスは設定画面の「自動」「CPU」「GPU」で選択します。
+GUI は設定済みの推論 worker に `--capabilities` でビルド時の GPU 対応を問い合わせます。
+CPU 専用版では「GPU」を無効化し、理由を表示します。確認中・worker が古い場合・起動できない場合も選択できません。
+既に保存されている GPU 設定は変更せず、「自動」または「CPU」への切り替えを案内します。
+この問い合わせではモデルや GPU を初期化しません。Rust 専用の `GET /api/stt/capabilities` が
+`whisper_gpu` を返し、確認できない場合は `null` になります。実機での GPU 利用可否は準備時に判定します。
+自動は GPU 対応ビルドで GPU を試し、初期化できなければ CPU を使います。
+準備完了時に実行デバイスを通知します。GPU を明示指定した場合は CPU に黙って切り替えずエラーにします。
+GPU 判定は固定した whisper.cpp 版の初期化通知を利用するため、依存更新時に検証が必要です。
 
 ## 未移植の機能
 
-情報 AI の会話メモ更新・調査・議事録、Codex・ACP の実行、クラウド STT、Whisper
-の推論実行は未接続です。話者分離は既存 Python でも実処理がなく、新規機能として別途検討します。
+情報 AI の会話メモ更新・調査・議事録、Codex・ACP の実行、クラウド STT
+は未接続です。話者分離は既存 Python でも実処理がなく、新規機能として別途検討します。
 情報 AI・議事録の既存割当は保持しますが、割当変更はまだできません。
 対応していない provider 種別や独自の key reference は既定経路へ置き換えず、未対応として扱います。
 未設定の hosted service は `not_offered` のままです。
