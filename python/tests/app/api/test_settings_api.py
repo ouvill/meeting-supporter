@@ -24,6 +24,7 @@ from app.core.protocols import SecretStore
 from app.core.state import AppState
 from app.meetings.models import MeetingSession
 from app.services.secret_store import CredentialSecretStore, FileSecretStore
+from app.services.settings_serialization import toml_table
 from app.services.settings_store import SettingsStore
 from app.services.usage_logger import UsageLogger
 from tests.helpers.api_client import JsonObject, TypedResponse, TypedTestClient, as_json_object, as_object_array
@@ -214,12 +215,9 @@ priority = 20
             resp = client.get("/api/settings")
             assert resp.status_code == 200
             data = resp.json_object()
-            agents = as_json_object(data["agents"])
+            assert "agents" not in data
             reply = as_json_object(data["reply"])
             styles = as_object_array(reply["styles"])
-            assert agents["info_enabled"] is False
-            assert "reply_enabled" not in agents
-            assert "reply_auto_generate" not in agents
             assert reply["enabled"] is False
             assert reply["auto_generate"] is True
             assert reply["default_style"] == "polite"
@@ -301,13 +299,13 @@ class TestPostSettings:
                 json={
                     "stt": {"backend": "whisper"},
                     "audio": {"sample_rate": 16000},
-                    "agents": {"info_enabled": False},
+                    "reply": {"enabled": False},
                 },
             )
 
             assert resp.status_code == 200
             cfg = store.load_config()
-            assert cfg["agents"] == {"info_enabled": False}
+            assert (toml_table(cfg["reply"]) or {})["enabled"] is False
 
     def test_full_get_payload_round_trips_while_active(self) -> None:
         config_text = """
@@ -568,13 +566,12 @@ hallucination_phrase_blocklist = ["preserve me"]
             assert start_saw_reload_pending == [True]
             assert events == ["ConfigChanged"]
 
-    def test_updates_reply_settings_and_info_flag(self) -> None:
+    def test_updates_reply_settings(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             client, _, store, _, _ = _make_client(Path(td))
             resp = client.post(
                 "/api/settings",
                 json={
-                    "agents": {"info_enabled": False},
                     "reply": {"enabled": False, "auto_generate": True},
                 },
             )
@@ -582,11 +579,8 @@ hallucination_phrase_blocklist = ["preserve me"]
             assert resp.json_object()["ok"] is True
 
             cfg = store.load_config()
-            agents = cfg["agents"]
             reply = cfg["reply"]
-            assert isinstance(agents, dict)
             assert isinstance(reply, dict)
-            assert agents == {"info_enabled": False}
             assert reply["enabled"] is False
             assert reply["auto_generate"] is True
             text = store.config_path.read_text(encoding="utf-8")
@@ -735,13 +729,13 @@ hallucination_phrase_blocklist = ["preserve me"]
                     "/api/settings",
                     json={
                         "secrets": {"GEMINI_API_KEY": "synthetic-key"},
-                        "agents": {"info_enabled": False},
+                        "reply": {"enabled": False},
                     },
                 )
 
                 assert response.status_code == 200
                 assert state.secret_store.get("GEMINI_API_KEY") == "synthetic-key"
-                assert store.load_config()["agents"] == {"info_enabled": False}
+                assert (toml_table(store.load_config()["reply"]) or {})["enabled"] is False
                 assert events == ["ConfigChanged"]
         finally:
             _ = os.environ.pop("GEMINI_API_KEY", None)
@@ -796,7 +790,7 @@ dir_override = "existing-context"
                     "/api/settings",
                     json={
                         "secrets": {"DEEPGRAM_API_KEY": "synthetic-replacement"},
-                        "agents": {"info_enabled": False},
+                        "reply": {"enabled": False},
                     },
                 )
 
@@ -827,7 +821,7 @@ dir_override = "existing-context"
                     "/api/settings",
                     json={
                         "delete_secrets": ["ANTHROPIC_API_KEY"],
-                        "agents": {"info_enabled": False},
+                        "reply": {"enabled": False},
                     },
                 )
 
@@ -855,7 +849,7 @@ dir_override = "existing-context"
                     "/api/settings",
                     json={
                         "secrets": {"GEMINI_API_KEY": "synthetic-replacement"},
-                        "agents": {"info_enabled": False},
+                        "reply": {"enabled": False},
                     },
                 )
 
@@ -884,7 +878,7 @@ dir_override = "existing-context"
                     json={
                         "secrets": {"OPENAI_API_KEY": "synthetic-openai-replacement-before-delete"},
                         "delete_secrets": ["OPENAI_API_KEY"],
-                        "agents": {"info_enabled": False},
+                        "reply": {"enabled": False},
                     },
                 )
 
@@ -913,7 +907,7 @@ dir_override = "existing-context"
                     json={
                         "secrets": {"DEEPGRAM_API_KEY": "replacement-before-delete"},
                         "delete_secrets": ["DEEPGRAM_API_KEY"],
-                        "agents": {"info_enabled": False},
+                        "reply": {"enabled": False},
                     },
                 )
 
@@ -958,7 +952,7 @@ dir_override = "existing-context"
                     json={
                         "secrets": {"OPENAI_API_KEY": "synthetic-openai-replacement-before-delete"},
                         "delete_secrets": ["OPENAI_API_KEY"],
-                        "agents": {"info_enabled": False},
+                        "reply": {"enabled": False},
                     },
                 )
 
@@ -1147,10 +1141,7 @@ class TestSettingsApiPostReturnsSavedValues:
             assert stt["backend"] == "deepgram"
             assert stt["vad_engine"] == "silero"
 
-            agents = as_json_object(settings["agents"])
             reply = as_json_object(settings["reply"])
-            assert agents["info_enabled"] is True
-            assert "reply_enabled" not in agents
             assert reply["enabled"] is True
             assert "reply_agents" not in settings
 
@@ -1211,16 +1202,12 @@ class TestSettingsApiPostReturnsSavedValues:
                 "/api/settings",
                 json={
                     "reply": {"enabled": False},
-                    "agents": {"info_enabled": False},
                     "stt": {"backend": "remote"},
                 },
             )
             assert resp.status_code == 200
             settings = self._ok_settings(resp)
-            agents = as_json_object(settings["agents"])
             reply = as_json_object(settings["reply"])
-            assert agents["info_enabled"] is False
-            assert "reply_enabled" not in agents
             assert reply["enabled"] is False
             stt = as_json_object(settings["stt"])
             assert stt["backend"] == "remote"
@@ -1249,14 +1236,13 @@ class TestSettingsApiPostReturnsSavedValues:
             assert styles[0]["enabled"] is False
             assert "reply_agents" not in settings
 
-    def test_post_reply_settings_with_agents_together(self) -> None:
-        """Combined agents + reply patch returns merged values."""
+    def test_post_reply_settings_returns_merged_values(self) -> None:
+        """Reply settings return merged values."""
         with tempfile.TemporaryDirectory() as td:
             client, _, _, _, _ = _make_client(Path(td))
             resp = client.post(
                 "/api/settings",
                 json={
-                    "agents": {"info_enabled": False},
                     "reply": {
                         "enabled": True,
                         "styles": [
@@ -1267,11 +1253,8 @@ class TestSettingsApiPostReturnsSavedValues:
             )
             assert resp.status_code == 200
             settings = self._ok_settings(resp)
-            agents = as_json_object(settings["agents"])
             reply = as_json_object(settings["reply"])
             styles = as_object_array(reply["styles"])
-            assert agents["info_enabled"] is False
-            assert "reply_enabled" not in agents
             assert reply["enabled"] is True
             assert [style["id"] for style in styles] == ["standard"]
             assert styles[0]["enabled"] is True
@@ -1347,7 +1330,7 @@ class TestPostSettingsPydanticValidation:
             assert resp.status_code == 422
 
     def test_rejects_unknown_nested_under_agents(self) -> None:
-        """extra='forbid' on AgentSettingsPayload rejects reply settings under agents."""
+        """The retired agents payload is rejected, including legacy reply flags."""
         with tempfile.TemporaryDirectory() as td:
             client, _, _, _, _ = _make_client(Path(td))
             resp = client.post(

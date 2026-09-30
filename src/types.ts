@@ -54,7 +54,6 @@ export interface AgentSettings {
   replyEnabled: boolean;
   replyAutoGenerate: boolean;
   replyAgents: ReplyAgentSettings[];
-  infoEnabled: boolean;
 }
 
 export interface MeetingContextInput {
@@ -122,7 +121,6 @@ export interface SocketState {
   lastReplyCancelResult: ReplyCancelResult | null;
   cancelledSuggestionIds: string[];
   discardedGenerationIds: string[];
-  isResearchingInfo: boolean;
   interimOther: string;
   interimSelf: string;
   levelOther: number;
@@ -150,5 +148,4 @@ export type WsMessage =
       mode?: SuggestionMode;
     }
   | { type: "cancel_reply"; generation_id: string; target_utterance_id: string }
-  | { type: "run_info" }
   | { type: "reload_context" };

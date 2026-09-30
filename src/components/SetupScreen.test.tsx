@@ -38,7 +38,6 @@ function idleState(overrides: Partial<SocketState> = {}): SocketState {
       replyEnabled: true,
       replyAutoGenerate: false,
       replyAgents: [],
-      infoEnabled: true,
     },
     devices: [],
     deviceOther: null,
@@ -52,7 +51,6 @@ function idleState(overrides: Partial<SocketState> = {}): SocketState {
     lastReplyCancelResult: null,
     cancelledSuggestionIds: [],
     discardedGenerationIds: [],
-    isResearchingInfo: false,
     interimOther: "",
     interimSelf: "",
     levelOther: 0,
@@ -457,7 +455,6 @@ describe("SetupScreen", () => {
               replyEnabled: false,
               replyAutoGenerate: false,
               replyAgents: [],
-              infoEnabled: true,
             },
           })}
           send={vi.fn<SendFn>()}

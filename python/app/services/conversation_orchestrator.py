@@ -1,9 +1,9 @@
 import asyncio
 from collections import OrderedDict
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from typing import Protocol, cast
 
-from app.agents.models import InfoAgentRuntime, ReplyAgentDefinition, ReplyAgentSpec
+from app.agents.models import ReplyAgentDefinition, ReplyAgentSpec
 from app.core.config import AgentSettings, UsageBudgetConfig
 from app.core.messages import (
     AgentSettingsMsg,
@@ -16,7 +16,6 @@ from app.core.messages import (
 from app.core.protocols import ConversationState
 from app.meetings.models import MeetingSession, Turn
 from app.meetings.service import MeetingHistoryService
-from app.services.info_note_updater import InfoNoteUpdater
 from app.services.reply_pipeline import ReplyPipeline
 from app.services.usage_logger import UsageLogger
 
@@ -36,10 +35,7 @@ class ConversationOrchestrator:
         state: ConversationState,
         broadcast: OutgoingBroadcastFn,
         reply_agents: list[ReplyAgentSpec],
-        info_runtime: InfoAgentRuntime | None,
         turn_factory: Callable[..., Turn],
-        info_readiness: Callable[[], Awaitable[bool]] | None = None,
-        info_enabled: bool = True,
         agent_settings: AgentSettings | None = None,
         history_service: MeetingHistoryService | None = None,
         usage_logger: UsageLogger | None = None,
@@ -65,16 +61,6 @@ class ConversationOrchestrator:
             usage_logger=usage_logger,
             usage_budget=usage_budget,
         )
-        self._info_note_updater: InfoNoteUpdater = InfoNoteUpdater(
-            state=state,
-            broadcast=broadcast,
-            info_runtime=info_runtime,
-            turn_lock=self._turn_lock,
-            info_enabled=info_enabled,
-            info_readiness=info_readiness,
-            usage_logger=usage_logger,
-            usage_budget=usage_budget,
-        )
         self._reply_cancel_results: OrderedDict[tuple[str, str], ReplyCancelResultMsg] = OrderedDict()
 
     def _filter_reply_agents(self, settings: AgentSettings | None) -> list[ReplyAgentSpec]:
@@ -92,13 +78,11 @@ class ConversationOrchestrator:
         active = self._filter_reply_agents(settings)
         await self.apply_agent_settings(
             reply_agents=active,
-            info_enabled=settings["info_enabled"],
             reply_auto_generate=settings["reply_auto_generate"],
         )
         usage_budget = getattr(new_config, "usage_budget", None)
         if isinstance(usage_budget, UsageBudgetConfig):
             self._reply_pipeline.update_budget(usage_budget)
-            self._info_note_updater.update_budget(usage_budget)
         await self._broadcast(
             AgentSettingsMsg(
                 reply_enabled=settings["reply_enabled"],
@@ -112,18 +96,15 @@ class ConversationOrchestrator:
                     )
                     for d in new_config.reply_agent_definitions
                 ],
-                info_enabled=settings["info_enabled"],
             )
         )
 
     async def update_agents(
         self,
         *,
-        info_runtime: InfoAgentRuntime | None,
         reply_agent_specs: list[ReplyAgentSpec],
     ) -> None:
         """Atomically stop in-flight generation before replacing its runtimes."""
-        await self._info_note_updater.update_runtime(info_runtime)
         _ = await self.cancel_replies()
         self._all_reply_agents = list(reply_agent_specs)
         self._reply_pipeline.apply_agents(self._filter_reply_agents(self._agent_settings))
@@ -132,17 +113,12 @@ class ConversationOrchestrator:
         self,
         *,
         reply_agents: list[ReplyAgentSpec],
-        info_enabled: bool,
         reply_auto_generate: bool | None = None,
     ) -> None:
         _ = await self.cancel_replies()
         self._reply_pipeline.apply_agents(reply_agents)
         if reply_auto_generate is not None:
             self._reply_auto_generate = reply_auto_generate
-        await self._info_note_updater.apply_enabled(info_enabled)
-
-    async def replace_ai_note(self, old_str: str, new_str: str) -> str:
-        return await self._info_note_updater.replace_ai_note(old_str, new_str)
 
     async def generate_reply(
         self,
@@ -214,13 +190,6 @@ class ConversationOrchestrator:
         while len(self._reply_cancel_results) > 30:
             _ = self._reply_cancel_results.popitem(last=False)
 
-    async def run_info_now(self) -> None:
-        """Start an explicit info-note refresh for the current meeting."""
-        await self._info_note_updater.run_now()
-
-    async def reset_info_note_updater(self) -> None:
-        await self._info_note_updater.reset()
-
     async def _append_turn(
         self,
         role: str,
@@ -262,7 +231,6 @@ class ConversationOrchestrator:
         if self._history_service is not None:
             _ = self._history_service.schedule_insert_turn(meeting_id, turn_idx, turn)
         await self._broadcast(SttFinalMsg(role=role, text=text, speaker_id=speaker_id, utterance_id=turn.id))
-        self._info_note_updater.trigger()
         if self._reply_auto_generate and role == "other":
             _ = self._reply_pipeline.start_for_turn(
                 target_turn_id=turn.id,
@@ -286,7 +254,6 @@ class ConversationOrchestrator:
         if self._history_service is not None:
             _ = self._history_service.schedule_insert_turn(session.id, turn_sequence, turn)
         await self._broadcast(SttFinalMsg(role="self", text=text, speaker_id=None, utterance_id=turn.id))
-        self._info_note_updater.trigger()
 
 
 __all__ = ["ConversationOrchestrator"]

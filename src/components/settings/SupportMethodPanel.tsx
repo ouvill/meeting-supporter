@@ -115,7 +115,6 @@ const USE_CASE_OPTIONS: ReadonlyArray<{
   label: string;
 }> = [
   { useCase: "reply", label: "返答案" },
-  { useCase: "info", label: "会話メモ" },
   { useCase: "minutes", label: "要約・議事録" },
 ];
 

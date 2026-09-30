@@ -218,9 +218,8 @@ def _make_dummy_state() -> AppState:
         audio_sample_rate=16000,
         audio_max_session_seconds=55,
         audio_chunk_size=1600,
-        agent_settings=AgentSettings(reply_enabled=False, reply_auto_generate=False, info_enabled=False),
+        agent_settings=AgentSettings(reply_enabled=False, reply_auto_generate=False),
         reply_agent_definitions=[],
-        mcp_servers=[],
         providers=[],
         routes=[
             RouteDefinition(id="managed", runtime="managed"),

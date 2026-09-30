@@ -18,7 +18,6 @@ from app.core.local_auth import (
     is_origin_allowed,
 )
 from app.core.messages import (
-    AiNoteUpdatedMsg,
     CancelReplyMsg,
     DevicesListMsg,
     ErrorMsg,
@@ -30,7 +29,6 @@ from app.core.messages import (
     MeetingStateMsg,
     ReloadContextMsg,
     ReplyAgentSettingsItem,
-    RunInfoMsg,
     SetDeviceMsg,
     ShutdownSttMsg,
     StartMeetingMsg,
@@ -126,8 +124,6 @@ def create_router(
                     generation_id=msg.generation_id,
                     target_utterance_id=msg.target_utterance_id,
                 )
-            case RunInfoMsg():
-                await conversation_orchestrator.run_info_now()
             case ReloadContextMsg():
                 state.context_text = load_context_files()
                 lines = state.context_text.count("\n") + 1 if state.context_text else 0
@@ -210,8 +206,6 @@ def create_router(
                     ]
                 ),
             )
-        session_ai_note = state.current_session.ai_note if state.current_session else ""
-        await broadcast_manager.reply(ws, AiNoteUpdatedMsg(text=session_ai_note))
         if isinstance(session := state.current_session, MeetingSession):
             await broadcast_manager.reply(ws, session_info_msg(session))
 

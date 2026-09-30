@@ -25,9 +25,9 @@ from app.agents.codex_app_server import (
     inspect_codex_installation,
 )
 from app.agents.codex_installation import _reap_version_probe, child_environment
-from app.agents.codex_runtime import CodexInfoAgentRuntime, CodexMinutesAgentRuntime, CodexReplyAgentRuntime
-from app.agents.models import InfoPrompt, MinutesPrompt, ReplyPrompt
-from app.agents.prompts import CODEX_INFO_INSTRUCTION, MINUTES_INSTRUCTION
+from app.agents.codex_runtime import CodexMinutesAgentRuntime, CodexReplyAgentRuntime
+from app.agents.models import MinutesPrompt, ReplyPrompt
+from app.agents.prompts import MINUTES_INSTRUCTION
 from app.api.ai_runtimes import probe_codex_route_status
 
 _CANARY = "codex-global-config-canary-8d8b13"
@@ -1047,39 +1047,6 @@ class CodexAppServerContractTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(["日本語の応答"], deltas)
             self.assertEqual(2, len(startups))
             self.assertEqual(1 if mode == "thread-missing-once" else 2, len(turn_starts))
-
-    async def test_info_runtime_starts_a_read_only_tool_disabled_complete_note_turn(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            binary, transcript = _write_fake_codex(Path(temporary), mode="normal")
-            server = CodexAppServer(binary=binary, work_root=temporary)
-            runtime = CodexInfoAgentRuntime(peer=server, model=_LUNA)
-            try:
-                async with runtime.run_stream(InfoPrompt(text="現在のメモと会話")) as stream:
-                    deltas = [delta async for delta in stream.stream_text(delta=True)]
-                _ = await _wait_for_received(transcript, "thread/unsubscribe")
-                events = _transcript(transcript)
-            finally:
-                await server.close()
-
-        thread_start = next(
-            event["value"]
-            for event in events
-            if event["kind"] == "received" and event["value"]["method"] == "thread/start"
-        )
-        methods = [event["value"]["method"] for event in events if event["kind"] == "received"]
-        config = thread_start["params"]["config"]
-        self.assertEqual("complete_note", runtime.output_mode)
-        self.assertEqual(["日本語の応答"], deltas)
-        self.assertEqual(_LUNA, thread_start["params"]["model"])
-        self.assertIn(CODEX_INFO_INSTRUCTION, thread_start["params"]["baseInstructions"])
-        self.assertEqual(thread_start["params"]["baseInstructions"], thread_start["params"]["developerInstructions"])
-        self.assertEqual("never", thread_start["params"]["approvalPolicy"])
-        self.assertEqual("read-only", thread_start["params"]["sandbox"])
-        self.assertEqual({}, config["mcp_servers"])
-        self.assertEqual({"view_image": False, "web_search": False}, config["tools"])
-        self.assertEqual("disabled", config["web_search"])
-        self.assertEqual(False, config["features"]["shell_tool"])
-        self.assertIn("thread/unsubscribe", methods)
 
     async def test_minutes_runtime_starts_a_read_only_tool_disabled_minutes_turn(self) -> None:
         """Minutes generation is isolated from reply instructions and cannot start a tool-capable Codex turn."""

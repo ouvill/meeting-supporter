@@ -82,10 +82,6 @@ class CancelReplyMsg(BaseModel):
     target_utterance_id: str
 
 
-class RunInfoMsg(BaseModel):
-    type: Literal["run_info"]
-
-
 class ReloadContextMsg(BaseModel):
     type: Literal["reload_context"]
 
@@ -100,7 +96,6 @@ type IncomingMessage = Annotated[
     | UserReplyMsg
     | GenerateReplyMsg
     | CancelReplyMsg
-    | RunInfoMsg
     | ReloadContextMsg,
     Field(discriminator="type"),
 ]
@@ -155,17 +150,11 @@ class AgentSettingsMsg(BaseModel):
     reply_enabled: bool
     reply_auto_generate: bool
     reply_agents: list[ReplyAgentSettingsItem]
-    info_enabled: bool
 
 
 class HistoryResetMsg(BaseModel):
     type: Literal["history_reset"] = "history_reset"
     items: list[TurnItem]
-
-
-class AiNoteUpdatedMsg(BaseModel):
-    type: Literal["ai_note_updated"] = "ai_note_updated"
-    text: str
 
 
 class ErrorMsg(BaseModel):
@@ -199,14 +188,6 @@ class SessionInfoMsg(BaseModel):
     title: str | None = None
     ended_at: str | None = None
     is_active: bool
-
-
-class InfoResearchingMsg(BaseModel):
-    type: Literal["info_researching"] = "info_researching"
-
-
-class InfoResearchingFinishedMsg(BaseModel):
-    type: Literal["info_researching_finished"] = "info_researching_finished"
 
 
 class SttFinalMsg(BaseModel):
@@ -271,14 +252,11 @@ type OutgoingMessage = (
     | DevicesListMsg
     | AgentSettingsMsg
     | HistoryResetMsg
-    | AiNoteUpdatedMsg
     | ErrorMsg
     | AudioLevelMsg
     | SttInterimMsg
     | StreamInfoMsg
     | SessionInfoMsg
-    | InfoResearchingMsg
-    | InfoResearchingFinishedMsg
     | SttFinalMsg
     | SuggestionsStartMsg
     | ReplyChunkMsg
@@ -291,7 +269,6 @@ type OutgoingBroadcastFn = Callable[[OutgoingMessage], Coroutine[object, object,
 
 __all__ = [
     "AgentSettingsMsg",
-    "AiNoteUpdatedMsg",
     "AudioLevelMsg",
     "CancelReplyMsg",
     "DevicesListMsg",
@@ -312,7 +289,6 @@ __all__ = [
     "ReplyChunkMsg",
     "SessionInfoMsg",
     "SetDeviceMsg",
-    "RunInfoMsg",
     "ShutdownSttMsg",
     "StartMeetingMsg",
     "StatusMsg",

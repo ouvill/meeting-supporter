@@ -144,13 +144,9 @@ pub enum Event {
         reply_enabled: bool,
         reply_auto_generate: bool,
         reply_agents: Vec<ReplyAgent>,
-        info_enabled: bool,
     },
     HistoryReset {
         items: Vec<TurnItem>,
-    },
-    AiNoteUpdated {
-        text: String,
     },
     SessionInfo {
         id: String,

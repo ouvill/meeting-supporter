@@ -17,28 +17,24 @@ vi.mock("../../hooks/useAlwaysOnTop", () => ({
 vi.mock("../../hooks/useAiRoutes", () => ({
   useAiRoutes: () => ({
     routes: [],
-    assignments: { reply: "preview", info: null, minutes: null },
+    assignments: { reply: "preview", minutes: null },
     assignedRoutes: {
       reply: {
         id: "preview",
         readiness: "ready",
         selectable: true,
       },
-      info: null,
+
       minutes: null,
     },
-    infoRouteStatus: {
-      readiness: "setup_required",
-      canGenerate: false,
-      message: "会話メモを利用する支援方法を設定してください。",
-    },
+
     minutesRouteStatus: {
       readiness: "setup_required",
       canGenerate: false,
       message: "議事録を利用する支援方法を設定してください。",
     },
     replyStatus: { readiness: "ready", canGenerate: true, message: null },
-    draftAssignments: { reply: "preview", info: null, minutes: null },
+    draftAssignments: { reply: "preview", minutes: null },
     assignmentDirty: false,
     setDraftAssignment: vi.fn(),
     resetDraftAssignments: vi.fn(),

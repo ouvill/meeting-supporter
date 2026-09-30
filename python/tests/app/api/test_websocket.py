@@ -9,15 +9,24 @@ from collections.abc import Callable, Coroutine
 from typing import cast
 from unittest.mock import patch
 
+import pytest
+from pydantic import TypeAdapter, ValidationError
 from starlette.routing import WebSocketRoute
 from starlette.websockets import WebSocketDisconnect
 
 from app.api import websocket as websocket_api
+from app.core.messages import IncomingMessage
 from app.meetings.lifecycle import MeetingLifecycleCoordinator
 from app.services.broadcast import BroadcastManager
 from app.services.conversation_orchestrator import ConversationOrchestrator
 from app.services.stt_controller import SttController
 from tests.app.test_factory import _make_dummy_state  # pyright: ignore[reportPrivateUsage]
+
+
+def test_retired_info_command_is_rejected() -> None:
+    adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
+    with pytest.raises(ValidationError):
+        _ = adapter.validate_python({"type": "run_info"})
 
 
 class _NoopSttController:

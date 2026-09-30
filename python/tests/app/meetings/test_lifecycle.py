@@ -31,10 +31,6 @@ def _reset_reply_cancel_results() -> None:
     return None
 
 
-async def _reset_info_note_updater() -> None:
-    return None
-
-
 # ── Fakes ──────────────────────────────────────────────────────────────────────
 
 
@@ -356,7 +352,6 @@ class MeetingLifecycleCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             history=self.history,
             cancel_replies=_cancel_replies,
             reset_reply_cancel_results=_reset_reply_cancel_results,
-            reset_info_note_updater=_reset_info_note_updater,
             recording=self.recording,  # pyright: ignore[reportArgumentType]
         )
 
@@ -364,7 +359,7 @@ class MeetingLifecycleCoordinatorTest(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         await self.repo.close()
 
-    async def test_start_and_stop_reset_info_in_reply_cancellation_order(self) -> None:
+    async def test_start_and_stop_keep_reply_cancellation_order(self) -> None:
         cancel_calls = 0
         reset_calls = 0
         events: list[str] = []
@@ -373,9 +368,6 @@ class MeetingLifecycleCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             nonlocal cancel_calls
             cancel_calls += 1
             events.append("reply.cancel")
-
-        async def reset_info_note_updater() -> None:
-            events.append("info.reset")
 
         original_stop_meeting = self.stt.stop_meeting
 
@@ -399,21 +391,20 @@ class MeetingLifecycleCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             history=self.history,
             cancel_replies=cancel_replies,
             reset_reply_cancel_results=reset_reply_cancel_results,
-            reset_info_note_updater=reset_info_note_updater,
             recording=self.recording,  # pyright: ignore[reportArgumentType]
         )
 
         await coordinator.stop_meeting()
         self.assertEqual(2, cancel_calls)
         self.assertEqual(
-            ["reply.cancel", "info.reset", "stt.stop", "reply.cancel", "info.reset"],
+            ["reply.cancel", "stt.stop", "reply.cancel"],
             events,
         )
 
         events.clear()
         await coordinator.start_meeting(FakeWs())
         self.assertEqual(1, reset_calls)
-        self.assertEqual(["info.reset"], events)
+        self.assertEqual([], events)
 
     async def test_start_meeting_creates_session_and_draft(self) -> None:
         ws = FakeWs()
@@ -515,7 +506,6 @@ class MeetingLifecycleCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             history=history,  # pyright: ignore[reportArgumentType]
             cancel_replies=_cancel_replies,
             reset_reply_cancel_results=_reset_reply_cancel_results,
-            reset_info_note_updater=_reset_info_note_updater,
         )
 
         reload_waiting = asyncio.Event()
@@ -693,7 +683,6 @@ class MeetingLifecycleCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             history=self.history,
             cancel_replies=_cancel_replies,
             reset_reply_cancel_results=_reset_reply_cancel_results,
-            reset_info_note_updater=_reset_info_note_updater,
             recording=recording,  # pyright: ignore[reportArgumentType]
         )
 
@@ -731,9 +720,14 @@ class MeetingLifecycleCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         reload_waiting = asyncio.Event()
         reload_entered = asyncio.Event()
 
-        async def blocking_reset() -> None:
+        original_create_draft = self.history.create_draft_meeting
+
+        async def blocking_create_draft(session: MeetingSession) -> None:
             reset_entered.set()
             _ = await release_reset.wait()
+            await original_create_draft(session)
+
+        self.history.create_draft_meeting = blocking_create_draft
 
         async def broadcast(msg: object) -> None:
             self.messages.append(cast(dict[str, object], msg))
@@ -745,7 +739,6 @@ class MeetingLifecycleCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             history=self.history,
             cancel_replies=_cancel_replies,
             reset_reply_cancel_results=_reset_reply_cancel_results,
-            reset_info_note_updater=blocking_reset,
             recording=self.recording,  # pyright: ignore[reportArgumentType]
         )
 
@@ -794,7 +787,6 @@ class MeetingLifecycleCoordinatorDraftFailureTest(unittest.IsolatedAsyncioTestCa
             history=MeetingHistoryService(repository=repo),
             cancel_replies=_cancel_replies,
             reset_reply_cancel_results=_reset_reply_cancel_results,
-            reset_info_note_updater=_reset_info_note_updater,
         )
 
     @override
@@ -875,7 +867,6 @@ class MeetingLifecycleCoordinatorRecordingFailureTest(unittest.IsolatedAsyncioTe
             history=MeetingHistoryService(repository=repo),
             cancel_replies=_cancel_replies,
             reset_reply_cancel_results=_reset_reply_cancel_results,
-            reset_info_note_updater=_reset_info_note_updater,
             recording=self.recording,  # pyright: ignore[reportArgumentType]
         )
 
@@ -942,7 +933,6 @@ class MeetingLifecycleRecordingIntegrityTest(unittest.IsolatedAsyncioTestCase):
             history=MeetingHistoryService(repository=cast(MeetingHistoryRepository, cast(object, self.repository))),
             cancel_replies=_cancel_replies,
             reset_reply_cancel_results=_reset_reply_cancel_results,
-            reset_info_note_updater=_reset_info_note_updater,
             recording=self.recording,  # pyright: ignore[reportArgumentType]
             user_data_dir=self.user_data_dir,
         )

@@ -149,7 +149,7 @@ def create_router(
     async def replace_ai_route_assignments(  # pyright: ignore[reportUnusedFunction]
         body: RouteAssignmentsUpdate,
     ) -> RouteCatalogResponse:
-        candidate = AiRouteAssignments(reply=body.reply, info=body.info, minutes=body.minutes)
+        candidate = AiRouteAssignments(reply=body.reply, minutes=body.minutes)
         current = await _route_catalog(
             state=state,
             managed_status=managed_status,
@@ -160,7 +160,6 @@ def create_router(
         by_id = {route.id: route for route in current.routes}
         assignments_by_use_case: tuple[tuple[RouteCapability, str | None], ...] = (
             ("reply", candidate.reply),
-            ("info", candidate.info),
             ("minutes", candidate.minutes),
         )
         for use_case, route_id in assignments_by_use_case:

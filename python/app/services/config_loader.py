@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Protocol, TypeGuard, TypeVar, cast
 
 from platformdirs import user_data_path
-from pydantic_ai.mcp import load_mcp_toolsets
-from pydantic_ai.toolsets import AbstractToolset
 
 from app.agents.models import ReplyAgentDefinition
 from app.agents.prompts import (
@@ -259,16 +257,13 @@ def _parse_ai_config(cfg: TomlTable) -> tuple[AiRouteAssignments, list[RouteDefi
 
     assignments = AiRouteAssignments(
         reply=optional_route("reply"),
-        info=optional_route("info"),
         minutes=optional_route("minutes"),
     )
-    assigned = {
-        route_id for route_id in (assignments.reply, assignments.info, assignments.minutes) if route_id is not None
-    }
+    assigned = {route_id for route_id in (assignments.reply, assignments.minutes) if route_id is not None}
     unknown_assignments = sorted(assigned - set(BUILT_IN_ROUTE_IDS))
     if unknown_assignments:
         raise UnsupportedAiConfigError(f"未知のAI route idです: {', '.join(unknown_assignments)}")
-    for use_case, route_id in (("info", assignments.info), ("minutes", assignments.minutes)):
+    for use_case, route_id in (("minutes", assignments.minutes),):
         unsupported = ("managed", "acp")
         if route_id in unsupported:
             raise UnsupportedAiConfigError(f"route '{route_id}' は{use_case}をサポートしません")
@@ -409,8 +404,6 @@ class ConfigLoader:
     # Agents
     agent_settings: AgentSettings
     reply_agent_definitions: list[ReplyAgentDefinition] = field(default_factory=list)
-    # MCP
-    mcp_servers: list[AbstractToolset[None]] = field(default_factory=list)
     # AI schema v2
     providers: list[ProviderDefinition] = field(default_factory=list)
     routes: list[RouteDefinition] = field(default_factory=list)
@@ -466,11 +459,6 @@ class ConfigLoader:
             monthly_limit_jpy=float(cfg_get("usage_budget", "monthly_limit_jpy", 0.0)),
         )
 
-        # MCP servers
-        mcp_config_path = user_data_dir / "mcp.json"
-        legacy_mcp_path = Path(__file__).parent.parent.parent / "mcp.json"
-        mcp_servers = cls._load_mcp_servers(mcp_config_path, legacy_mcp_path)
-
         # Context directory
         context_dir_override: str = cfg_get("context", "dir_override", "")
         if context_dir_override:
@@ -499,7 +487,6 @@ class ConfigLoader:
             agent_settings=agent_settings,
             reply_agent_definitions=reply_agent_definitions,
             usage_budget=usage_budget,
-            mcp_servers=mcp_servers,
         )
 
     def reload(self) -> "ConfigLoader":
@@ -579,17 +566,3 @@ class ConfigLoader:
                 instruction=REPLY_INSTRUCTION_MAIN,
             )
         ]
-
-    @staticmethod
-    def _load_mcp_servers(path: Path, fallback: Path) -> list[AbstractToolset[None]]:
-        p = path if path.exists() else fallback
-        if not p.exists():
-            return []
-        try:
-            toolsets: list[AbstractToolset[None]] = list(load_mcp_toolsets(p))
-            for ts in toolsets:
-                logger.info("MCP サーバー登録: %s", getattr(ts, "id", "(unknown)"))
-            return toolsets
-        except Exception as e:
-            logger.warning("mcp.json 読み込みエラー: %s", e)
-            return []

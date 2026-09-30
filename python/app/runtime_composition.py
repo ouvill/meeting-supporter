@@ -3,19 +3,14 @@
 import asyncio
 import logging
 import os
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Callable, Coroutine
 from typing import final
 
 from app.agents.codex_app_server import CodexAppServer
-from app.agents.codex_runtime import (
-    CodexInfoAgentRuntime,
-    CodexMinutesAgentRuntime,
-    CodexReplyAgentRuntime,
-)
+from app.agents.codex_runtime import CodexMinutesAgentRuntime, CodexReplyAgentRuntime
 from app.agents.factory import AgentBundle, AgentRouteError, build_agents
 from app.agents.managed_runtime import ManagedReplyAgentRuntime
 from app.agents.models import ReplyAgentDefinition
-from app.agents.route_catalog import CodexStatusProvider, ManagedStatusProvider, RouteCatalog
 from app.audio import AudioPipeline, SoundcardSource
 from app.audio.media_pipeline import MediaAudioPipeline
 from app.audio.media_transport import enabled as native_media_enabled
@@ -54,10 +49,7 @@ class RuntimeCompositionCoordinator:
         managed_session_store: ManagedSessionStore,
         codex: CodexAppServer,
         usage_logger: UsageLogger,
-        replace_ai_note: Callable[[str, str], Awaitable[str]],
         handle_speech: Callable[[str, str], Coroutine[object, object, None]],
-        managed_status: ManagedStatusProvider | None,
-        codex_status: CodexStatusProvider,
     ) -> None:
         self.config = config
         self._state = state
@@ -66,23 +58,9 @@ class RuntimeCompositionCoordinator:
         self._managed_session_store = managed_session_store
         self._codex = codex
         self._usage_logger = usage_logger
-        self._replace_ai_note = replace_ai_note
         self._handle_speech = handle_speech
-        self._managed_status = managed_status
-        self._codex_status = codex_status
         self._config_change_lock = asyncio.Lock()
         self.bundle = self._build_agent_bundle(config)
-
-    async def info_route_ready(self) -> bool:
-        route = await RouteCatalog(
-            providers=self.config.providers,
-            routes=self.config.routes,
-            assignments=self.config.ai_assignments,
-            secret_store=self._secret_store,
-            managed_status=self._managed_status,
-            codex_status=self._codex_status,
-        ).read_assigned_route("info")
-        return route is not None and route.readiness == "ready" and route.selectable and "info" in route.capabilities
 
     def make_audio(
         self, device: int | str | None, role: str
@@ -136,10 +114,7 @@ class RuntimeCompositionCoordinator:
             if composition_changed:
                 try:
                     prepared_bundle = self._build_agent_bundle(new_config)
-                    await self._enter_info_runtime(prepared_bundle)
                 except (ValueError, RuntimeError) as error:
-                    if prepared_bundle is not None:
-                        await self._exit_info_runtime(prepared_bundle)
                     logger.warning("AI設定の適用に失敗したため、現在の実行構成を維持します: %s", error)
                     return
 
@@ -155,13 +130,10 @@ class RuntimeCompositionCoordinator:
             )
 
             if prepared_bundle is not None:
-                old_bundle = self.bundle
                 self.bundle = prepared_bundle
                 await conversation_orchestrator.update_agents(
-                    info_runtime=self.bundle.info_runtime,
                     reply_agent_specs=self.bundle.reply_agent_specs,
                 )
-                await self._exit_info_runtime(old_bundle)
 
             await conversation_orchestrator.on_config_changed(new_config)
 
@@ -174,14 +146,11 @@ class RuntimeCompositionCoordinator:
             secret_store=self._secret_store,
             context_dir=config.context_dir,
             usage_logger=self._usage_logger,
-            mcp_servers=config.mcp_servers,
             reply_agent_definitions=config.reply_agent_definitions,
-            replace_ai_note=self._replace_ai_note,
             external_reply_factories={
                 "managed": self._build_managed_reply_runtime,
                 "codex": self._build_codex_reply_runtime,
             },
-            external_info_factories={"codex": self._build_codex_info_runtime},
             external_minutes_factories={"codex": self._build_codex_minutes_runtime},
         )
 
@@ -201,9 +170,6 @@ class RuntimeCompositionCoordinator:
         _definition: ReplyAgentDefinition,
     ) -> CodexReplyAgentRuntime:
         return CodexReplyAgentRuntime(peer=self._codex, model=self._required_codex_model(route))
-
-    def _build_codex_info_runtime(self, route: RouteDefinition) -> CodexInfoAgentRuntime:
-        return CodexInfoAgentRuntime(peer=self._codex, model=self._required_codex_model(route))
 
     def _build_codex_minutes_runtime(self, route: RouteDefinition) -> CodexMinutesAgentRuntime:
         return CodexMinutesAgentRuntime(peer=self._codex, model=self._required_codex_model(route))
@@ -228,19 +194,8 @@ class RuntimeCompositionCoordinator:
             or new_config.providers != old_config.providers
             or new_config.ollama_base_url != old_config.ollama_base_url
             or new_config.context_dir != old_config.context_dir
-            or new_config.mcp_servers != old_config.mcp_servers
             or new_config.reply_agent_definitions != old_config.reply_agent_definitions
         )
-
-    @staticmethod
-    async def _enter_info_runtime(bundle: AgentBundle) -> None:
-        if bundle.info_runtime is not None:
-            _ = await bundle.info_runtime.__aenter__()
-
-    @staticmethod
-    async def _exit_info_runtime(bundle: AgentBundle) -> None:
-        if bundle.info_runtime is not None:
-            _ = await bundle.info_runtime.__aexit__(None, None, None)
 
 
 __all__ = ["RuntimeCompositionCoordinator"]

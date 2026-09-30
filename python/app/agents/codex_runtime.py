@@ -7,18 +7,11 @@ from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Literal, Self, override
+from typing import Self, override
 
 from app.agents.codex_app_server import CodexAppServer, CodexSafeError, CodexTurn
-from app.agents.models import (
-    InfoAgentRuntime,
-    InfoPrompt,
-    MinutesAgentRuntime,
-    MinutesPrompt,
-    ReplyAgentRuntime,
-    ReplyPrompt,
-)
-from app.agents.prompts import CODEX_INFO_INSTRUCTION, MINUTES_INSTRUCTION, REPLY_BASE_INSTRUCTION
+from app.agents.models import MinutesAgentRuntime, MinutesPrompt, ReplyAgentRuntime, ReplyPrompt
+from app.agents.prompts import MINUTES_INSTRUCTION, REPLY_BASE_INSTRUCTION
 from app.core.protocols import StreamLike
 
 logger = logging.getLogger(__name__)
@@ -105,37 +98,6 @@ class CodexReplyAgentRuntime(ReplyAgentRuntime):
 
 
 @dataclass(frozen=True)
-class CodexInfoAgentRuntime(InfoAgentRuntime):
-    """Complete-note info runtime using the isolated Codex turn boundary."""
-
-    peer: CodexAppServer
-    model: str
-
-    @property
-    @override
-    def output_mode(self) -> Literal["complete_note"]:
-        return "complete_note"
-
-    @override
-    def run_stream(self, prompt: InfoPrompt) -> AbstractAsyncContextManager[StreamLike]:
-        return _CodexStream(
-            peer=self.peer,
-            prompt=prompt.text,
-            model=self.model,
-            instructions=CODEX_INFO_INSTRUCTION,
-        )
-
-    @override
-    async def __aenter__(self) -> Self:
-        return self
-
-    @override
-    async def __aexit__(self, *exc_info: object) -> bool | None:
-        _ = exc_info
-        return None
-
-
-@dataclass(frozen=True)
 class CodexMinutesAgentRuntime(MinutesAgentRuntime):
     """Post-meeting minutes runtime using the isolated Codex turn boundary."""
 
@@ -152,4 +114,4 @@ class CodexMinutesAgentRuntime(MinutesAgentRuntime):
         )
 
 
-__all__ = ["CodexInfoAgentRuntime", "CodexMinutesAgentRuntime", "CodexReplyAgentRuntime"]
+__all__ = ["CodexMinutesAgentRuntime", "CodexReplyAgentRuntime"]

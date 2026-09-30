@@ -29,7 +29,6 @@ const FORM: SettingsForm = {
   replyFeatureEnabled: true,
   replyAutoGenerate: false,
   replyStyles: [],
-  infoFeatureEnabled: true,
   usageMeetingLimitJpy: 0,
   usageMonthlyLimitJpy: 0,
   dataDir: "",

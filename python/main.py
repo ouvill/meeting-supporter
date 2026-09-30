@@ -97,10 +97,6 @@ managed_route_status = (
 codex_route_status = partial(ai_runtimes.probe_codex_route_status, codex)
 
 
-async def _replace_ai_note(old_str: str, new_str: str) -> str:
-    return await conversation_orchestrator.replace_ai_note(old_str, new_str)
-
-
 async def _handle_speech(role: str, text: str) -> None:
     await conversation_orchestrator.handle_speech(role, text)
 
@@ -113,10 +109,7 @@ runtime_composition = RuntimeCompositionCoordinator(
     managed_session_store=managed_session_store,
     codex=codex,
     usage_logger=usage_logger,
-    replace_ai_note=_replace_ai_note,
     handle_speech=_handle_speech,
-    managed_status=managed_route_status,
-    codex_status=codex_route_status,
 )
 
 # ── デバイス一覧 ──────────────────────────────────────────────────────────────
@@ -180,10 +173,7 @@ conversation_orchestrator = ConversationOrchestrator(
     state=state,
     broadcast=broadcast_manager.broadcast,
     reply_agents=runtime_composition.bundle.reply_agent_specs,
-    info_runtime=runtime_composition.bundle.info_runtime,
     turn_factory=_turn_factory,
-    info_readiness=runtime_composition.info_route_ready,
-    info_enabled=runtime_composition.config.agent_settings["info_enabled"],
     agent_settings=runtime_composition.config.agent_settings,
     history_service=history_service,
     usage_logger=usage_logger,
@@ -203,7 +193,6 @@ meeting_lifecycle = lifecycle_coordinator_type()(
     history=history_service,
     cancel_replies=conversation_orchestrator.cancel_replies,
     reset_reply_cancel_results=conversation_orchestrator.clear_reply_cancel_results,
-    reset_info_note_updater=conversation_orchestrator.reset_info_note_updater,
     recording=recording_service,
     user_data_dir=_user_data_dir,
 )
@@ -250,7 +239,6 @@ app = create_app(
         meeting_lifecycle=meeting_lifecycle,
     ),
     lifespan=create_lifespan(
-        get_bundle=lambda: runtime_composition.bundle,
         codex=codex,
         stt_controller=stt_controller,
         config=runtime_composition.config,

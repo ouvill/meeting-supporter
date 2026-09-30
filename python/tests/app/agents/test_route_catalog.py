@@ -125,18 +125,18 @@ class RouteCatalogSelectionContractTest(unittest.IsolatedAsyncioTestCase):
         catalog = RouteCatalog(
             providers=[],
             routes=[RouteDefinition(id="codex", runtime="codex-app-server", model="gpt-5.6-luna")],
-            assignments=AiRouteAssignments(info="codex"),
+            assignments=AiRouteAssignments(minutes="codex"),
             secret_store=_SecretStore(),
             codex_status=probe_codex,
             ollama_status=probe_ollama,
         )
 
-        route = await catalog.read_assigned_route("info")
-        unassigned = await catalog.read_assigned_route("minutes")
+        route = await catalog.read_assigned_route("minutes")
+        unassigned = await catalog.read_assigned_route("reply")
 
         self.assertIsNotNone(route)
         self.assertEqual("codex", route.id if route is not None else None)
-        self.assertIn("info", route.capabilities if route is not None else ())
+        self.assertIn("minutes", route.capabilities if route is not None else ())
         self.assertIsNone(unassigned)
         self.assertEqual(1, codex_calls)
         self.assertEqual(0, ollama_calls)

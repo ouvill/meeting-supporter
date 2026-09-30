@@ -34,7 +34,6 @@ const DEFAULT_AGENT_SETTINGS: SocketState["agentSettings"] = {
   replyEnabled: true,
   replyAutoGenerate: false,
   replyAgents: [],
-  infoEnabled: true,
 };
 
 const BASE_TURNS: Turn[] = [
@@ -87,7 +86,6 @@ function createBaseState(overrides: Partial<SocketState> = {}): SocketState {
     lastReplyCancelResult: null,
     cancelledSuggestionIds: [],
     discardedGenerationIds: [],
-    isResearchingInfo: false,
     interimOther: "",
     interimSelf: "",
     levelOther: 0,

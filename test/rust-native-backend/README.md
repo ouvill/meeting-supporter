@@ -17,7 +17,7 @@
 | Python 環境の準備 | [Tauri 起動](../../src-tauri/src/lib.rs)から毎回 `ensure_python_environment` を呼びます。[uv 管理](../../src-tauri/src/paths/uv.rs)で `uv sync --locked --no-dev` を実行し、失敗時は再試行します。変更がなくても確認コストは残ります。 | 通常起動から uv / Python / pip 環境を除去し、署名済みアプリと native runtime を配布します。 |
 | バックエンド起動 | [プロセス管理](../../src-tauri/src/process.rs)で `uv run --no-sync uvicorn main:app` を起動し、認証付き `/health` をポーリングします。 | Tauri 内の Rust サービスを起動し、画面操作の受付をモデル準備と分離します。 |
 | モジュール読み込み | [main.py](../../python/main.py)から音声・STT・AI provider・API の依存を広く import します。設定、secret store、サービス、AI bundle も組み立てます。 | 純粋な設定・状態・UI 接続を先に用意し、デバイス・モデル・外部 provider は必要時に初期化します。 |
-| lifespan | [lifespan.py](../../python/app/lifespan.py)で情報 AI runtime の enter、DB 初期化、文脈読み込みなどが完了してから受付可能になります。 | 必須のローカル状態だけを起動条件にし、外部 runtime の接続失敗が設定画面を塞がないようにします。 |
+| lifespan | [lifespan.py](../../python/app/lifespan.py)でDB 初期化、文脈読み込みなどが完了してから受付可能になります。 | 必須のローカル状態だけを起動条件にし、外部 runtime の接続失敗が設定画面を塞がないようにします。 |
 | 音声準備 | WebSocket 接続後のレベル監視と `init_stt` によるモデル準備は別経路です。現在もすべてのモデルが `/health` 前にロードされるわけではありません。 | `app_ready`、`audio_ready`、`stt_ready` を別々に計測・表示します。 |
 
 Rust に移しても、デバイス列挙、DB migration、モデルのファイル I/O、推論 runtime の初期化時間は残ります。起動経路から不要な処理を外す設計と、言語の移行を組み合わせます。

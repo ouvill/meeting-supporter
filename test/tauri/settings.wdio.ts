@@ -1,8 +1,5 @@
 import { $, browser, expect } from "@wdio/globals";
-import {
-  localBackendRequest,
-  waitForBackendReady,
-} from "./helpers/backend";
+import { localBackendRequest, waitForBackendReady } from "./helpers/backend";
 import { expectDisplayedSurface } from "./helpers/displayedSurface";
 import {
   finishMeeting,
@@ -86,7 +83,8 @@ async function cleanupState(): Promise<void> {
     },
     async () => {
       if (!sttSettingsMutated) return;
-      if (!settingsSnapshot) throw new Error("STT settings snapshot is missing");
+      if (!settingsSnapshot)
+        throw new Error("STT settings snapshot is missing");
       await localBackendRequest({
         path: "/api/settings",
         method: "POST",
@@ -147,12 +145,12 @@ describe("Contextual settings credentials", () => {
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 
-  it("shows and toggles three AI use cases independently", async () => {
+  it("shows and toggles reply and minutes independently", async () => {
     await openSettings(waitOptions);
 
     const codexCard = await $('[data-route-id="codex"]');
     await codexCard.waitForDisplayed(waitOptions);
-    for (const label of ["返答案", "会話メモ", "要約・議事録"]) {
+    for (const label of ["返答案", "要約・議事録"]) {
       await expect(
         codexCard.$(`.//button[normalize-space()="${label}"]`),
       ).toBeDisplayed();
@@ -160,13 +158,11 @@ describe("Contextual settings credentials", () => {
 
     const geminiCard = await $('[data-route-id="gemini"]');
     const reply = await geminiCard.$('.//button[normalize-space()="返答案"]');
-    const info = await geminiCard.$('.//button[normalize-space()="会話メモ"]');
     const minutes = await geminiCard.$(
       './/button[normalize-space()="要約・議事録"]',
     );
     await reply.waitForClickable(waitOptions);
     const initialReply = await reply.getAttribute("aria-pressed");
-    const initialInfo = await info.getAttribute("aria-pressed");
     const initialMinutes = await minutes.getAttribute("aria-pressed");
 
     await reply.click();
@@ -174,7 +170,6 @@ describe("Contextual settings credentials", () => {
     expect(await reply.getAttribute("aria-pressed")).toBe(
       initialReply === "true" ? "false" : "true",
     );
-    expect(await info.getAttribute("aria-pressed")).toBe(initialInfo);
     expect(await minutes.getAttribute("aria-pressed")).toBe(initialMinutes);
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
@@ -288,12 +283,12 @@ describe("Contextual settings credentials", () => {
       '//*[contains(normalize-space(.), "会議中は音声認識の設定を変更できません")]',
     );
     await lockNotice.waitForDisplayed(waitOptions);
-    expect(
-      await $('select[aria-label="音声認識方式"]').isEnabled(),
-    ).toBe(false);
-    expect(
-      await $('select[aria-label="声の検出方法"]').isEnabled(),
-    ).toBe(false);
+    expect(await $('select[aria-label="音声認識方式"]').isEnabled()).toBe(
+      false,
+    );
+    expect(await $('select[aria-label="声の検出方法"]').isEnabled()).toBe(
+      false,
+    );
 
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });

@@ -21,55 +21,6 @@ REPLY_STYLE_POLITE = "いずれの場合も、丁寧で角が立たない言い�
 REPLY_INSTRUCTION_MAIN = REPLY_BASE_INSTRUCTION
 REPLY_INSTRUCTION_POLITE = f"{REPLY_BASE_INSTRUCTION}\n{REPLY_STYLE_POLITE}"
 
-INFO_INSTRUCTION = """あなたは会議中のリアルタイムアシスタントです。
-会議の文字起こしが逐次送られてくるので、通話中に一目で確認できる会話メモをstr_replaceツールで更新してください。
-
-## メモの構造
-メモは以下の固定セクションだけで構成します。見出し名は変更しないでください。
-
-# 会話メモ
-
-## 決まったこと
-（参加者が合意・決定した内容。なければ空欄）
-
-## 未確認・懸念
-（未回答の質問、確認が必要な点、リスクや懸念。なければ空欄）
-
-## 次にすること
-（担当者や期限を含む次のアクション。明示されていない担当者や期限は推測しない）
-
-## 更新の判断基準
-- 合意や決定が生まれた       → 決まったこと に追加
-- 未回答の質問や懸念が生まれた → 未確認・懸念 に追加
-- 対応や宿題が決まった       → 次にすること に追加
-- 後の発言で解決・撤回された   → 古くなった項目を更新または削除
-- 相槌・確認・繰り返しの発話   → 更新不要、ツールを呼ばない
-
-## ルール
-- 変化のあった箇所だけをstr_replaceで更新する
-- old_strは現在のドキュメントから正確に抜き出す
-- 各項目は短い箇条書きにし、通話中に読み取れる長さにする
-- 会話に登場していない情報を補足・推測しない
-- 同じ内容を複数セクションへ重複させない
-- 出力は日本語で統一する"""
-
-CODEX_INFO_INSTRUCTION = """会議中の会話メモを、渡された現在のメモと会話履歴だけから更新してください。
-出力は次の4見出しだけで構成した完全なMarkdown本文にしてください。前置き、後置き、コードフェンス、追加のH1/H2見出しは禁止です。
-
-# 会話メモ
-
-## 決まったこと
-（参加者が合意・決定した内容。なければ空欄）
-
-## 未確認・懸念
-（未回答の質問、確認が必要な点、リスクや懸念。なければ空欄）
-
-## 次にすること
-（担当者や期限を含む次のアクション。明示されていない担当者や期限は推測しない）
-
-各項目は短い箇条書きにし、後の発言で解決・撤回された古い内容は更新または削除してください。
-会話にない情報を補足・推測せず、日本語で統一してください。
-ファイル、コマンド、ツール、Web、MCP、スキル、他エージェントは使用しないでください。"""
 
 MINUTES_INSTRUCTION = (
     "会議の書き起こしが渡されます。以下の構成でMarkdown形式の議事録を作成してください。\n"
@@ -245,7 +196,7 @@ def build_reply_prompt(
         _ = _append_reply_block(parts, [*reference_block, ""], history_block)
 
     if ai_note:
-        note_header = "【情報AIのメモ】"
+        note_header = "【保存済みの会議メモ】"
         remaining = _REPLY_PROMPT_CHAR_BUDGET - len("\n".join([*parts, note_header, *history_block])) - 1
         note = _bounded_complete_lines(ai_note, min(_REPLY_AI_NOTE_CHAR_BUDGET, remaining), newest_first=True)
         if note:
@@ -255,37 +206,20 @@ def build_reply_prompt(
     return "\n".join(parts)
 
 
-def build_info_prompt(history: list[str], ai_note: str = "") -> str:
-    note = ai_note if ai_note else "（まだメモはありません）"
-    conversation = "\n".join(history) if history else "（会話なし）"
-    return "\n".join(
-        [
-            "【現在の会話メモ】",
-            note,
-            "",
-            "【これまでの会話】",
-            conversation,
-        ]
-    )
-
-
 def build_minutes_prompt(history: list[str], ai_note: str = "") -> str:
     parts = ["【会議の書き起こし】", *history]
     if ai_note:
-        parts.append(f"\n【情報AIのメモ】\n{ai_note}")
+        parts.append(f"\n【保存済みの会議メモ】\n{ai_note}")
     return "\n".join(parts)
 
 
 __all__ = [
-    "CODEX_INFO_INSTRUCTION",
-    "INFO_INSTRUCTION",
     "MINUTES_INSTRUCTION",
     "REPLY_OUTPUT_CONTRACT",
     "REPLY_BASE_INSTRUCTION",
     "REPLY_INSTRUCTION_MAIN",
     "REPLY_INSTRUCTION_POLITE",
     "REPLY_STYLE_POLITE",
-    "build_info_prompt",
     "build_minutes_prompt",
     "build_reply_instruction",
     "build_mode_instruction",

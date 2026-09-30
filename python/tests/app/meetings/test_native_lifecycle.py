@@ -81,9 +81,6 @@ class NativeLifecycleTest(unittest.IsolatedAsyncioTestCase):
         async def cancel() -> None:
             self.cancel_count += 1
 
-        async def reset() -> None:
-            pass
-
         self.coordinator = NativeMeetingLifecycleCoordinator(
             state=self.state,
             stt_controller=self.stt,  # pyright: ignore[reportArgumentType] # Synthetic device adapter.
@@ -91,7 +88,6 @@ class NativeLifecycleTest(unittest.IsolatedAsyncioTestCase):
             history=self.history,
             cancel_replies=cancel,
             reset_reply_cancel_results=lambda: None,
-            reset_info_note_updater=reset,
             recording=self.recording,  # pyright: ignore[reportArgumentType] # Synthetic WAV adapter.
             user_data_dir=self.directory,
         )

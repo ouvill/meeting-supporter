@@ -193,9 +193,7 @@ class NativePipelineTest(unittest.IsolatedAsyncioTestCase):
                 state,
                 broadcast,
                 [],
-                None,
                 make_turn,
-                info_enabled=False,
                 history_service=history,
             )
 
@@ -210,7 +208,6 @@ class NativePipelineTest(unittest.IsolatedAsyncioTestCase):
                 history,
                 conversation.cancel_replies,
                 conversation.clear_reply_cancel_results,
-                conversation.reset_info_note_updater,
             )
             with (
                 patch.dict(os.environ, {"MEETING_REAZON_WORKER": str(executable)}),

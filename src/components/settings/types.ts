@@ -53,7 +53,6 @@ export interface SettingsForm {
   replyFeatureEnabled: boolean;
   replyAutoGenerate: boolean;
   replyStyles: ReplyStyleFormItem[];
-  infoFeatureEnabled: boolean;
   usageMeetingLimitJpy: number;
   usageMonthlyLimitJpy: number;
   dataDir: string;

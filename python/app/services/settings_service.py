@@ -270,7 +270,6 @@ def build_settings_response_data(
         "acp": {"command": acp_command},
         "stt": canonical_stt_section(stt_section),
         "audio": audio_section if audio_section is not None else {},
-        "agents": {"info_enabled": agent_settings["info_enabled"]},
         "reply": {
             "enabled": agent_settings["reply_enabled"],
             "auto_generate": agent_settings["reply_auto_generate"],
@@ -328,17 +327,6 @@ def _merge_agent_settings(
     store: SettingsStore,
 ) -> tuple["RuntimeAgentSettings", list[TomlTable] | None, TomlTable | None]:
     merged = state.config.agent_settings
-    agents = _request_table(body.get("agents"))
-    if agents is not None:
-        patch: dict[AgentSettingKey, bool] = {}
-        info_enabled = agents.get("info_enabled")
-        if isinstance(info_enabled, bool):
-            patch["info_enabled"] = info_enabled
-        result = patch_agent_settings(state.config.agent_settings, patch)
-        if isinstance(result, str):
-            raise SettingsPatchError(result)
-        merged = result
-
     raw_reply = _request_table(body.get("reply"))
     if raw_reply is None:
         return merged, None, None
@@ -393,7 +381,6 @@ def _merge_agent_settings(
 
 def _config_sections(
     body: TomlTable,
-    merged_agent_settings: "RuntimeAgentSettings",
     reply_section: TomlTable | None,
 ) -> tuple[TomlTable, list[str] | None]:
     sections: TomlTable = {}
@@ -408,8 +395,6 @@ def _config_sections(
         sections["usage_budget"] = _request_table(body.get("usage_budget")) or {}
     if "recording_retention" in body:
         sections["recording_retention"] = _request_table(body.get("recording_retention")) or {}
-    if "agents" in body:
-        sections["agents"] = {"info_enabled": merged_agent_settings["info_enabled"]}
     if reply_section is not None:
         sections["reply"] = reply_section
 
@@ -497,7 +482,7 @@ async def save_settings(
         {key for key in raw_deleted_secrets if _is_secret_key(key)} if isinstance(raw_deleted_secrets, list) else set()
     )
 
-    sections, acp_command = _config_sections(body, merged_agent_settings, reply_section)
+    sections, acp_command = _config_sections(body, reply_section)
     has_mutations = bool(updates or deleted_secrets or sections)
     effective_audio_stt_changed = False
 

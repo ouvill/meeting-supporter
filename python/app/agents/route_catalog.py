@@ -32,7 +32,7 @@ from app.core.config import (
 from app.core.protocols import SecretStore
 
 BUILT_IN_ROUTE_IDS = ("managed", "codex", "acp", "ollama", "gemini", "openai", "anthropic")
-type AssignableUseCase = Literal["reply", "info", "minutes"]
+type AssignableUseCase = Literal["reply", "minutes"]
 
 
 @dataclass(frozen=True)
@@ -165,12 +165,11 @@ class RouteAssignmentsReadModel(BaseModel):
     model_config = ConfigDict(frozen=True)  # pyright: ignore[reportUnannotatedClassAttribute]
 
     reply: str | None = None
-    info: str | None = None
     minutes: str | None = None
 
     @classmethod
     def from_config(cls, assignments: AiRouteAssignments) -> "RouteAssignmentsReadModel":
-        return cls(reply=assignments.reply, info=assignments.info, minutes=assignments.minutes)
+        return cls(reply=assignments.reply, minutes=assignments.minutes)
 
 
 class RouteCatalogResponse(BaseModel):
@@ -211,7 +210,7 @@ _METADATA: dict[str, _RouteMetadata] = {
         selectable=True,
         data_location="external",
         billing_owner="external_subscription",
-        capabilities=("reply", "info", "minutes", "stream", "cancel"),
+        capabilities=("reply", "minutes", "stream", "cancel"),
     ),
     "acp": _RouteMetadata(
         kind="subscription_app",
@@ -231,7 +230,7 @@ _METADATA: dict[str, _RouteMetadata] = {
         selectable=True,
         data_location="local",
         billing_owner="none",
-        capabilities=("reply", "info", "minutes", "stream"),
+        capabilities=("reply", "minutes", "stream"),
     ),
     "gemini": _RouteMetadata(
         kind="byok",
@@ -241,7 +240,7 @@ _METADATA: dict[str, _RouteMetadata] = {
         selectable=True,
         data_location="cloud",
         billing_owner="user",
-        capabilities=("reply", "info", "minutes", "stream"),
+        capabilities=("reply", "minutes", "stream"),
     ),
     "openai": _RouteMetadata(
         kind="byok",
@@ -251,7 +250,7 @@ _METADATA: dict[str, _RouteMetadata] = {
         selectable=True,
         data_location="cloud",
         billing_owner="user",
-        capabilities=("reply", "info", "minutes", "stream"),
+        capabilities=("reply", "minutes", "stream"),
     ),
     "anthropic": _RouteMetadata(
         kind="byok",
@@ -261,7 +260,7 @@ _METADATA: dict[str, _RouteMetadata] = {
         selectable=True,
         data_location="cloud",
         billing_owner="user",
-        capabilities=("reply", "info", "minutes", "stream"),
+        capabilities=("reply", "minutes", "stream"),
     ),
 }
 
@@ -323,7 +322,6 @@ class RouteCatalog:
             route_id
             for route_id in (
                 self._assignments.reply,
-                self._assignments.info,
                 self._assignments.minutes,
             )
             if route_id is not None
@@ -336,13 +334,7 @@ class RouteCatalog:
 
     async def read_assigned_route(self, use_case: AssignableUseCase) -> RouteReadModel | None:
         """Read and probe only the route assigned to one use case."""
-        route_id = (
-            self._assignments.reply
-            if use_case == "reply"
-            else self._assignments.info
-            if use_case == "info"
-            else self._assignments.minutes
-        )
+        route_id = self._assignments.reply if use_case == "reply" else self._assignments.minutes
         if route_id is None or route_id not in _METADATA:
             return None
         return await self._read_route(route_id, selected=True)

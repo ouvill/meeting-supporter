@@ -23,7 +23,6 @@ interface RouteCatalog {
   }>;
   assignments: {
     reply: string | null;
-    info: string | null;
     minutes: string | null;
   };
 }
@@ -121,7 +120,7 @@ async function configureFixture(initialInvocation?: number): Promise<void> {
   await localBackendRequest({
     path: "/api/ai/routes/assignments",
     method: "PUT",
-    body: { reply: "acp", info: null, minutes: null },
+    body: { reply: "acp", minutes: null },
   });
   await browser.refresh();
   await waitForBackendReady();

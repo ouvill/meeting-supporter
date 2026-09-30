@@ -90,7 +90,7 @@ class ReplyPromptContractTest(unittest.TestCase):
         output_rules_index = reply_prompt.index("【出力ルール】")
         self.assertLess(output_rules_index, reply_prompt.index("【今回の会議】"))
         self.assertLess(output_rules_index, reply_prompt.index("【参考資料"))
-        self.assertLess(output_rules_index, reply_prompt.index("【情報AIのメモ】"))
+        self.assertLess(output_rules_index, reply_prompt.index("【保存済みの会議メモ】"))
         self.assertLess(output_rules_index, reply_prompt.index("【これまでの会話】"))
 
     def test_reply_prompt_abbreviates_an_oversized_newest_history_entry_without_dropping_it(self) -> None:
@@ -126,20 +126,15 @@ class ReplyPromptContractTest(unittest.TestCase):
         self.assertLessEqual(len(reply_prompt), 6000)
         self.assertIn("- 追加指示: " + custom_instructions, reply_prompt)
 
-    def test_info_and_minutes_prompts_keep_their_full_existing_payloads(self) -> None:
-        """Reply-budget shortening must not alter the independent info or minutes prompt contracts."""
+    def test_minutes_prompt_keeps_its_full_existing_payload(self) -> None:
+        """Reply-budget shortening must not alter the independent minutes prompt contract."""
         history = ["【相手】" + "A" * 6500, "【自分】最後の確認事項です。"]
-        ai_note = "情報AIの要約"
+        ai_note = "保存済みの要約"
 
-        info_prompt = prompts.build_info_prompt(history, ai_note)
         minutes_prompt = prompts.build_minutes_prompt(history, ai_note)
 
         self.assertEqual(
-            "【現在の会話メモ】\n" + ai_note + "\n\n【これまでの会話】\n" + "\n".join(history),
-            info_prompt,
-        )
-        self.assertEqual(
-            "【会議の書き起こし】\n" + "\n".join(history) + "\n\n【情報AIのメモ】\n" + ai_note,
+            "【会議の書き起こし】\n" + "\n".join(history) + "\n\n【保存済みの会議メモ】\n" + ai_note,
             minutes_prompt,
         )
 

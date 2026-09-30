@@ -74,7 +74,6 @@ class MeetingLifecycleCoordinator:
         history: MeetingHistoryService,
         cancel_replies: Callable[[], Awaitable[object]],
         reset_reply_cancel_results: Callable[[], None],
-        reset_info_note_updater: Callable[[], Awaitable[None]],
         recording: RecordingService | None = None,
         user_data_dir: Path | None = None,
     ) -> None:
@@ -85,7 +84,6 @@ class MeetingLifecycleCoordinator:
         self._history: MeetingHistoryService = history
         self._cancel_replies: Callable[[], Awaitable[object]] = cancel_replies
         self._reset_reply_cancel_results: Callable[[], None] = reset_reply_cancel_results
-        self._reset_info_note_updater: Callable[[], Awaitable[None]] = reset_info_note_updater
         self._recording: RecordingService | None = recording
         self._user_data_dir: Path | None = user_data_dir
 
@@ -137,7 +135,6 @@ class MeetingLifecycleCoordinator:
             logger.error("Pending audio subsystem reload failed — refusing to start a new meeting")
             return
 
-        await self._reset_info_note_updater()
         self._reset_reply_cancel_results()
         # Phase 1c — create session and set in AppState.
         meeting_context = context_from_payload(meeting_context_payload)
@@ -230,11 +227,9 @@ class MeetingLifecycleCoordinator:
     async def _stop_meeting_locked(self) -> None:
         """Stop STT, finalise recording, persist completion, broadcast, clear state."""
         _ = await self._cancel_replies()
-        await self._reset_info_note_updater()
         # Phase 2a — stop STT first (no new audio frames being processed).
         await self._stt_controller.stop_meeting()
         _ = await self._cancel_replies()
-        await self._reset_info_note_updater()
 
         # Phase 2b — stop recording and persist asset rows.
         session = self._state.current_session

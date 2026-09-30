@@ -5,9 +5,7 @@ from dataclasses import FrozenInstanceError
 from typing import cast
 
 from app.agents.models import (
-    InfoPrompt,
     MinutesPrompt,
-    PydanticAIInfoAgentRuntime,
     PydanticAIMinutesAgentRuntime,
     PydanticAIReplyAgentRuntime,
     ReplyAgentDefinition,
@@ -67,35 +65,6 @@ class ReplyAgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
     def test_reply_prompt_is_immutable(self) -> None:
         prompt = ReplyPrompt(text="hello")
-
-        with self.assertRaises(FrozenInstanceError):
-            setattr(prompt, "text", "changed")
-
-
-class InfoAgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
-    async def test_pydantic_ai_info_runtime_delegates_prompt_text(self) -> None:
-        agent = RecordingLifecycledAgent()
-        runtime = PydanticAIInfoAgentRuntime(agent)
-
-        async with runtime.run_stream(InfoPrompt(text="hello")) as stream:
-            chunks = [chunk async for chunk in stream.stream_text(delta=True)]
-
-        self.assertEqual(["hello"], agent.prompts)
-        self.assertEqual(["ok"], chunks)
-
-    async def test_pydantic_ai_info_runtime_delegates_lifecycle(self) -> None:
-        agent = RecordingLifecycledAgent()
-        runtime = PydanticAIInfoAgentRuntime(agent)
-
-        async with runtime as entered:
-            pass
-
-        self.assertTrue(agent.entered)
-        self.assertTrue(agent.exited)
-        self.assertIs(entered, runtime)
-
-    def test_info_prompt_is_immutable(self) -> None:
-        prompt = InfoPrompt(text="hello")
 
         with self.assertRaises(FrozenInstanceError):
             setattr(prompt, "text", "changed")

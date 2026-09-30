@@ -7,11 +7,10 @@ from datetime import UTC, datetime
 from typing import cast, override
 
 from app.agents.codex_models import CodexSafeError
-from app.agents.models import InfoOutputMode, InfoPrompt, MinutesPrompt, ReplyAgentSpec, ReplyPrompt
+from app.agents.models import MinutesPrompt, ReplyAgentSpec, ReplyPrompt
 from app.core.messages import OutgoingMessage
 from app.core.protocols import TurnLike
 from app.meetings.models import MeetingSession, ReplySuggestion, Turn
-from app.services.info_note_updater import InfoNoteUpdater
 from app.services.minutes_generator import MinutesGenerator
 from app.services.reply_pipeline import ReplyPipeline
 
@@ -143,29 +142,6 @@ class RecordingReplyHistory:
         return object()
 
 
-class FailsOnceInfoRuntime:
-    @property
-    def output_mode(self) -> InfoOutputMode:
-        return "tool_update"
-
-    def __init__(self) -> None:
-        self.prompts: list[InfoPrompt] = []
-        self.calls: int = 0
-
-    def run_stream(self, prompt: InfoPrompt) -> RecordingStream:
-        self.prompts.append(prompt)
-        self.calls += 1
-        if self.calls == 1:
-            raise RuntimeError("info failed")
-        return RecordingStream(["調査結果"])
-
-    async def __aenter__(self) -> "FailsOnceInfoRuntime":
-        return self
-
-    async def __aexit__(self, *exc_info: object) -> bool | None:
-        return None
-
-
 class Phase2UseCaseBoundaryTest(unittest.IsolatedAsyncioTestCase):
     messages: list[dict[str, object]]
 
@@ -198,7 +174,7 @@ class Phase2UseCaseBoundaryTest(unittest.IsolatedAsyncioTestCase):
                         "【会議の書き起こし】\n"
                         "相手: 予算は今月中に確定ですか？\n"
                         "自分: 来週のレビューで決めます。\n\n"
-                        "【情報AIのメモ】\n"
+                        "【保存済みの会議メモ】\n"
                         "決定事項: レビュー日程を確認"
                     )
                 )
@@ -410,63 +386,6 @@ class Phase2UseCaseBoundaryTest(unittest.IsolatedAsyncioTestCase):
                 and message.get("final") is True
                 for message in self.messages
             )
-        )
-
-    async def test_info_note_updater_hides_runtime_error_and_allows_next_manual_run(self) -> None:
-        runtime = FailsOnceInfoRuntime()
-        session = MeetingSession(
-            id="info-session",
-            started_at=datetime.now(UTC),
-            turns=(Turn(id="utt-1", speaker="other", text="調査してください"),),
-            ai_note="既存メモ",
-        )
-        state = FakeConversationState(current_session=session)
-        updater = InfoNoteUpdater(
-            state=state,
-            broadcast=self._record_message,
-            info_runtime=runtime,
-            turn_lock=asyncio.Lock(),
-            info_enabled=True,
-        )
-
-        await updater.run_now()
-        first_task = updater._info_agent_task
-        if first_task is None:
-            self.fail("run_now should create an info task")
-        _ = await first_task
-
-        self.assertTrue(first_task.done())
-        error_messages = [
-            text for m in self.messages if m.get("type") == "error" and isinstance(text := m.get("text"), str)
-        ]
-        self.assertEqual(
-            ["情報AIの処理に失敗しました。設定と接続状態を確認してください。"],
-            error_messages,
-        )
-        self.assertFalse(any("info failed" in message for message in error_messages))
-        self.assertTrue(any(m.get("type") == "ai_note_updated" and m.get("text") == "既存メモ" for m in self.messages))
-        self.assertEqual(
-            [InfoPrompt(text="【現在の会話メモ】\n既存メモ\n\n【これまでの会話】\n相手: 調査してください")],
-            runtime.prompts,
-        )
-
-        await updater.run_now()
-        retry_task = updater._info_agent_task
-        if retry_task is None:
-            self.fail("second run_now should create an info task")
-        _ = await retry_task
-
-        self.assertEqual(2, runtime.calls)
-        self.assertEqual(
-            [
-                InfoPrompt(text="【現在の会話メモ】\n既存メモ\n\n【これまでの会話】\n相手: 調査してください"),
-                InfoPrompt(text="【現在の会話メモ】\n既存メモ\n\n【これまでの会話】\n相手: 調査してください"),
-            ],
-            runtime.prompts,
-        )
-        self.assertEqual(2, len([m for m in self.messages if m.get("type") == "info_researching"]))
-        self.assertFalse(
-            any(m.get("type") == "status" and m.get("text") == "情報AIを更新中です" for m in self.messages)
         )
 
 

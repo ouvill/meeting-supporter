@@ -47,12 +47,15 @@ pub(crate) struct Route {
 #[serde(deny_unknown_fields)]
 pub(crate) struct Assignments {
     pub reply: Option<String>,
-    pub info: Option<String>,
     pub minutes: Option<String>,
 }
 pub(crate) fn assignments(store: &Store) -> Result<Assignments, Error> {
-    serde_json::from_value(store.document["ai"]["assignments"].clone())
-        .map_err(|_| AiError::Configuration.into())
+    // Ignore the retired info assignment in saved settings, but reject it in API requests.
+    let mut saved = store.document["ai"]["assignments"].clone();
+    if let Some(values) = saved.as_object_mut() {
+        values.remove("info");
+    }
+    serde_json::from_value(saved).map_err(|_| AiError::Configuration.into())
 }
 fn provider(id: &str) -> Result<Provider, AiError> {
     match id {
@@ -185,7 +188,7 @@ pub(crate) async fn catalog(store: Store) -> Result<Value, Error> {
         };
         let selectable = code != "RUST_ROUTE_UNSUPPORTED";
         let selected = selectable
-            && [&assigned.reply, &assigned.info, &assigned.minutes]
+            && [&assigned.reply, &assigned.minutes]
                 .iter()
                 .any(|a| a.as_deref() == Some(id));
         let label = match p {

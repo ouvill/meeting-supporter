@@ -101,9 +101,6 @@ impl Shared {
         events.push(Event::HistoryReset {
             items: live.turns.clone(),
         });
-        events.push(Event::AiNoteUpdated {
-            text: String::new(),
-        });
         if live.failed {
             events.push(Event::Error {
                 text: "音声または保存でエラーが発生しました。会議を未確定として保持します。".into(),

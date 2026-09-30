@@ -3,14 +3,12 @@
 import logging
 import os
 import traceback
-from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 
 from app.agents.codex_app_server import CodexAppServer
-from app.agents.factory import AgentBundle
 from app.core.state import AppState
 from app.meetings.lifecycle import MeetingLifecycleCoordinator
 from app.meetings.repository import MeetingHistoryRepository
@@ -25,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 def create_lifespan(
     *,
-    get_bundle: Callable[[], AgentBundle],
     codex: CodexAppServer,
     stt_controller: SttController,
     config: ConfigLoader,
@@ -37,9 +34,6 @@ def create_lifespan(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # ── startup ──────────────────────────────────────────────────────────
-        startup_bundle = get_bundle()
-        if startup_bundle.info_runtime is not None:
-            _ = await startup_bundle.info_runtime.__aenter__()
 
         if history_repository is not None:
             await history_repository.initialize()
@@ -54,7 +48,6 @@ def create_lifespan(
         )
         logger.info("設定: %s  (%s)", cfg_source, config.user_data_dir)
         logger.info("AI経路 (返答AI): %s", config.ai_assignments.reply or "未割当")
-        logger.info("AI経路 (情報AI): %s", config.ai_assignments.info or "未割当")
         logger.info("AI経路 (議事録AI): %s", config.ai_assignments.minutes or "未割当")
         logger.info("STT import package: app.stt")
         logger.info(
@@ -174,9 +167,6 @@ def create_lifespan(
         if history_repository is not None:
             await history_repository.close()
 
-        active_bundle = get_bundle()
-        if active_bundle.info_runtime is not None:
-            _ = await active_bundle.info_runtime.__aexit__(None, None, None)
         await codex.close()
         logger.info("シャットダウン完了")
 

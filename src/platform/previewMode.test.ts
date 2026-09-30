@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getPreviewModeFromSearch,
   isAssistantPanelPreviewEnabled,
+  isConversationSupportPreviewEnabled,
   isMeetingWorkspacePreviewEnabled,
 } from "./previewMode";
 
@@ -27,6 +28,24 @@ describe("previewMode", () => {
   it("未知の preview query は null を返す", () => {
     expect(getPreviewModeFromSearch("?preview=unknown")).toBeNull();
     expect(getPreviewModeFromSearch("")).toBeNull();
+  });
+
+  it("dev のときだけ conversation support preview を有効化する", () => {
+    expect(getPreviewModeFromSearch("?preview=conversation-support")).toBe(
+      "conversation-support",
+    );
+    expect(
+      isConversationSupportPreviewEnabled(
+        "?preview=conversation-support",
+        true,
+      ),
+    ).toBe(true);
+    expect(
+      isConversationSupportPreviewEnabled(
+        "?preview=conversation-support",
+        false,
+      ),
+    ).toBe(false);
   });
 
   it("dev のときだけ assistant panel preview を有効化する", () => {

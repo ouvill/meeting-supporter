@@ -7,8 +7,7 @@ schema_version = 2
 [ai.assignments]
 # 初期状態では全use caseを未割当にします。利用者が確認後にroute idを選択します。
 # reply = "codex"
-# 情報更新・議事録も利用する場合だけroute idを追加してください。
-# info = "gemini"
+# 議事録も利用する場合だけroute idを追加してください。
 # minutes = "gemini"
 
 [ai.routes.codex]
@@ -31,11 +30,6 @@ priority = 10
 # 返答スタイルはAI経路を変更しません。経路の正本は [ai.assignments] です。
 # instruction は共通の返答ルールを含むスタイル別プロンプトです。
 instruction = ""
-
-[agents]
-# 会議補助資料を更新する情報AIの ON/OFF
-info_enabled = true
-
 
 [stt]
 # STT バックエンド（VADエンジンは vad_engine で独立して選択）:
@@ -122,7 +116,7 @@ url = "ws://localhost:8001/ws/stt"
 base_url = "http://localhost:11434/v1"
 
 [usage_budget]
-# 0 は無効。上限に達した場合は高コストな返答生成 / 情報AI更新を抑制します。
+# 0 は無効。上限に達した場合は高コストな返答生成を抑制します。
 meeting_limit_jpy = 0.0
 monthly_limit_jpy = 0.0
 

@@ -23,6 +23,7 @@ import { useMeetingSocket } from "./hooks/useMeetingSocket";
 import { useAiRoutes } from "./hooks/useAiRoutes";
 import {
   isAssistantPanelPreviewEnabled,
+  isConversationSupportPreviewEnabled,
   isMeetingWorkspacePreviewEnabled,
 } from "./platform/previewMode";
 import {
@@ -59,6 +60,11 @@ const MeetingWorkspacePreview = lazy(() =>
   import("./components/MainMeetingControlScreenPreview").then((module) => ({
     default: module.MainMeetingControlScreenPreview,
   })),
+);
+const ConversationSupportPreview = lazy(() =>
+  import("./components/conversation/ConversationSupportPreview").then(
+    (module) => ({ default: module.ConversationSupportPreview }),
+  ),
 );
 const LiveReplySidePanel = lazy(() =>
   import("./components/assistant/LiveReplySidePanel").then((module) => ({
@@ -193,6 +199,20 @@ export default function App() {
 function PythonApp() {
   if (
     import.meta.env.DEV &&
+    isConversationSupportPreviewEnabled(
+      window.location.search,
+      import.meta.env.DEV,
+    )
+  ) {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-paper text-ink" />}>
+        <ConversationSupportPreview />
+      </Suspense>
+    );
+  }
+
+  if (
+    import.meta.env.DEV &&
     isAssistantPanelPreviewEnabled(window.location.search, import.meta.env.DEV)
   ) {
     return (
@@ -308,7 +328,6 @@ function MainWindowContent({
               send={send}
               onSettings={onOpenSettings}
               replyReadiness={routes.replyStatus.readiness}
-              infoRouteStatus={routes.infoRouteStatus}
             />
           ) : screen === "reflection" ? (
             <MeetingHistoryScreen

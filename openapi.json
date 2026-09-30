@@ -1110,39 +1110,6 @@
         "title": "AcpConfigPayload",
         "description": "ACP process command, represented as argv without shell evaluation."
       },
-      "AgentSettings": {
-        "properties": {
-          "info_enabled": {
-            "type": "boolean",
-            "title": "Info Enabled"
-          }
-        },
-        "type": "object",
-        "required": [
-          "info_enabled"
-        ],
-        "title": "AgentSettings",
-        "description": "Non-reply agent settings returned in the settings response."
-      },
-      "AgentSettingsPayload": {
-        "properties": {
-          "info_enabled": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Info Enabled"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "title": "AgentSettingsPayload",
-        "description": "Non-reply agent flags that the client may send as a patch."
-      },
       "AudioSettingsPatch": {
         "properties": {
           "sample_rate": {
@@ -2471,17 +2438,6 @@
             ],
             "title": "Reply"
           },
-          "info": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Info"
-          },
           "minutes": {
             "anyOf": [
               {
@@ -2510,17 +2466,6 @@
             ],
             "title": "Reply"
           },
-          "info": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Info"
-          },
           "minutes": {
             "anyOf": [
               {
@@ -2537,7 +2482,6 @@
         "type": "object",
         "required": [
           "reply",
-          "info",
           "minutes"
         ],
         "title": "RouteAssignmentsUpdate",
@@ -2556,7 +2500,6 @@
         "type": "string",
         "enum": [
           "reply",
-          "info",
           "minutes",
           "stream",
           "cancel"
@@ -2908,9 +2851,6 @@
             "$ref": "#/components/schemas/TomlTable",
             "default": {}
           },
-          "agents": {
-            "$ref": "#/components/schemas/AgentSettings"
-          },
           "reply": {
             "$ref": "#/components/schemas/ReplySettings"
           },
@@ -2943,7 +2883,6 @@
         "required": [
           "ollama",
           "acp",
-          "agents",
           "reply",
           "secrets",
           "data_dir",
@@ -2971,16 +2910,6 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/AcpConfigPayload"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "agents": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AgentSettingsPayload"
               },
               {
                 "type": "null"

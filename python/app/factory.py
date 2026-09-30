@@ -258,10 +258,8 @@ def create_openapi_app() -> FastAPI:
         agent_settings=AgentSettings(
             reply_enabled=False,
             reply_auto_generate=False,
-            info_enabled=False,
         ),
         reply_agent_definitions=[],
-        mcp_servers=[],
         providers=[],
         routes=[
             RouteDefinition(id="managed", runtime="managed"),

@@ -338,7 +338,6 @@ class MediaRuntimeTest(unittest.IsolatedAsyncioTestCase):
             history=history,
             cancel_replies=reset,
             reset_reply_cancel_results=lambda: None,
-            reset_info_note_updater=reset,
             recording=RecordingService(self.directory),
             user_data_dir=self.directory,
         )

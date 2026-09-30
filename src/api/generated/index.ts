@@ -34,8 +34,6 @@ export {
 export type {
   AcpConfig,
   AcpConfigPayload,
-  AgentSettings,
-  AgentSettingsPayload,
   AudioSettingsPatch,
   BillingOwner,
   CancelActiveTurnApiAiRuntimesCodexCancelPostData,

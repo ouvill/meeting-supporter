@@ -880,18 +880,73 @@ async fn rig_automatic_reply_is_opt_in() {
 }
 
 #[tokio::test]
+async fn retired_info_settings_are_ignored_and_cannot_be_reenabled() {
+    let temp = tempfile::tempdir().unwrap();
+    let settings = config(&temp, "model");
+    std::fs::create_dir_all(&settings.data_dir).unwrap();
+    let path = settings.data_dir.join("config.toml");
+    let original = "[ai]\nschema_version = 2\n[ai.assignments]\ninfo = \"retired-route\"\n[agents]\ninfo_enabled = true\n";
+    std::fs::write(&path, original).unwrap();
+    let server = Server::start(settings).await.unwrap();
+
+    let (status, body) = http(&server, "GET", "/api/settings", "").await;
+    assert_eq!(status, 200);
+    let settings: Value = serde_json::from_slice(&body).unwrap();
+    assert!(settings.get("agents").is_none());
+    let (status, body) = http(&server, "GET", "/api/ai/routes", "").await;
+    assert_eq!(status, 200);
+    let catalog: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(catalog["assignments"], json!({"reply":null,"minutes":null}));
+    assert!(catalog["routes"].as_array().unwrap().iter().all(|route| {
+        !route["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("info"))
+    }));
+    for (method, path, value) in [
+        (
+            "POST",
+            "/api/settings",
+            json!({"agents":{"info_enabled":true}}),
+        ),
+        (
+            "PUT",
+            "/api/ai/routes/assignments",
+            json!({"reply":null,"minutes":null,"info":"ollama"}),
+        ),
+    ] {
+        let body = value.to_string();
+        let extra = format!(
+            "Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        assert_eq!(http(&server, method, path, &extra).await.0, 422);
+    }
+    let mut ws = connect(&server).await;
+    let agents = until(&mut ws, |v| v["type"] == "agent_settings").await;
+    assert!(agents.get("info_enabled").is_none());
+    send(&mut ws, json!({"type":"run_info"})).await;
+    let error = until(&mut ws, |v| v["type"] == "error").await;
+    assert_eq!(error["text"], "未対応の操作、または不正なメッセージです。");
+    assert_eq!(std::fs::read_to_string(path).unwrap(), original);
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn ai_assignments_persist_without_enabling_unported_routes() {
     let ai = mock_ai(0, true).await;
     let temp = tempfile::tempdir().unwrap();
     let config = ai_config(&temp, &ai, false);
     let server = Server::start(config.clone()).await.unwrap();
     for (value, expected) in [
-        (json!({"reply":"codex","info":null,"minutes":null}), 422),
+        (json!({"reply":"codex","minutes":null}), 422),
         (
             json!({"reply":"ollama","info":"ollama","minutes":null}),
             422,
         ),
-        (json!({"reply":"gemini","info":null,"minutes":null}), 200),
+        (json!({"reply":"gemini","minutes":null}), 200),
     ] {
         let body = value.to_string();
         let extra = format!(

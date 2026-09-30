@@ -75,11 +75,9 @@ export function useSettingsForm({
       routes.routes.filter(
         (route) =>
           route.id === routes.draftAssignments.reply ||
-          route.id === routes.draftAssignments.info ||
           route.id === routes.draftAssignments.minutes,
       ),
     [
-      routes.draftAssignments.info,
       routes.draftAssignments.minutes,
       routes.draftAssignments.reply,
       routes.routes,

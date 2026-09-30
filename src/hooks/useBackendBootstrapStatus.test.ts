@@ -84,7 +84,10 @@ describe("useBackendBootstrapStatus", () => {
     const { result } = renderHook(() => useBackendBootstrapStatus());
 
     expect(result.current.apiPort).toBeNull();
-    expect(result.current.bootstrap).toEqual(DEFAULT_BOOTSTRAP);
+    expect(result.current.bootstrap).toEqual({
+      phase: "initializing",
+      message: "バックエンドを起動しています...",
+    });
   });
 
   // -----------------------------------------------------------------------

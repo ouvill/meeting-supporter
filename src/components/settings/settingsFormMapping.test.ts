@@ -15,7 +15,6 @@ describe("settingsFormMapping STT defaults", () => {
   it("uses ReazonSpeech when persisted settings omit the STT backend", () => {
     const settings = {
       secrets: {},
-      agents: { info_enabled: true },
     } as unknown as SettingsResponseWithRetention;
 
     const form = mapSettingsResponseToForm(settings);

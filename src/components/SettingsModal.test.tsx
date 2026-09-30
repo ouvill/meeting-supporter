@@ -45,7 +45,6 @@ function settings(overrides: Partial<SettingsResponse> = {}): SettingsResponse {
     ollama: { base_url: "http://127.0.0.1:11434/v1" },
     acp: { command: [], runtime: "acp", capabilities: ["reply"] },
     stt: { backend: "whisper", language: "ja" },
-    agents: { info_enabled: true },
     reply: {
       enabled: true,
       auto_generate: false,
@@ -108,20 +107,16 @@ function routeCatalog(
 ): AiRoutesController {
   return {
     routes: [route()],
-    assignments: { reply: "codex", info: null, minutes: null },
-    assignedRoutes: { reply: route(), info: null, minutes: null },
+    assignments: { reply: "codex", minutes: null },
+    assignedRoutes: { reply: route(), minutes: null },
     replyStatus: { readiness: "ready", canGenerate: true, message: null },
-    infoRouteStatus: {
-      readiness: "setup_required",
-      canGenerate: false,
-      message: "会話メモを利用する支援方法を設定してください。",
-    },
+
     minutesRouteStatus: {
       readiness: "setup_required",
       canGenerate: false,
       message: "議事録を利用する支援方法を設定してください。",
     },
-    draftAssignments: { reply: "codex", info: null, minutes: null },
+    draftAssignments: { reply: "codex", minutes: null },
     assignmentDirty: false,
     loading: false,
     saving: false,
@@ -264,7 +259,7 @@ describe("SettingsModal connection UX", () => {
       settings({ stt: { backend: "openai", language: "ja" } }),
       routeCatalog({
         routes: [openaiRoute],
-        draftAssignments: { reply: "openai", info: null, minutes: null },
+        draftAssignments: { reply: "openai", minutes: null },
       }),
     );
 
@@ -335,7 +330,7 @@ describe("SettingsModal connection UX", () => {
         settings({ stt: { backend: "dummy", language: "ja" } }),
         routeCatalog({
           routes: [providerRoute],
-          draftAssignments: { reply: provider, info: null, minutes: null },
+          draftAssignments: { reply: provider, minutes: null },
         }),
       );
       const draft = `${provider}-inline-key`;
@@ -505,7 +500,7 @@ describe("SettingsModal connection UX", () => {
             readiness: "setup_required",
           }),
         ],
-        draftAssignments: { reply: "openai", info: null, minutes: null },
+        draftAssignments: { reply: "openai", minutes: null },
       }),
     );
     expect(screen.getByRole("heading", { name: "一般" })).toBeInTheDocument();
@@ -535,7 +530,7 @@ describe("SettingsModal connection UX", () => {
             selected: true,
           }),
         ],
-        draftAssignments: { reply: "openai", info: null, minutes: null },
+        draftAssignments: { reply: "openai", minutes: null },
       }),
       onClose,
     );
@@ -617,7 +612,7 @@ describe("SettingsModal connection UX", () => {
       settings({ stt: { backend: "dummy", language: "ja" } }),
       routeCatalog({
         routes: [openaiRoute],
-        draftAssignments: { reply: "openai", info: null, minutes: null },
+        draftAssignments: { reply: "openai", minutes: null },
       }),
     );
 
@@ -651,7 +646,7 @@ describe("SettingsModal connection UX", () => {
       id: "openai",
       kind: "byok",
       label: "OpenAI API",
-      capabilities: ["info"],
+      capabilities: ["minutes"],
     });
     const geminiRoute = route({
       id: "gemini",
@@ -666,10 +661,10 @@ describe("SettingsModal connection UX", () => {
       }),
       routeCatalog({
         routes: [openaiRoute, geminiRoute],
-        assignments: { reply: null, info: "openai", minutes: "gemini" },
+        assignments: { reply: null, minutes: "gemini" },
         draftAssignments: {
           reply: null,
-          info: "openai",
+
           minutes: "gemini",
         },
       }),
@@ -690,8 +685,8 @@ describe("SettingsModal connection UX", () => {
     await renderModal(
       settings({ stt: { backend: "dummy", language: "ja" } }),
       routeCatalog({
-        assignments: { reply: null, info: null, minutes: null },
-        draftAssignments: { reply: null, info: null, minutes: null },
+        assignments: { reply: null, minutes: null },
+        draftAssignments: { reply: null, minutes: null },
         assignmentDirty: true,
         saveAssignments,
       }),

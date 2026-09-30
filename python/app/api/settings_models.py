@@ -46,14 +46,6 @@ class AcpConfigPayload(BaseModel):
         return command
 
 
-class AgentSettingsPayload(BaseModel):
-    """Non-reply agent flags that the client may send as a patch."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    info_enabled: StrictBool | None = None
-
-
 class ReplyStyleEnabledPatch(BaseModel):
     """One entry in a ``reply.styles`` patch array."""
 
@@ -218,7 +210,6 @@ class SettingsSaveRequest(BaseModel):
 
     ollama: OllamaConfigPayload | None = None
     acp: AcpConfigPayload | None = None
-    agents: AgentSettingsPayload | None = None
     reply: ReplySettingsPayload | None = None
     secrets: SecretsPayload | None = None
     stt: SttSettingsPatch | None = None
@@ -235,12 +226,6 @@ class SettingsSaveRequest(BaseModel):
             json_value,
             strict=True,
         )
-
-
-class AgentSettings(BaseModel):
-    """Non-reply agent settings returned in the settings response."""
-
-    info_enabled: bool
 
 
 class SecretsStatus(BaseModel):
@@ -319,7 +304,6 @@ class SettingsResponse(BaseModel):
     acp: AcpConfig
     stt: TomlTable = {}
     audio: TomlTable = {}
-    agents: AgentSettings
     reply: ReplySettings
     secrets: SecretsStatus
     data_dir: str
@@ -353,7 +337,6 @@ class RouteAssignmentsUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
 
     reply: str | None
-    info: str | None
     minutes: str | None
 
 

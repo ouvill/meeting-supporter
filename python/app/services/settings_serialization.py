@@ -128,10 +128,7 @@ def flatten_ai_tables(
     cfg["ai"] = {"schema_version": 2}
     if assignments is None:
         assignment_table: TomlTable = {}
-        reply = existing_assignments.get("reply")
-        if isinstance(reply, str) and reply:
-            assignment_table["reply"] = reply
-        for key in ("info", "minutes"):
+        for key in ("reply", "minutes"):
             value = existing_assignments.get(key)
             if isinstance(value, str) and value:
                 assignment_table[key] = value
@@ -139,8 +136,6 @@ def flatten_ai_tables(
         assignment_table = {}
         if assignments.reply is not None:
             assignment_table["reply"] = assignments.reply
-        if assignments.info is not None:
-            assignment_table["info"] = assignments.info
         if assignments.minutes is not None:
             assignment_table["minutes"] = assignments.minutes
     cfg["ai.assignments"] = assignment_table

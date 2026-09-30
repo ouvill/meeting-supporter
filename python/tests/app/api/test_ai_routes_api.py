@@ -58,6 +58,28 @@ def _routes(data: JsonObject) -> dict[str, JsonObject]:
     return {str(route["id"]): route for route in as_object_array(data["routes"])}
 
 
+def test_retired_info_settings_are_not_exposed_or_writable(tmp_path: Path) -> None:
+    client, store, events = _make_client(
+        tmp_path,
+        config_text=(
+            '[ai]\nschema_version = 2\n[ai.assignments]\ninfo = "retired-route"\n[agents]\ninfo_enabled = true\n'
+        ),
+    )
+    original_config = store.config_path.read_text(encoding="utf-8")
+
+    assert "agents" not in client.get("/api/settings").json_object()
+    catalog = client.get("/api/ai/routes").json_object()
+    assert as_json_object(catalog["assignments"]) == {"reply": None, "minutes": None}
+    assert all("info" not in as_json_array(route["capabilities"]) for route in _routes(catalog).values())
+    assert (
+        client.put("/api/ai/routes/assignments", json={"reply": None, "minutes": None, "info": "codex"}).status_code
+        == 422
+    )
+    assert client.post("/api/settings", json={"agents": {"info_enabled": True}}).status_code == 422
+    assert store.config_path.read_text(encoding="utf-8") == original_config
+    assert events == []
+
+
 def test_catalog_exposes_unassigned_routes_and_non_selectable_managed_and_unready_runtimes(tmp_path: Path) -> None:
     """A fresh configuration must advertise unavailable choices without selecting or emulating one."""
     client, _, _ = _make_client(tmp_path)
@@ -66,7 +88,7 @@ def test_catalog_exposes_unassigned_routes_and_non_selectable_managed_and_unread
 
     assert response.status_code == 200
     data = response.json_object()
-    assert as_json_object(data["assignments"]) == {"reply": None, "info": None, "minutes": None}
+    assert as_json_object(data["assignments"]) == {"reply": None, "minutes": None}
     routes = _routes(data)
     managed = routes["managed"]
     assert {
@@ -88,7 +110,7 @@ def test_catalog_exposes_unassigned_routes_and_non_selectable_managed_and_unread
         "login",
     )
     assert "minutes" in as_json_array(codex["capabilities"])
-    assert "info" in as_json_array(codex["capabilities"])
+    assert all("info" not in as_json_array(route["capabilities"]) for route in routes.values())
     acp = routes["acp"]
     assert (acp["availability"], acp["readiness"], acp["selectable"], acp["reason_code"]) == (
         "experimental",
@@ -296,36 +318,15 @@ def test_assignment_update_persists_a_ready_codex_selection_across_reload(tmp_pa
 
     client, store, events = _make_client(tmp_path, codex_status=codex_ready)
 
-    response = client.put("/api/ai/routes/assignments", json={"reply": "codex", "info": None, "minutes": None})
+    response = client.put("/api/ai/routes/assignments", json={"reply": "codex", "minutes": None})
 
     assert response.status_code == 200
     data = response.json_object()
-    assert as_json_object(data["assignments"]) == {"reply": "codex", "info": None, "minutes": None}
+    assert as_json_object(data["assignments"]) == {"reply": "codex", "minutes": None}
     assert _routes(data)["codex"]["selected"] is True
     assert events == ["ConfigChanged"]
     reloaded = ConfigLoader.from_settings_store(store)
     assert reloaded.ai_assignments.reply == "codex"
-    assert reloaded.ai_assignments.info is None
-    assert reloaded.ai_assignments.minutes is None
-
-
-def test_assignment_update_persists_a_ready_codex_info_selection_across_reload(tmp_path: Path) -> None:
-    async def codex_ready(requested_model: str) -> RouteProbeStatus:
-        _ = requested_model
-        return RouteProbeStatus(readiness="ready", reason_code="", message="利用できます。")
-
-    client, store, events = _make_client(tmp_path, codex_status=codex_ready)
-
-    response = client.put("/api/ai/routes/assignments", json={"reply": None, "info": "codex", "minutes": None})
-
-    assert response.status_code == 200
-    data = response.json_object()
-    assert as_json_object(data["assignments"]) == {"reply": None, "info": "codex", "minutes": None}
-    assert _routes(data)["codex"]["selected"] is True
-    assert events == ["ConfigChanged"]
-    reloaded = ConfigLoader.from_settings_store(store)
-    assert reloaded.ai_assignments.reply is None
-    assert reloaded.ai_assignments.info == "codex"
     assert reloaded.ai_assignments.minutes is None
 
 
@@ -338,16 +339,15 @@ def test_assignment_update_persists_a_ready_codex_minutes_selection_across_reloa
 
     client, store, events = _make_client(tmp_path, codex_status=codex_ready)
 
-    response = client.put("/api/ai/routes/assignments", json={"reply": None, "info": None, "minutes": "codex"})
+    response = client.put("/api/ai/routes/assignments", json={"reply": None, "minutes": "codex"})
 
     assert response.status_code == 200
     data = response.json_object()
-    assert as_json_object(data["assignments"]) == {"reply": None, "info": None, "minutes": "codex"}
+    assert as_json_object(data["assignments"]) == {"reply": None, "minutes": "codex"}
     assert _routes(data)["codex"]["selected"] is True
     assert events == ["ConfigChanged"]
     reloaded = ConfigLoader.from_settings_store(store)
     assert reloaded.ai_assignments.reply is None
-    assert reloaded.ai_assignments.info is None
     assert reloaded.ai_assignments.minutes == "codex"
 
 
@@ -360,8 +360,8 @@ def test_assignment_update_rejects_unknown_or_unsupported_or_not_offered_routes(
 
     client, store, events = _make_client(tmp_path, codex_status=codex_ready)
     cases = (
-        ("unknown route", {"reply": "missing", "info": None, "minutes": None}, "AI_ROUTE_NOT_FOUND"),
-        ("planned managed reply", {"reply": "managed", "info": None, "minutes": None}, "AI_ROUTE_NOT_SELECTABLE"),
+        ("unknown route", {"reply": "missing", "minutes": None}, "AI_ROUTE_NOT_FOUND"),
+        ("planned managed reply", {"reply": "managed", "minutes": None}, "AI_ROUTE_NOT_SELECTABLE"),
     )
 
     for name, body, code in cases:
@@ -374,5 +374,4 @@ def test_assignment_update_rejects_unknown_or_unsupported_or_not_offered_routes(
     assert events == []
     reloaded = ConfigLoader.from_settings_store(store)
     assert reloaded.ai_assignments.reply is None
-    assert reloaded.ai_assignments.info is None
     assert reloaded.ai_assignments.minutes is None

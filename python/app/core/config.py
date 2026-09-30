@@ -26,7 +26,7 @@ type RouteRuntime = Literal["pydantic-ai", "codex-app-server", "acp", "managed"]
 type RouteKind = Literal["managed", "subscription_app", "local", "byok"]
 type RouteAvailability = Literal["available", "experimental", "planned", "unavailable"]
 type RouteReadiness = Literal["ready", "setup_required", "unavailable", "error", "not_offered", "unknown"]
-type RouteCapability = Literal["reply", "info", "minutes", "stream", "cancel"]
+type RouteCapability = Literal["reply", "minutes", "stream", "cancel"]
 type BillingOwner = Literal["app", "external_subscription", "user", "none"]
 type RouteAction = Literal[
     "none",
@@ -74,7 +74,6 @@ class AiRouteAssignments:
     """Schema-v2 canonical route selection for each AI use case."""
 
     reply: str | None = None
-    info: str | None = None
     minutes: str | None = None
 
 
@@ -275,19 +274,17 @@ SECRET_KEYS: tuple[SecretKey, ...] = (
 
 # ── Agent settings ────────────────────────────────────────────────────────────
 
-AgentSettingKey = Literal["reply_enabled", "reply_auto_generate", "info_enabled"]
+AgentSettingKey = Literal["reply_enabled", "reply_auto_generate"]
 
 
 class AgentSettings(TypedDict):
     reply_enabled: bool
     reply_auto_generate: bool
-    info_enabled: bool
 
 
 AGENT_SETTING_KEYS: tuple[AgentSettingKey, ...] = (
     "reply_enabled",
     "reply_auto_generate",
-    "info_enabled",
 )
 
 
@@ -296,10 +293,6 @@ def _read_agent_settings(cfg: TomlTable) -> AgentSettings:
     agents_section: dict[str, TomlValue] = agents_raw if isinstance(agents_raw, dict) else {}
     reply_raw = cfg.get("reply")
     reply_section: dict[str, TomlValue] = reply_raw if isinstance(reply_raw, dict) else {}
-
-    def _get_agent_bool(k: str, default: bool) -> bool:
-        v = agents_section.get(k)
-        return v if isinstance(v, bool) else default
 
     def _get_reply_bool(k: str, legacy_key: str, default: bool) -> bool:
         v = reply_section.get(k)
@@ -311,7 +304,6 @@ def _read_agent_settings(cfg: TomlTable) -> AgentSettings:
     return AgentSettings(
         reply_enabled=_get_reply_bool("enabled", "reply_enabled", True),
         reply_auto_generate=_get_reply_bool("auto_generate", "reply_auto_generate", False),
-        info_enabled=_get_agent_bool("info_enabled", True),
     )
 
 
@@ -323,7 +315,6 @@ def patch_agent_settings(
     return AgentSettings(
         reply_enabled=patch.get("reply_enabled", base["reply_enabled"]),
         reply_auto_generate=patch.get("reply_auto_generate", base["reply_auto_generate"]),
-        info_enabled=patch.get("info_enabled", base["info_enabled"]),
     )
 
 
@@ -335,7 +326,6 @@ def _build_agent_settings_message(
         reply_enabled=agent_settings["reply_enabled"],
         reply_auto_generate=agent_settings["reply_auto_generate"],
         reply_agents=[] if reply_agents is None else reply_agents,
-        info_enabled=agent_settings["info_enabled"],
     )
 
 

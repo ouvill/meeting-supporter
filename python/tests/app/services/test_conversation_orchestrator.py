@@ -8,14 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast, override
 
-from app.agents.models import (
-    InfoAgentRuntime,
-    InfoOutputMode,
-    InfoPrompt,
-    PydanticAIReplyAgentRuntime,
-    ReplyAgentDefinition,
-    ReplyAgentSpec,
-)
+from app.agents.models import PydanticAIReplyAgentRuntime, ReplyAgentDefinition, ReplyAgentSpec
 from app.core.config import AgentSettings, UsageBudgetConfig
 from app.core.messages import OutgoingMessage
 from app.core.protocols import TurnLike
@@ -136,80 +129,6 @@ class WaitingFakeAgent(FakeAgent):
         )
 
 
-class FakeInfoRuntime(InfoAgentRuntime):
-    @property
-    @override
-    def output_mode(self) -> InfoOutputMode:
-        return "tool_update"
-
-    def __init__(self, chunks: list[str]) -> None:
-        self._chunks: list[str] = chunks
-        self.prompts: list[InfoPrompt] = []
-
-    @override
-    def run_stream(self, prompt: InfoPrompt) -> FakeStream:
-        self.prompts.append(prompt)
-        return FakeStream(self._chunks)
-
-    @override
-    async def __aenter__(self) -> "FakeInfoRuntime":
-        return self
-
-    @override
-    async def __aexit__(self, *exc_info: object) -> bool | None:
-        return None
-
-
-class CompleteNoteInfoRuntime(FakeInfoRuntime):
-    @property
-    @override
-    def output_mode(self) -> InfoOutputMode:
-        return "complete_note"
-
-
-class WaitingInfoRuntime(FakeInfoRuntime):
-    def __init__(
-        self,
-        chunks: list[str],
-        *,
-        start_event: asyncio.Event,
-        proceed_event: asyncio.Event,
-    ) -> None:
-        super().__init__(chunks)
-        self._start_event: asyncio.Event = start_event
-        self._proceed_event: asyncio.Event = proceed_event
-
-    @override
-    def run_stream(self, prompt: InfoPrompt) -> FakeStream:
-        self.prompts.append(prompt)
-        return WaitingFakeStream(
-            self._chunks,
-            start_event=self._start_event,
-            proceed_event=self._proceed_event,
-        )
-
-
-class WaitingCompleteNoteInfoRuntime(WaitingInfoRuntime):
-    @property
-    @override
-    def output_mode(self) -> InfoOutputMode:
-        return "complete_note"
-
-
-class FailsOnceInfoRuntime(FakeInfoRuntime):
-    def __init__(self, chunks: list[str]) -> None:
-        super().__init__(chunks)
-        self.calls: int = 0
-
-    @override
-    def run_stream(self, prompt: InfoPrompt) -> FakeStream:
-        self.calls += 1
-        self.prompts.append(prompt)
-        if self.calls == 1:
-            raise RuntimeError("info failed")
-        return FakeStream(self._chunks)
-
-
 class FailingAgent:
     def run_stream(self, user_prompt: str) -> FakeStream:
         _ = user_prompt
@@ -282,153 +201,8 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=20,
                 ),
             ],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=self._make_turn,
         )
-
-    async def _replace_ai_note(self, old_str: str, new_str: str) -> str:
-        updater = self.orchestrator._info_note_updater
-        session = cast(MeetingSession | None, self.state.current_session)
-        if updater._meeting_id is None and session is not None:
-            updater._meeting_id = session.id
-        return await updater.replace_ai_note(old_str, new_str)
-
-    async def test_replace_ai_note_returns_tool_visible_results(self) -> None:
-        session = cast(MeetingSession | None, self.state.current_session)
-        if session is None:
-            self.fail("current_session should exist")
-        self.state.current_session = session.with_ai_note("## サマリー\n旧内容\n## 背景\n旧内容")
-
-        result = await self._replace_ai_note("旧内容", "新内容")
-
-        self.assertEqual("OK", result)
-        updated = cast(MeetingSession | None, self.state.current_session)
-        if updated is None:
-            self.fail("current_session should exist")
-        self.assertEqual("## サマリー\n新内容\n## 背景\n旧内容", updated.ai_note)
-
-        missing_result = await self._replace_ai_note("存在しない内容", "差し替え")
-        self.assertEqual(
-            "ERROR: old_str が資料内に見つかりません。現在の資料:\n---\n## サマリー\n新内容\n## 背景\n旧内容",
-            missing_result,
-        )
-
-        self.state.current_session = None
-        no_session_result = await self._replace_ai_note("新内容", "別内容")
-        self.assertEqual("ERROR: 現在アクティブなセッションがありません", no_session_result)
-
-        self.orchestrator._info_note_updater._meeting_id = "old-session"
-        self.state.current_session = MeetingSession(
-            id="new-session",
-            started_at=datetime.now(UTC),
-            ai_note="新しい会議",
-        )
-        switched_result = await self.orchestrator._info_note_updater.replace_ai_note("新しい会議", "上書き")
-        self.assertEqual("ERROR: 会議が切り替わったため更新できません", switched_result)
-        current = self.state.current_session
-        self.assertEqual("新しい会議", current.ai_note)
-
-    async def test_replace_ai_note_and_handle_speech_keep_replacement_and_turn(self) -> None:
-        session = cast(MeetingSession | None, self.state.current_session)
-        if session is None:
-            self.fail("current_session should exist")
-        self.state.current_session = session.with_ai_note("議題: 旧計画\n決定: 未定")
-
-        async with self.orchestrator._turn_lock:
-            replace_task = asyncio.create_task(self._replace_ai_note("旧計画", "新計画"))
-            await asyncio.sleep(0)
-            if replace_task.done():
-                self.fail("replace_ai_note completed before the shared turn lock was released")
-
-            speech_task = asyncio.create_task(self.orchestrator.handle_speech("other", "追加の発話"))
-            await asyncio.sleep(0)
-            if speech_task.done():
-                self.fail("handle_speech completed before the shared turn lock was released")
-
-        replace_result, _ = await asyncio.gather(replace_task, speech_task)
-
-        self.assertEqual("OK", replace_result)
-        updated = cast(MeetingSession | None, self.state.current_session)
-        if updated is None:
-            self.fail("current_session should exist")
-        self.assertEqual("議題: 新計画\n決定: 未定", updated.ai_note)
-        self.assertEqual(1, len(updated.turns))
-        self.assertEqual("追加の発話", updated.turns[0].text)
-
-    async def test_replace_ai_note_and_reply_suggestion_save_keep_replacement_and_suggestion(self) -> None:
-        session = cast(MeetingSession | None, self.state.current_session)
-        if session is None:
-            self.fail("current_session should exist")
-        self.state.current_session = session.with_ai_note("顧客状況: 旧情報")
-
-        reply_started = asyncio.Event()
-        reply_proceed = asyncio.Event()
-        final_reply_chunk_sent = asyncio.Event()
-
-        async def broadcast(msg: OutgoingMessage) -> None:
-            dumped = cast(dict[str, object], msg.model_dump())
-            self.messages.append(dumped)
-            if dumped.get("type") == "reply_chunk" and dumped.get("final") is True:
-                final_reply_chunk_sent.set()
-
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=broadcast,
-            reply_agents=[
-                ReplyAgentSpec(
-                    id="reply_main",
-                    label="標準",
-                    runtime=PydanticAIReplyAgentRuntime(
-                        WaitingFakeAgent(
-                            ["提案", "します"],
-                            name="main",
-                            start_event=reply_started,
-                            proceed_event=reply_proceed,
-                        )
-                    ),
-                    priority=10,
-                )
-            ],
-            info_runtime=FakeInfoRuntime([]),
-            turn_factory=self._make_turn,
-            info_enabled=False,
-        )
-        await self.orchestrator.handle_speech("other", "返信案をください")
-
-        await self.orchestrator.generate_reply(generation_id="generation-1")
-        reply_records = list(self.orchestrator._reply_pipeline._reply_tasks.values())
-        self.assertEqual(1, len(reply_records))
-        reply_task = reply_records[0].task
-        _ = await reply_started.wait()
-
-        async with self.orchestrator._turn_lock:
-            replace_task = asyncio.create_task(self._replace_ai_note("旧情報", "新情報"))
-            await asyncio.sleep(0)
-            if replace_task.done():
-                self.fail("replace_ai_note completed before the shared turn lock was released")
-
-            reply_proceed.set()
-            await asyncio.sleep(0)
-            self.assertFalse(
-                final_reply_chunk_sent.is_set(),
-                "final reply was sent before the suggestion commit boundary",
-            )
-            if reply_task.done():
-                self.fail("reply suggestion completed before the shared turn lock was released")
-
-        replace_result, _ = await asyncio.gather(replace_task, reply_task)
-        self.assertTrue(final_reply_chunk_sent.is_set())
-
-        self.assertEqual("OK", replace_result)
-        updated = cast(MeetingSession | None, self.state.current_session)
-        if updated is None:
-            self.fail("current_session should exist")
-        self.assertEqual("顧客状況: 新情報", updated.ai_note)
-        self.assertEqual(1, len(updated.turns))
-        self.assertEqual("返信案をください", updated.turns[0].text)
-        self.assertEqual(1, len(updated.reply_suggestions))
-        self.assertEqual("提案します", updated.reply_suggestions[0].text)
-        self.assertEqual(updated.turns[0].id, updated.reply_suggestions[0].target_turn_id)
 
     async def test_cancel_replies_applies_before_commit_and_replays_cached_result(self) -> None:
         reply_started = asyncio.Event()
@@ -451,7 +225,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=10,
                 )
             ],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=self._make_turn,
         )
         await self.orchestrator.handle_speech("other", "停止してください")
@@ -523,7 +296,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=20,
                 ),
             ],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=self._make_turn,
         )
         await self.orchestrator.handle_speech("other", "一部だけ停止してください")
@@ -572,7 +344,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=10,
                 )
             ],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=self._make_turn,
         )
         await self.orchestrator.handle_speech("other", "同じ発言で再試行します")
@@ -624,7 +395,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=10,
                 )
             ],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=self._make_turn,
         )
         await self.orchestrator.handle_speech("other", "全生成を停止してください")
@@ -668,14 +438,13 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=10,
                 )
             ],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=self._make_turn,
         )
         await self.orchestrator.handle_speech("other", "返答案を無効化します")
         await self.orchestrator.generate_reply(generation_id="generation-disable")
         _ = await reply_started.wait()
 
-        await self.orchestrator.apply_agent_settings(reply_agents=[], info_enabled=False)
+        await self.orchestrator.apply_agent_settings(reply_agents=[])
 
         self.assertEqual({}, self.orchestrator._reply_pipeline._reply_tasks)
         session = cast(MeetingSession, self.state.current_session)
@@ -710,7 +479,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=10,
                 )
             ],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=self._make_turn,
         )
         await self.orchestrator.handle_speech("other", "経路を切り替えてください")
@@ -726,7 +494,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=10,
                 )
             ],
-            info_enabled=False,
         )
         await self.orchestrator.generate_reply(generation_id="generation-new")
         replacement_records = list(self.orchestrator._reply_pipeline._reply_tasks.values())
@@ -826,12 +593,10 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=10,
                 )
             ],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=self._make_turn,
             agent_settings={
                 "reply_enabled": True,
                 "reply_auto_generate": True,
-                "info_enabled": True,
             },
         )
 
@@ -855,12 +620,10 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=10,
                 )
             ],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=self._make_turn,
             agent_settings={
                 "reply_enabled": True,
                 "reply_auto_generate": True,
-                "info_enabled": True,
             },
         )
 
@@ -887,7 +650,7 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_generate_reply_emits_error_when_reply_is_disabled(self) -> None:
-        await self.orchestrator.apply_agent_settings(reply_agents=[], info_enabled=True)
+        await self.orchestrator.apply_agent_settings(reply_agents=[])
 
         await self.orchestrator.generate_reply(generation_id="generation-1")
 
@@ -926,7 +689,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=10,
                 )
             ],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=self._make_turn,
         )
         await self.orchestrator.handle_speech("other", "重複しないで")
@@ -975,7 +737,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=20,
                 ),
             ],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=_turn_factory,
         )
 
@@ -1009,7 +770,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                     priority=20,
                 )
             ],
-            info_enabled=True,
         )
 
         await self.orchestrator.handle_speech("other", "進め方を教えてください")
@@ -1037,18 +797,17 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, len(main_suggestions))
         self.assertEqual("ご提案します", polite_suggestions[0].text)
 
-    async def test_apply_agent_settings_can_disable_reply_and_info(self) -> None:
-        await self.orchestrator.apply_agent_settings(reply_agents=[], info_enabled=False)
+    async def test_apply_agent_settings_can_disable_reply(self) -> None:
+        await self.orchestrator.apply_agent_settings(reply_agents=[])
 
         await self.orchestrator.handle_speech("other", "確認したいです")
         await asyncio.sleep(0)
 
         self.assertFalse(any(m.get("type") == "suggestions_start" for m in self.messages))
-        self.assertFalse(any(m.get("type") == "info_researching" for m in self.messages))
         self.assertEqual([], self.main_agent.prompts)
         self.assertEqual([], self.polite_agent.prompts)
 
-    async def test_budget_limit_blocks_reply_and_info_generation(self) -> None:
+    async def test_budget_limit_blocks_reply_generation(self) -> None:
         with TemporaryDirectory() as td:
             usage_logger = UsageLogger(Path(td) / "usage.jsonl")
             usage_logger.log(
@@ -1059,7 +818,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                 elapsed_s=0.1,
                 meeting_id="test-session",
             )
-            info_runtime = FakeInfoRuntime(["調査結果"])
             self.orchestrator = ConversationOrchestrator(
                 state=self.state,
                 broadcast=self._record_message,
@@ -1071,7 +829,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                         priority=10,
                     )
                 ],
-                info_runtime=info_runtime,
                 turn_factory=self._make_turn,
                 usage_logger=usage_logger,
                 usage_budget=UsageBudgetConfig(meeting_limit_jpy=0.01, monthly_limit_jpy=0),
@@ -1080,396 +837,12 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
             await self.orchestrator.handle_speech("other", "予算超過です")
             await self.orchestrator.generate_reply(generation_id="generation-1")
             await _wait_until(lambda: any(m.get("type") == "suggestion_error" for m in self.messages))
-            await self.orchestrator.run_info_now()
-            await _wait_until(
-                lambda: any(m.get("type") == "error" and "予算上限" in str(m.get("text")) for m in self.messages)
-            )
 
             self.assertFalse(any(m.get("type") == "suggestions_start" for m in self.messages))
             self.assertTrue(any(m.get("type") == "suggestion_error" for m in self.messages))
-            self.assertTrue(any(m.get("type") == "error" and "予算上限" in str(m.get("text")) for m in self.messages))
-            self.assertEqual(0, len(info_runtime.prompts))
-
-    async def test_info_agent_auto_runs_for_each_five_committed_turns(self) -> None:
-        info_runtime = FakeInfoRuntime(["調査結果"])
-        readiness_calls = 0
-
-        async def info_ready() -> bool:
-            nonlocal readiness_calls
-            readiness_calls += 1
-            return True
-
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=self._record_message,
-            reply_agents=[],
-            info_runtime=info_runtime,
-            turn_factory=self._make_turn,
-            info_readiness=info_ready,
-            info_enabled=True,
-        )
-
-        for index in range(4):
-            await self.orchestrator.handle_speech("other", f"発言 {index + 1}")
-        await asyncio.sleep(0)
-        self.assertEqual(0, len(info_runtime.prompts))
-        self.assertEqual(0, readiness_calls)
-
-        await self.orchestrator.handle_user_reply("発言 5")
-        await _wait_until(lambda: len(info_runtime.prompts) == 1)
-        self.assertEqual(1, readiness_calls)
-
-        for index in range(6, 10):
-            await self.orchestrator.handle_speech("self", f"発言 {index}")
-        await asyncio.sleep(0)
-        self.assertEqual(1, len(info_runtime.prompts))
-
-        await self.orchestrator.handle_speech("other", "発言 10")
-        await _wait_until(lambda: len(info_runtime.prompts) == 2)
-        self.assertEqual(2, readiness_calls)
-
-    async def test_info_auto_failure_waits_for_next_five_turns_before_retry(self) -> None:
-        info_runtime = FailsOnceInfoRuntime(["調査結果"])
-
-        async def info_ready() -> bool:
-            return True
-
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=self._record_message,
-            reply_agents=[],
-            info_runtime=info_runtime,
-            turn_factory=self._make_turn,
-            info_readiness=info_ready,
-        )
-        for index in range(5):
-            await self.orchestrator.handle_speech("other", f"失敗発言 {index}")
-        await _wait_until(lambda: info_runtime.calls == 1)
-
-        for index in range(4):
-            await self.orchestrator.handle_speech("other", f"保留発言 {index}")
-        await asyncio.sleep(0)
-        self.assertEqual(1, info_runtime.calls)
-
-        await self.orchestrator.handle_speech("other", "再試行発言")
-        await _wait_until(lambda: info_runtime.calls == 2)
-        self.assertEqual(
-            1,
-            len(
-                [
-                    message
-                    for message in self.messages
-                    if message.get("type") == "error"
-                    and message.get("text") == "情報AIの処理に失敗しました。設定と接続状態を確認してください。"
-                ]
-            ),
-        )
-
-    async def test_info_auto_coalesces_turns_added_while_running(self) -> None:
-        started = asyncio.Event()
-        proceed = asyncio.Event()
-        info_runtime = WaitingInfoRuntime(
-            ["調査結果"],
-            start_event=started,
-            proceed_event=proceed,
-        )
-
-        async def info_ready() -> bool:
-            return True
-
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=self._record_message,
-            reply_agents=[],
-            info_runtime=info_runtime,
-            turn_factory=self._make_turn,
-            info_readiness=info_ready,
-        )
-        for index in range(5):
-            await self.orchestrator.handle_speech("other", f"開始発言 {index}")
-        _ = await asyncio.wait_for(started.wait(), timeout=1)
-
-        for index in range(5):
-            await self.orchestrator.handle_user_reply(f"追加発言 {index}")
-        self.assertEqual(1, len(info_runtime.prompts))
-
-        proceed.set()
-        await _wait_until(lambda: len(info_runtime.prompts) == 2)
-
-    async def test_info_auto_unready_is_silent_and_checkpoints_turns(self) -> None:
-        info_runtime = FakeInfoRuntime(["調査結果"])
-        ready = False
-
-        async def info_ready() -> bool:
-            return ready
-
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=self._record_message,
-            reply_agents=[],
-            info_runtime=info_runtime,
-            turn_factory=self._make_turn,
-            info_readiness=info_ready,
-        )
-        for index in range(5):
-            await self.orchestrator.handle_speech("other", f"未準備発言 {index}")
-        await _wait_until(lambda: self.orchestrator._info_note_updater._info_last_processed == 5)
-        self.assertEqual([], info_runtime.prompts)
-        self.assertFalse(any(message.get("type") == "error" for message in self.messages))
-
-        ready = True
-        for index in range(5):
-            await self.orchestrator.handle_speech("other", f"復旧後発言 {index}")
-        await _wait_until(lambda: len(info_runtime.prompts) == 1)
-
-    async def test_run_info_now_starts_one_info_task_and_rejects_duplicate_while_running(self) -> None:
-        started = asyncio.Event()
-        proceed = asyncio.Event()
-        info_runtime = WaitingInfoRuntime(["調査中"], start_event=started, proceed_event=proceed)
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=self._record_message,
-            reply_agents=[],
-            info_runtime=info_runtime,
-            turn_factory=self._make_turn,
-            info_enabled=True,
-        )
-        await self.orchestrator.handle_speech("other", "調査対象です")
-        self.messages.clear()
-
-        await self.orchestrator.run_info_now()
-        _ = await asyncio.wait_for(started.wait(), timeout=1)
-        first_task = self.orchestrator._info_note_updater._info_agent_task
-        if first_task is None:
-            self.fail("run_info_now should create an info task")
-        await self.orchestrator.run_info_now()
-
-        self.assertFalse(first_task.done())
-        self.assertEqual(1, len(info_runtime.prompts))
-        self.assertEqual(1, len([m for m in self.messages if m.get("type") == "info_researching"]))
-        self.assertTrue(any(m.get("type") == "status" and m.get("text") == "情報AIを更新中です" for m in self.messages))
-
-        proceed.set()
-        await first_task
-
-    async def test_reset_info_note_updater_cancels_task_and_clears_meeting_state(self) -> None:
-        started = asyncio.Event()
-        proceed = asyncio.Event()
-        info_runtime = WaitingInfoRuntime(
-            ["調査中"],
-            start_event=started,
-            proceed_event=proceed,
-        )
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=self._record_message,
-            reply_agents=[],
-            info_runtime=info_runtime,
-            turn_factory=self._make_turn,
-        )
-        await self.orchestrator.handle_speech("other", "旧会議の発言")
-        await self.orchestrator.run_info_now()
-        _ = await asyncio.wait_for(started.wait(), timeout=1)
-
-        await self.orchestrator.reset_info_note_updater()
-        updater = self.orchestrator._info_note_updater
-
-        self.assertIsNone(updater._info_agent_task)
-        self.assertIsNone(updater._meeting_id)
-        self.assertEqual(0, updater._info_last_processed)
-        self.assertIsNone(updater._active_commit_id)
-        proceed.set()
-
-    async def test_complete_note_runtime_commits_only_changed_valid_markdown(self) -> None:
-        valid_note = (
-            "# 会話メモ\n\n"
-            "## 決まったこと\n- 火曜に共有する\n\n"
-            "## 未確認・懸念\n- 担当者は未確認\n\n"
-            "## 次にすること\n- 日程を確認する"
-        )
-        runtime = CompleteNoteInfoRuntime([valid_note[:25], valid_note[25:] + "\n"])
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=self._record_message,
-            reply_agents=[],
-            info_runtime=runtime,
-            turn_factory=self._make_turn,
-        )
-        session = cast(MeetingSession, self.state.current_session)
-        self.state.current_session = session.with_ai_note("旧メモ")
-        await self.orchestrator.handle_speech("other", "火曜に共有します")
-        self.messages.clear()
-
-        success = await self.orchestrator._info_note_updater._run_info_agent(list(self.state.turns))
-
-        self.assertTrue(success)
-        current = self.state.current_session
-        self.assertEqual(valid_note, current.ai_note)
-        self.assertIn("【現在の会話メモ】\n旧メモ", runtime.prompts[0].text)
-        self.assertEqual(1, len([m for m in self.messages if m.get("type") == "ai_note_updated"]))
-        self.assertEqual(1, len([m for m in self.messages if m.get("type") == "info_researching_finished"]))
-
-        self.messages.clear()
-        unchanged = await self.orchestrator._info_note_updater._run_info_agent(list(self.state.turns))
-        self.assertTrue(unchanged)
-        self.assertFalse(any(m.get("type") == "ai_note_updated" for m in self.messages))
-        self.assertEqual(1, len([m for m in self.messages if m.get("type") == "info_researching_finished"]))
-
-    async def test_complete_note_runtime_rejects_invalid_output_without_commit(self) -> None:
-        valid_note = "# 会話メモ\n## 決まったこと\n## 未確認・懸念\n## 次にすること"
-        invalid_outputs = {
-            "empty": "",
-            "wrong-heading": valid_note.replace("## 決まったこと", "## サマリー"),
-            "wrong-order": "# 会話メモ\n## 未確認・懸念\n## 決まったこと\n## 次にすること",
-            "extra-heading": valid_note + "\n## その他",
-            "fence": f"```markdown\n{valid_note}\n```",
-            "indented-extra-heading": valid_note + "\n  ## その他",
-            "setext-heading": valid_note + "\nその他\n---",
-            "html-heading": valid_note + "\n<h2>その他</h2>",
-            "nul": valid_note + "\0",
-            "oversize": valid_note + ("A" * 20_001),
-            "preamble": "更新しました。\n" + valid_note,
-        }
-        await self.orchestrator.handle_speech("other", "確認対象")
-
-        for name, output in invalid_outputs.items():
-            with self.subTest(output=name):
-                session = cast(MeetingSession, self.state.current_session)
-                self.state.current_session = session.with_ai_note("変更前")
-                runtime = CompleteNoteInfoRuntime([output])
-                await self.orchestrator.update_agents(
-                    info_runtime=runtime,
-                    reply_agent_specs=[],
-                )
-                self.messages.clear()
-
-                success = await self.orchestrator._info_note_updater._run_info_agent(list(self.state.turns))
-
-                self.assertFalse(success)
-                current = self.state.current_session
-                self.assertEqual("変更前", current.ai_note)
-                self.assertFalse(any(m.get("type") == "ai_note_updated" for m in self.messages))
-                self.assertEqual(1, len([m for m in self.messages if m.get("type") == "error"]))
-                self.assertEqual(
-                    1,
-                    len([m for m in self.messages if m.get("type") == "info_researching_finished"]),
-                )
-
-    async def test_complete_note_runtime_does_not_overwrite_a_conflicting_note(self) -> None:
-        valid_note = "# 会話メモ\n## 決まったこと\n## 未確認・懸念\n## 次にすること"
-        started = asyncio.Event()
-        proceed = asyncio.Event()
-        runtime = WaitingCompleteNoteInfoRuntime(
-            [valid_note],
-            start_event=started,
-            proceed_event=proceed,
-        )
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=self._record_message,
-            reply_agents=[],
-            info_runtime=runtime,
-            turn_factory=self._make_turn,
-        )
-        await self.orchestrator.handle_speech("other", "確認対象")
-        await self.orchestrator.run_info_now()
-        _ = await asyncio.wait_for(started.wait(), timeout=1)
-        session = cast(MeetingSession, self.state.current_session)
-        self.state.current_session = session.with_ai_note("実行中の外部更新")
-        self.messages.clear()
-
-        proceed.set()
-        task = self.orchestrator._info_note_updater._info_agent_task
-        if task is None:
-            self.fail("complete-note task should be running")
-        await task
-
-        current = self.state.current_session
-        self.assertEqual("実行中の外部更新", current.ai_note)
-        self.assertFalse(any(m.get("type") == "ai_note_updated" for m in self.messages))
-        self.assertEqual(1, len([m for m in self.messages if m.get("type") == "info_researching_finished"]))
-
-    async def test_reset_cancels_complete_note_without_broadcasting_a_commit(self) -> None:
-        valid_note = "# 会話メモ\n## 決まったこと\n## 未確認・懸念\n## 次にすること"
-        started = asyncio.Event()
-        proceed = asyncio.Event()
-        runtime = WaitingCompleteNoteInfoRuntime(
-            [valid_note],
-            start_event=started,
-            proceed_event=proceed,
-        )
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=self._record_message,
-            reply_agents=[],
-            info_runtime=runtime,
-            turn_factory=self._make_turn,
-        )
-        await self.orchestrator.handle_speech("other", "旧会議の発言")
-        session = cast(MeetingSession, self.state.current_session)
-        self.state.current_session = session.with_ai_note("旧会議のメモ")
-        await self.orchestrator.run_info_now()
-        _ = await asyncio.wait_for(started.wait(), timeout=1)
-        self.messages.clear()
-
-        await self.orchestrator.reset_info_note_updater()
-
-        current = self.state.current_session
-        self.assertEqual("旧会議のメモ", current.ai_note)
-        self.assertFalse(any(m.get("type") == "ai_note_updated" for m in self.messages))
-        self.assertEqual(1, len([m for m in self.messages if m.get("type") == "info_researching_finished"]))
-        proceed.set()
-
-    async def test_run_info_now_rejects_disabled_no_session_and_no_turn_cases(self) -> None:
-        info_runtime = FakeInfoRuntime(["調査結果"])
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=self._record_message,
-            reply_agents=[],
-            info_runtime=info_runtime,
-            turn_factory=self._make_turn,
-            info_enabled=False,
-        )
-
-        await self.orchestrator.run_info_now()
-        self.assertTrue(
-            any(m.get("type") == "error" and m.get("text") == "情報AIは現在オフです" for m in self.messages)
-        )
-        self.assertEqual(0, len(info_runtime.prompts))
-
-        self.messages.clear()
-        self.orchestrator = ConversationOrchestrator(
-            state=self.state,
-            broadcast=self._record_message,
-            reply_agents=[],
-            info_runtime=info_runtime,
-            turn_factory=self._make_turn,
-            info_enabled=True,
-        )
-        self.state.current_session = None
-        await self.orchestrator.run_info_now()
-        self.assertTrue(
-            any(m.get("type") == "error" and m.get("text") == "会議が開始されていません" for m in self.messages)
-        )
-        self.assertEqual(0, len(info_runtime.prompts))
-
-        self.messages.clear()
-        self.state.current_session = MeetingSession(
-            id="empty-session",
-            started_at=datetime.now(UTC),
-        )
-        await self.orchestrator.run_info_now()
-        self.assertTrue(
-            any(
-                m.get("type") == "error" and m.get("text") == "情報整理の対象となる発言がありません"
-                for m in self.messages
-            )
-        )
-        self.assertEqual(0, len(info_runtime.prompts))
 
     async def test_update_agents_enables_new_custom_reply_agent_after_config_filter(self) -> None:
         await self.orchestrator.update_agents(
-            info_runtime=FakeInfoRuntime([]),
             reply_agent_specs=[
                 ReplyAgentSpec(
                     id="reply_custom",
@@ -1484,7 +857,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
                 agent_settings={
                     "reply_enabled": True,
                     "reply_auto_generate": False,
-                    "info_enabled": True,
                 },
                 reply_agent_definitions=[
                     ReplyAgentDefinition(
@@ -1552,7 +924,6 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
             state=self.state,
             broadcast=broadcast,
             reply_agents=[],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=turn_factory,
             history_service=cast(MeetingHistoryService, cast(object, history)),
         )
@@ -1592,10 +963,8 @@ class ConversationOrchestratorTest(unittest.IsolatedAsyncioTestCase):
             state=self.state,
             broadcast=broadcast,
             reply_agents=[],
-            info_runtime=FakeInfoRuntime([]),
             turn_factory=turn_factory,
             history_service=cast(MeetingHistoryService, cast(object, history)),
-            info_enabled=False,
         )
 
         speech_tasks = [self.orchestrator.handle_speech("other", f"o{i}") for i in range(20)]

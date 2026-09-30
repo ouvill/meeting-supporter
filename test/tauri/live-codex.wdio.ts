@@ -13,7 +13,6 @@ interface RouteCatalog {
   routes: RouteState[];
   assignments: {
     reply: string | null;
-    info: string | null;
     minutes: string | null;
   };
 }
@@ -293,7 +292,6 @@ async function assistantCueMatchesDigest(
   ) as Promise<boolean>;
 }
 
-
 async function finishMeetingFromMain(): Promise<void> {
   await browser.tauri.switchWindow("main");
   const endButton = await $('button[aria-label="会議を終了"]');
@@ -466,7 +464,7 @@ describe("Tauri smoke", () => {
         configuredRoutes = await localBackendRequest<RouteCatalog>({
           path: "/api/ai/routes/assignments",
           method: "PUT",
-          body: { reply: "codex", info: null, minutes: null },
+          body: { reply: "codex", minutes: null },
         });
         assignmentsChanged = true;
       }

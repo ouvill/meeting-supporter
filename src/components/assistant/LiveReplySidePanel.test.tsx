@@ -63,7 +63,6 @@ function createState(overrides: Partial<SocketState> = {}): SocketState {
       replyEnabled: true,
       replyAutoGenerate: false,
       replyAgents: [],
-      infoEnabled: true,
     },
     devices: [],
     deviceOther: null,
@@ -77,7 +76,6 @@ function createState(overrides: Partial<SocketState> = {}): SocketState {
     lastReplyCancelResult: null,
     cancelledSuggestionIds: [],
     discardedGenerationIds: [],
-    isResearchingInfo: false,
     interimOther: "",
     interimSelf: "",
     levelOther: 0,
@@ -106,20 +104,16 @@ const readyCodexRoute: AiRouteReadModel = {
 function routeCatalog(overrides: Record<string, unknown> = {}) {
   return {
     routes: [readyCodexRoute],
-    assignments: { reply: "codex", info: null, minutes: null },
-    assignedRoutes: { reply: readyCodexRoute, info: null, minutes: null },
+    assignments: { reply: "codex", minutes: null },
+    assignedRoutes: { reply: readyCodexRoute, minutes: null },
     replyStatus: { readiness: "ready", canGenerate: true, message: null },
-    infoRouteStatus: {
-      readiness: "setup_required",
-      canGenerate: false,
-      message: "会話メモを利用する支援方法を設定してください。",
-    },
+
     minutesRouteStatus: {
       readiness: "setup_required",
       canGenerate: false,
       message: "議事録を利用する支援方法を設定してください。",
     },
-    draftAssignments: { reply: "codex", info: null, minutes: null },
+    draftAssignments: { reply: "codex", minutes: null },
     assignmentDirty: false,
     setDraftAssignment: vi.fn(),
     resetDraftAssignments: vi.fn(),
@@ -158,7 +152,7 @@ describe("LiveReplySidePanel", () => {
       routeCatalog({
         assignedRoutes: {
           reply: nonSelectableRoute,
-          info: null,
+
           minutes: null,
         },
         replyStatus: {
@@ -308,9 +302,9 @@ describe("LiveReplySidePanel", () => {
     useAiRoutesMock.mockReturnValue(
       routeCatalog({
         routes: [],
-        assignments: { reply: null, info: null, minutes: null },
-        assignedRoutes: { reply: null, info: null, minutes: null },
-        draftAssignments: { reply: null, info: null, minutes: null },
+        assignments: { reply: null, minutes: null },
+        assignedRoutes: { reply: null, minutes: null },
+        draftAssignments: { reply: null, minutes: null },
         replyStatus: {
           readiness: "setup_required",
           canGenerate: false,

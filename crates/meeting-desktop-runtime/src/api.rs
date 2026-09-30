@@ -624,10 +624,10 @@ async fn ai_assignments(
     let mut guard = api.shared.settings.lock().await;
     let old = crate::ai::routes::assignments(&guard)?;
     // Keep existing assignments for not-yet-ported use cases, never silently replace them.
-    if body.info != old.info || body.minutes != old.minutes {
+    if body.minutes != old.minutes {
         return Err(ApiError(
             StatusCode::UNPROCESSABLE_ENTITY,
-            "情報AI・議事録の割当変更は移植中です。".into(),
+            "議事録の割当変更は移植中です。".into(),
         ));
     }
     if let Some(id) = &body.reply {

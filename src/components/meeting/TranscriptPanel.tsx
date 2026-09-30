@@ -103,11 +103,7 @@ export function TranscriptPanel({
               />
             ))}
             {interimOther && (
-              <ConversationTurn
-                speaker="other"
-                text={interimOther}
-                interim
-              />
+              <ConversationTurn speaker="other" text={interimOther} interim />
             )}
             {interimSelf && (
               <ConversationTurn speaker="self" text={interimSelf} interim />
@@ -178,7 +174,7 @@ function ConversationTurn({
     <>
       <div className="flex items-center gap-2">
         <p
-          className={`text-[11px] font-bold ${isOther ? "text-cue" : "text-positive"}`}
+          className={`text-[11px] font-bold ${isOther ? "text-ink-muted" : "text-primary"}`}
         >
           {speakerLabel}
           {interim && "・聞き取り中"}
@@ -198,10 +194,10 @@ function ConversationTurn({
 
   return (
     <article
-      className={`rounded-xl border transition-colors motion-reduce:transition-none ${
+      className={`w-fit min-w-0 max-w-[88%] rounded-2xl border transition-colors motion-reduce:transition-none ${
         isOther
-          ? "border-cue/15 bg-cue-soft/65"
-          : "border-positive/15 bg-positive-soft/65"
+          ? "mr-auto rounded-tl-sm border-line bg-surface-muted"
+          : "ml-auto rounded-tr-sm border-primary/20 bg-primary-soft"
       } ${pinned ? "border-primary/35 ring-1 ring-primary/10" : ""}`}
       aria-live={interim ? "polite" : undefined}
       aria-atomic={interim || undefined}

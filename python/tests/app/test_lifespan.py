@@ -53,14 +53,6 @@ class _RecordingMeetingLifecycle:
         pass
 
 
-class _DummyBundle:
-    """An application with no assigned AI routes has no runtime to start or close."""
-
-    info_runtime: None = None
-    minutes_runtime: None = None
-    reply_agent_specs: list[object] = []
-
-
 class _RecordingCodex:
     def __init__(self) -> None:
         self.close_called: bool = False
@@ -143,7 +135,6 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
         lifecycle = _RecordingMeetingLifecycle()
         codex = _RecordingCodex()
         lifespan_fn = create_lifespan(
-            get_bundle=lambda: _DummyBundle(),  # pyright: ignore[reportArgumentType]
             codex=codex,  # pyright: ignore[reportArgumentType]
             stt_controller=stt,  # pyright: ignore[reportArgumentType]
             config=_DummyConfig(),  # pyright: ignore[reportArgumentType]
@@ -175,7 +166,6 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
         # All stubs below satisfy the expected protocol structurally.
         codex = _RecordingCodex()
         lifespan_fn = create_lifespan(
-            get_bundle=lambda: _DummyBundle(),  # pyright: ignore[reportArgumentType]
             codex=codex,  # pyright: ignore[reportArgumentType]
             stt_controller=stt,  # pyright: ignore[reportArgumentType]
             config=_DummyConfig(),  # pyright: ignore[reportArgumentType]
@@ -196,7 +186,6 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
         stt = _RecordingSttController(events)
         codex = _RecordingCodex()
         lifespan_fn = create_lifespan(
-            get_bundle=lambda: _DummyBundle(),  # pyright: ignore[reportArgumentType]
             codex=codex,  # pyright: ignore[reportArgumentType]
             stt_controller=stt,  # pyright: ignore[reportArgumentType]
             config=_DummyConfig(),  # pyright: ignore[reportArgumentType]

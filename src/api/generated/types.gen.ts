@@ -37,30 +37,6 @@ export type AcpConfigPayload = {
 };
 
 /**
- * AgentSettings
- *
- * Non-reply agent settings returned in the settings response.
- */
-export type AgentSettings = {
-  /**
-   * Info Enabled
-   */
-  info_enabled: boolean;
-};
-
-/**
- * AgentSettingsPayload
- *
- * Non-reply agent flags that the client may send as a patch.
- */
-export type AgentSettingsPayload = {
-  /**
-   * Info Enabled
-   */
-  info_enabled?: boolean | null;
-};
-
-/**
  * AudioSettingsPatch
  *
  * Typed patch surface for persisted ``[audio]`` settings.
@@ -824,10 +800,6 @@ export type RouteAssignmentsReadModel = {
    */
   reply?: string | null;
   /**
-   * Info
-   */
-  info?: string | null;
-  /**
    * Minutes
    */
   minutes?: string | null;
@@ -844,10 +816,6 @@ export type RouteAssignmentsUpdate = {
    */
   reply: string | null;
   /**
-   * Info
-   */
-  info: string | null;
-  /**
    * Minutes
    */
   minutes: string | null;
@@ -859,12 +827,7 @@ export type RouteAvailability =
   | "planned"
   | "unavailable";
 
-export type RouteCapability =
-  | "reply"
-  | "info"
-  | "minutes"
-  | "stream"
-  | "cancel";
+export type RouteCapability = "reply" | "minutes" | "stream" | "cancel";
 
 /**
  * RouteCatalogResponse
@@ -1065,7 +1028,6 @@ export type SettingsResponse = {
   acp: AcpConfig;
   stt?: TomlTable;
   audio?: TomlTable;
-  agents: AgentSettings;
   reply: ReplySettings;
   secrets: SecretsStatus;
   /**
@@ -1094,7 +1056,6 @@ export type SettingsResponse = {
 export type SettingsSaveRequest = {
   ollama?: OllamaConfigPayload | null;
   acp?: AcpConfigPayload | null;
-  agents?: AgentSettingsPayload | null;
   reply?: ReplySettingsPayload | null;
   secrets?: SecretsPayload | null;
   stt?: SttSettingsPatch | null;

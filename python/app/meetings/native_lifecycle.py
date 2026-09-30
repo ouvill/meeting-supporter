@@ -170,7 +170,6 @@ class NativeMeetingLifecycleCoordinator(MeetingLifecycleCoordinator):
             case "prepare":
                 if not await self._stt_controller.apply_pending_audio_reload():
                     return "failed"
-                await self._reset_info_note_updater()
                 self._reset_reply_cancel_results()
             case "create_draft":
                 session = MeetingSession(
@@ -197,7 +196,6 @@ class NativeMeetingLifecycleCoordinator(MeetingLifecycleCoordinator):
                 return "ok" if await self._stt_controller.start_meeting(ws, session_already_started=True) else "failed"
             case "cancel_replies" | "cancel_final_replies":
                 _ = await self._cancel_replies()
-                await self._reset_info_note_updater()
             case "stop_speech":
                 await self._stt_controller.stop_meeting(require_complete=True, publish_state=False)
             case "finalize_recording":

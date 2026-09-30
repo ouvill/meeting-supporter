@@ -38,24 +38,6 @@ describe("meetingStore", () => {
     expect(s.levelOther).toBe(0);
   });
 
-  it("clears the info research state without replacing the note", () => {
-    const store = useMeetingStore.getState();
-    store.dispatch({
-      type: "session_info",
-      id: "session-info",
-      started_at: "2026-07-19T09:00:00.000Z",
-      is_active: true,
-    });
-    store.dispatch({ type: "ai_note_updated", text: "保持するメモ" });
-    store.dispatch({ type: "info_researching" });
-
-    store.dispatch({ type: "info_researching_finished" });
-
-    const state = useMeetingStore.getState();
-    expect(state.isResearchingInfo).toBe(false);
-    expect(state.session?.aiNote).toBe("保持するメモ");
-  });
-
   it("clears completed proposals at meeting end and when switching sessions", () => {
     const store = useMeetingStore.getState();
     store.dispatch({
@@ -532,7 +514,6 @@ describe("meetingStore", () => {
           model: null,
         },
       ],
-      info_enabled: true,
     });
 
     const s = useMeetingStore.getState();

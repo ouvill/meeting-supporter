@@ -39,7 +39,7 @@ flowchart TB
   subgraph Desktop[Desktop Rust process]
     Bridge --> Meeting[Meeting service]
     Meeting --> History[History / settings / keyring]
-    Meeting --> AI[Reply / info / minutes runtimes]
+    Meeting --> AI[Reply / minutes runtimes]
     Meeting --> Speech[SpeechSession / execution plan]
     Capture[Native capture] --> Audio[Audio processing]
     Audio --> Recording[Recording writer]
@@ -131,7 +131,7 @@ provider が無音を含む連続入力を要求する場合、既定ではロ�
 | Meeting service | 会議の遷移、会話、生成結果、保存状態、会議世代 | immutable snapshot、effect、UI 用の更新 |
 | Audio service | device handle、入力 sequence、録音分岐、適用済み音声設定 | sample 位置を持つ PCM と欠落通知 |
 | SpeechSession / supervisor / worker | 解決済み plan、session / worker 世代、必要なモデルと engine 内部状態、推論 queue | 世代・入力範囲・revision 付きの認識結果と話者情報 |
-| Reply / info / minutes service | 各 use-case の生成 job と cancellation | 結果・途中経過・usage |
+| Reply / minutes service | 各 use-case の生成 job と cancellation | 結果・途中経過・usage |
 | Storage writer | SQLite connection、書き込み順序、transaction | commit / failure の通知 |
 | UI adapter | 購読状態、公開用 DTO への変換 | snapshot と型付き event |
 
@@ -145,7 +145,7 @@ UI command は `request_id` と許可する入力だけを持ち、adapter が�
 
 非同期 job は必要な `meeting_id`、`meeting_epoch`、`operation_id`、`worker_epoch`、`config_revision` を開始時の snapshot として持つ。適用時に現在の世代と job の状態を照合する。Stop / Cancel を処理した時点で新しい副作用を禁止し、遅れて到着した文字起こしや LLM の完了を新しい会議へ反映しない。型だけでなく、この照合を共通の適用箇所で実施する。
 
-Live Reply、InfoNoteUpdater、MinutesGenerator は ADR-009 のとおり別の use-case とする。生成入力は不変の会議 snapshot とし、InfoNote の更新には基準 revision を含める。競合した更新を最新状態へ無条件に上書きしない。
+Live Reply と MinutesGenerator は ADR-009 のとおり別の use-case とする。生成入力は不変の会議 snapshot とする。情報 AI は機能から削除し、移植対象に含めない。
 
 キャンセルは結果の採用を止める操作であり、外部サービスの課金まで取り消せるという意味ではない。結果を破棄した job の usage は、判明した範囲で元の operation に帰属させる。ネットワーク再試行で LLM 生成を無条件に二重実行しない。重複した Start / Stop / Cancel は operation と状態から同じ結果へ収束させる。
 
@@ -493,7 +493,7 @@ Tauri から Rust ライブラリを直接利用する段階で、この中継�
 会議終了時は最終認識結果の保存タスクを join してから会議を完了する。
 保存結果が不明な場合は録音と未確定会議を保持し、UI の保存完了通知を抑止する。
 資料の取り込み・保存と録音の期限・容量による整理も Rust が処理します。
-通常画面の情報 AI・議事録などはまだ未接続であり、
+通常画面の議事録などはまだ未接続であり、
 既定の Python 経路は維持する。
 [起動手順・対応範囲](../development/rust-desktop-backend.md)に現在の制約を記載する。
 
@@ -518,4 +518,4 @@ rig の型を会議ドメインや画面との契約へ持ち込まず、失敗�
 
 OpenAI・Gemini・Anthropic・Ollama の返答経路を先行して接続する。
 Codex app-server と ACP のプロセス実行は別 adapter とし、モデル API として代用しない。
-情報 AI と議事録は既存の責務を保って後続で移植する。機能の統合・新設はこの変更に含めない。
+議事録は既存の責務を保って後続で移植する。情報 AI は機能から削除する。

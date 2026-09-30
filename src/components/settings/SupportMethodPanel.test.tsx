@@ -48,7 +48,7 @@ function renderPanel(
   const onRouteAction = vi.fn();
   const assignments: AiRouteDraftAssignments = {
     reply: null,
-    info: null,
+
     minutes: null,
     ...assignmentOverrides,
   };
@@ -167,36 +167,39 @@ describe("SupportMethodPanel", () => {
     ).toBe(true);
   });
 
-  it("assigns and clears three supported use cases independently on one route card", () => {
+  it("assigns and clears reply and minutes independently without an info option", () => {
     const { onAssignmentChange } = renderPanel(
       [
         route({
-          capabilities: ["reply", "info", "minutes", "stream", "cancel"],
+          capabilities: ["reply", "minutes", "stream", "cancel"],
         }),
       ],
-      { reply: "codex", info: "codex" },
+      { reply: "codex", minutes: null },
     );
 
     const reply = screen.getByRole("button", { name: "返答案" });
-    const info = screen.getByRole("button", { name: "会話メモ" });
     const minutes = screen.getByRole("button", { name: "要約・議事録" });
     expect(reply).toHaveAttribute("aria-pressed", "true");
-    expect(info).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.queryByRole("button", { name: "会話メモ" }),
+    ).not.toBeInTheDocument();
     expect(minutes).toHaveAttribute("aria-pressed", "false");
-    expect(screen.queryByRole("button", { name: "stream" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "cancel" })).not.toBeInTheDocument();
-    expect(document.querySelectorAll('[data-route-id="codex"]')).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", { name: "stream" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "cancel" }),
+    ).not.toBeInTheDocument();
+    expect(document.querySelectorAll('[data-route-id="codex"]')).toHaveLength(
+      1,
+    );
     expect(screen.getAllByText("処理場所")).toHaveLength(1);
 
     fireEvent.click(reply);
     fireEvent.click(minutes);
 
     expect(onAssignmentChange).toHaveBeenNthCalledWith(1, "reply", null);
-    expect(onAssignmentChange).toHaveBeenNthCalledWith(
-      2,
-      "minutes",
-      "codex",
-    );
+    expect(onAssignmentChange).toHaveBeenNthCalledWith(2, "minutes", "codex");
   });
 
   it("displays processing location and billing responsibility on each route card", () => {
@@ -346,7 +349,9 @@ describe("SupportMethodPanel", () => {
 
     expect(screen.getByText("Unknown API")).toBeInTheDocument();
     expect(screen.queryByLabelText(/Unknown.*APIキー/)).not.toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: /API接続/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /API接続/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("allows assigning a BYOK route before its credential is configured", () => {

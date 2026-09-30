@@ -5,7 +5,7 @@ import queue
 from collections.abc import AsyncIterator, Callable, Coroutine, Iterable, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Never, Protocol, Self, final, runtime_checkable
+from typing import TYPE_CHECKING, Never, Protocol, final, runtime_checkable
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -51,13 +51,6 @@ class StreamLike(Protocol):
 
 class AgentLike(Protocol):
     def run_stream(self, user_prompt: str) -> AbstractAsyncContextManager[StreamLike]: ...
-
-
-class LifecycledAgentLike(AgentLike, Protocol):
-    """AgentLike with async context-manager semantics for MCP toolset init."""
-
-    async def __aenter__(self) -> Self: ...
-    async def __aexit__(self, *exc_info: object) -> bool | None: ...
 
 
 class ConversationState(Protocol):
@@ -193,7 +186,6 @@ __all__ = [
     "AgentLike",
     "AudioPipelineLike",
     "ConversationState",
-    "LifecycledAgentLike",
     "MeetingSessionLike",
     "SecretRollbackError",
     "SecretSnapshotError",

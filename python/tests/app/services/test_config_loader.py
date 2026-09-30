@@ -16,7 +16,6 @@ from app.services.settings_store import SettingsStore
 _LEGACY_AGENT_SETTINGS: AgentSettings = {
     "reply_enabled": True,
     "reply_auto_generate": False,
-    "info_enabled": True,
 }
 
 
@@ -29,7 +28,7 @@ class ParseReplyAgentDefinitionsTest(unittest.TestCase):
         config: TomlTable = cast(
             TomlTable,
             {
-                "agents": {"info_enabled": False},
+                "agents": {},
                 "reply": {
                     "enabled": False,
                     "auto_generate": True,
@@ -49,7 +48,7 @@ class ParseReplyAgentDefinitionsTest(unittest.TestCase):
         loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
 
         self.assertEqual(
-            {"reply_enabled": False, "reply_auto_generate": True, "info_enabled": False},
+            {"reply_enabled": False, "reply_auto_generate": True},
             loader.agent_settings,
         )
         self.assertEqual(1, len(loader.reply_agent_definitions))
@@ -261,11 +260,27 @@ class FromSettingsStoreSttTest(unittest.TestCase):
 class AiRouteConfigurationTest(unittest.TestCase):
     """Schema-v2 AI configuration is strict so stale model strings cannot select a runtime."""
 
+    def test_retired_info_settings_are_ignored_without_changing_reply_or_minutes(self) -> None:
+        config = _toml_table(
+            agents={"info_enabled": True},
+            ai={
+                "schema_version": 2,
+                "assignments": {"reply": "ollama", "info": "retired-route", "minutes": "codex"},
+            },
+            reply={"enabled": False, "auto_generate": True},
+        )
+
+        loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
+
+        self.assertEqual("ollama", loader.ai_assignments.reply)
+        self.assertEqual("codex", loader.ai_assignments.minutes)
+        self.assertEqual({"reply_enabled": False, "reply_auto_generate": True}, loader.agent_settings)
+
     def test_schema_v2_keeps_nullable_assignments_and_acp_runtime_config_separate(self) -> None:
         config = _toml_table(
             ai={
                 "schema_version": 2,
-                "assignments": {"reply": "acp", "info": None, "minutes": "openai"},
+                "assignments": {"reply": "acp", "minutes": "openai"},
                 "routes": {
                     "acp": {"command": ["agent-command", "--stdio"], "env": {"ACP_TOKEN": "secret-ref"}},
                     "openai": {"model": "gpt-test"},
@@ -276,7 +291,6 @@ class AiRouteConfigurationTest(unittest.TestCase):
         loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
 
         self.assertEqual("acp", loader.ai_assignments.reply)
-        self.assertIsNone(loader.ai_assignments.info)
         self.assertEqual("openai", loader.ai_assignments.minutes)
         acp = next(route for route in loader.routes if route.id == "acp")
         self.assertEqual(["agent-command", "--stdio"], acp.command)
@@ -308,20 +322,6 @@ class AiRouteConfigurationTest(unittest.TestCase):
         loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
 
         self.assertEqual("codex", loader.ai_assignments.minutes)
-
-    def test_codex_route_can_be_explicitly_configured_for_info(self) -> None:
-        config = _toml_table(ai={"schema_version": 2, "assignments": {"info": "codex"}})
-
-        loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
-
-        self.assertEqual("codex", loader.ai_assignments.info)
-
-    def test_managed_and_acp_routes_remain_unsupported_for_info(self) -> None:
-        for route_id in ("managed", "acp"):
-            with self.subTest(route_id=route_id):
-                config = _toml_table(ai={"schema_version": 2, "assignments": {"info": route_id}})
-                with self.assertRaises(UnsupportedAiConfigError):
-                    _ = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
 
     def test_runtime_command_under_a_provider_is_rejected(self) -> None:
         config = _toml_table(

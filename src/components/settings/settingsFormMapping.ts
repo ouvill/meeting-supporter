@@ -1,5 +1,4 @@
 import type {
-  AgentSettingsPayload,
   ReplyStyleEnabledPatch,
   SecretsPayload,
   SettingsResponse,
@@ -59,7 +58,6 @@ export const INITIAL_SETTINGS_FORM: SettingsForm = {
   replyFeatureEnabled: true,
   replyAutoGenerate: false,
   replyStyles: DEFAULT_REPLY_STYLES,
-  infoFeatureEnabled: true,
   usageMeetingLimitJpy: 0,
   usageMonthlyLimitJpy: 0,
   dataDir: "",
@@ -131,7 +129,6 @@ export function mapSettingsResponseToForm(
     replyFeatureEnabled: settings.reply?.enabled ?? true,
     replyAutoGenerate: settings.reply?.auto_generate ?? false,
     replyStyles,
-    infoFeatureEnabled: settings.agents.info_enabled ?? true,
     usageMeetingLimitJpy: settings.usage?.budget?.meeting_limit_jpy ?? 0,
     usageMonthlyLimitJpy: settings.usage?.budget?.monthly_limit_jpy ?? 0,
     dataDir: settings.data_dir ?? "",
@@ -158,16 +155,12 @@ export function mapSettingsFormToPayload(
           enabled: index === 0,
         }))
       : form.replyStyles;
-  const agents: AgentSettingsPayload = {
-    info_enabled: form.infoFeatureEnabled,
-  };
 
   return {
     ...(Object.keys(secrets).length ? { secrets } : {}),
     ...(pendingDeleteSecrets.length
       ? { delete_secrets: pendingDeleteSecrets }
       : {}),
-    agents,
     reply: {
       enabled: form.replyFeatureEnabled,
       auto_generate: form.replyAutoGenerate,
