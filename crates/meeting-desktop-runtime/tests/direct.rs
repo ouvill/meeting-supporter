@@ -24,6 +24,7 @@ fn config(temp: &tempfile::TempDir, model: &str) -> Config {
         std::fs::write(model.join(name), "synthetic model marker").unwrap();
     }
     Config {
+        agent_updates: false,
         data_dir: temp.path().join("data"),
         audio_worker: env!("CARGO_BIN_EXE_synthetic-worker").into(),
         speech_worker: env!("CARGO_BIN_EXE_synthetic-worker").into(),
@@ -1665,4 +1666,312 @@ async fn stopping_detaches_both_inputs_before_parallel_inference_drain() {
     );
     drop(ws);
     server.shutdown().await.unwrap();
+}
+
+async fn agent_request(server: &Server, method: &str, path: &str, value: Value) -> (u16, Value) {
+    let body = value.to_string();
+    let extra = format!(
+        "Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+        body.len(),
+        body
+    );
+    let (status, body) = http(server, method, path, &extra).await;
+    (status, serde_json::from_slice(&body).unwrap())
+}
+fn acp_config(temp: &tempfile::TempDir) -> (Config, std::path::PathBuf) {
+    let config = config(temp, "model");
+    let root = config.data_dir.join("agents");
+    let installed = root.join("synthetic-1");
+    std::fs::create_dir_all(&installed).unwrap();
+    std::fs::copy(env!("CARGO_BIN_EXE_synthetic-acp"), installed.join("agent")).unwrap();
+    let marker = temp.path().join("process-events");
+    let entry = json!({"id":"synthetic","name":"Synthetic Agent","version":"1.0.0","description":"Synthetic fixture","authors":[],"license":"MIT","distribution":{"binary":{},"npx":null,"uvx":null}});
+    std::fs::write(root.join("installed.json"), json!({"synthetic":{"entry":entry,"directory":"synthetic-1","executable":"agent","args":[marker],"env":{},"node":false}}).to_string()).unwrap();
+    std::fs::write(config.data_dir.join("config.toml"), "[reply]\nenabled = true\nauto_generate = false\n[[reply.styles]]\nid = 'standard'\nlabel = '標準'\nenabled = true\npriority = 1\ninstruction = '合成テスト'\n").unwrap();
+    (config, marker)
+}
+
+#[tokio::test]
+async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
+    let temp = tempfile::tempdir().unwrap();
+    let (config, marker) = acp_config(&temp);
+    let server = Server::start(config).await.unwrap();
+    let (status, updates) =
+        agent_request(&server, "POST", "/api/ai/agents/update-all", json!({})).await;
+    assert_eq!(status, 200);
+    assert_eq!(updates["results"], json!([]));
+    let (status, body) = agent_request(
+        &server,
+        "POST",
+        "/api/ai/agents/synthetic/connect",
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["ready"], false);
+    assert_eq!(body["auth_methods"][0]["id"], "synthetic-login");
+    assert!(!body.to_string().contains("synthetic secret"));
+    assert_eq!(
+        agent_request(
+            &server,
+            "PUT",
+            "/api/ai/routes/assignments",
+            json!({"reply":"acp:synthetic","minutes":null})
+        )
+        .await
+        .0,
+        422
+    );
+    let (status, body) = agent_request(
+        &server,
+        "POST",
+        "/api/ai/agents/synthetic/connect",
+        json!({"method":"synthetic-login"}),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["ready"], true);
+    assert_eq!(
+        agent_request(
+            &server,
+            "PUT",
+            "/api/ai/routes/assignments",
+            json!({"reply":"acp:synthetic","minutes":null})
+        )
+        .await
+        .0,
+        200
+    );
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    assert_eq!(
+        agent_request(&server, "POST", "/api/ai/agents/update-all", json!({}))
+            .await
+            .0,
+        409
+    );
+    assert_eq!(
+        http(&server, "GET", "/api/ai/agents?refresh=true", "")
+            .await
+            .0,
+        409
+    );
+    assert_eq!(
+        agent_request(
+            &server,
+            "POST",
+            "/api/ai/agents/synthetic/install",
+            json!({})
+        )
+        .await
+        .0,
+        409
+    );
+    assert_eq!(
+        http(&server, "DELETE", "/api/ai/agents/synthetic", "")
+            .await
+            .0,
+        409
+    );
+    let target = manual_target(&mut ws).await;
+    for generation in ["first", "second"] {
+        send(&mut ws, json!({"type":"generate_reply","generation_id":generation,"target_utterance_id":target})).await;
+        let chunk = until(&mut ws, |v| {
+            v["type"] == "reply_chunk" && v["final"] == false
+        })
+        .await;
+        assert_eq!(chunk["text"], "合成の返答です。");
+        until(&mut ws, |v| {
+            v["type"] == "reply_chunk" && v["final"] == true
+        })
+        .await;
+    }
+    send(&mut ws, json!({"type":"stop_meeting"})).await;
+    until(&mut ws, |v| {
+        v["type"] == "meeting_state" && v["running"] == false
+    })
+    .await;
+    let suggestions = saved_suggestions(&server).await;
+    assert_eq!(suggestions.len(), 2);
+    assert!(suggestions.iter().all(|s| s["text"] == "合成の返答です。"));
+    let (_, usage) = http(&server, "GET", "/api/settings", "").await;
+    let usage: Value = serde_json::from_slice(&usage).unwrap();
+    assert_eq!(usage["usage"]["current_month"]["incomplete_requests"], 2);
+    let events = std::fs::read_to_string(marker).unwrap();
+    assert_eq!(events.lines().filter(|l| *l == "start").count(), 1);
+    assert_eq!(events.lines().filter(|l| *l == "session").count(), 2);
+    assert_eq!(
+        http(&server, "DELETE", "/api/ai/agents/synthetic", "")
+            .await
+            .0,
+        409
+    );
+    assert_eq!(
+        agent_request(
+            &server,
+            "PUT",
+            "/api/ai/routes/assignments",
+            json!({"reply":null,"minutes":null})
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(
+        http(&server, "DELETE", "/api/ai/agents/synthetic", "")
+            .await
+            .0,
+        200
+    );
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn acp_reauthentication_replaces_idle_session_and_failed_auth_stays_unready() {
+    let temp = tempfile::tempdir().unwrap();
+    let (config, marker) = acp_config(&temp);
+    let server = Server::start(config).await.unwrap();
+    for (method, ready) in [
+        (Some("synthetic-login"), true),
+        (Some("synthetic-alternate"), true),
+        (Some("synthetic-denied"), false),
+        (None, false),
+        (Some("synthetic-login"), true),
+    ] {
+        let (status, body) = agent_request(
+            &server,
+            "POST",
+            "/api/ai/agents/synthetic/connect",
+            method.map_or_else(|| json!({}), |method| json!({"method":method})),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(body["ready"], ready);
+        assert_eq!(body["auth_methods"].as_array().unwrap().len(), 3);
+    }
+    let events = std::fs::read_to_string(marker).unwrap();
+    assert_eq!(
+        events.lines().collect::<Vec<_>>(),
+        vec![
+            "start",
+            "auth:primary",
+            "session",
+            "close",
+            "auth:alternate",
+            "session",
+            "close",
+            "auth:denied",
+            "auth:primary",
+            "session",
+        ]
+    );
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn acp_cancel_discards_partial_reply_and_keeps_recording_functional() {
+    let temp = tempfile::tempdir().unwrap();
+    let (config, _) = acp_config(&temp);
+    let server = Server::start(config).await.unwrap();
+    agent_request(
+        &server,
+        "POST",
+        "/api/ai/agents/synthetic/connect",
+        json!({"method":"synthetic-login"}),
+    )
+    .await;
+    assert_eq!(
+        agent_request(
+            &server,
+            "PUT",
+            "/api/ai/routes/assignments",
+            json!({"reply":"acp:synthetic","minutes":null})
+        )
+        .await
+        .0,
+        200
+    );
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    send(
+        &mut ws,
+        json!({"type":"manual_speech","text":"SLOW synthetic"}),
+    )
+    .await;
+    let target = until(&mut ws, |v| v["type"] == "stt_final").await["utterance_id"].clone();
+    send(
+        &mut ws,
+        json!({"type":"generate_reply","generation_id":"cancel-acp","target_utterance_id":target}),
+    )
+    .await;
+    until(&mut ws, |v| v["type"] == "reply_chunk").await;
+    send(
+        &mut ws,
+        json!({"type":"cancel_reply","generation_id":"cancel-acp","target_utterance_id":target}),
+    )
+    .await;
+    assert_eq!(
+        until(&mut ws, |v| v["type"] == "reply_cancel_result").await["status"],
+        "applied"
+    );
+    send(&mut ws, json!({"type":"stop_meeting"})).await;
+    until(&mut ws, |v| {
+        v["type"] == "meeting_state" && v["running"] == false
+    })
+    .await;
+    assert!(saved_suggestions(&server).await.is_empty());
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn acp_errors_permissions_and_truncated_turns_are_not_saved() {
+    for scenario in ["FAIL", "TOOL", "TRUNCATED"] {
+        let temp = tempfile::tempdir().unwrap();
+        let (config, _) = acp_config(&temp);
+        let server = Server::start(config).await.unwrap();
+        assert_eq!(
+            agent_request(
+                &server,
+                "POST",
+                "/api/ai/agents/synthetic/connect",
+                json!({"method":"synthetic-login"})
+            )
+            .await
+            .0,
+            200
+        );
+        assert_eq!(
+            agent_request(
+                &server,
+                "PUT",
+                "/api/ai/routes/assignments",
+                json!({"reply":"acp:synthetic","minutes":null})
+            )
+            .await
+            .0,
+            200
+        );
+        let mut ws = connect(&server).await;
+        start(&mut ws).await;
+        send(&mut ws, json!({"type":"manual_speech","text":scenario})).await;
+        let target = until(&mut ws, |v| v["type"] == "stt_final").await["utterance_id"].clone();
+        send(&mut ws, json!({"type":"generate_reply","generation_id":"failed-acp","target_utterance_id":target})).await;
+        let error = until(&mut ws, |v| v["type"] == "suggestion_error").await;
+        assert!(!error.to_string().contains("synthetic secret"));
+        if scenario == "TOOL" {
+            assert!(error["text"].as_str().unwrap().contains("外部操作"));
+        }
+        send(&mut ws, json!({"type":"stop_meeting"})).await;
+        assert_eq!(
+            until(&mut ws, |v| v["type"] == "meeting_state"
+                && v["running"] == false)
+            .await["saved"],
+            true
+        );
+        assert!(saved_suggestions(&server).await.is_empty());
+        drop(ws);
+        server.shutdown().await.unwrap();
+    }
 }

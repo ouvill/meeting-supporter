@@ -2,6 +2,7 @@ use crate::{
     runtime::{Runtime, Shared},
     wire, Config, Error,
 };
+mod agents;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -39,6 +40,7 @@ pub struct Server {
     stop: watch::Sender<bool>,
     task: tokio::task::JoinHandle<std::io::Result<()>>,
     alive: Arc<AtomicBool>,
+    agent_updates: Option<tokio::task::JoinHandle<()>>,
 }
 impl Server {
     pub async fn start(config: Config) -> Result<Self, Error> {
@@ -64,9 +66,14 @@ impl Server {
             cleanup_preview: Arc::new(Mutex::new(None)),
             stopping: stopping.clone(),
         };
-        let router = router(api);
+        let router = router(api.clone());
         let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
         let port = listener.local_addr()?.port();
+        let agent_updates = api
+            .shared
+            .config
+            .agent_updates
+            .then(|| tokio::spawn(agents::background(api)));
         let alive = Arc::new(AtomicBool::new(true));
         let running = alive.clone();
         let task = tokio::spawn(async move {
@@ -86,6 +93,7 @@ impl Server {
             stop,
             task,
             alive,
+            agent_updates,
         })
     }
     pub fn is_running(&self) -> bool {
@@ -93,6 +101,9 @@ impl Server {
     }
     pub async fn shutdown(self) -> Result<(), Error> {
         let _ = self.stop.send(true);
+        if let Some(task) = self.agent_updates {
+            let _ = task.await;
+        }
         let result = self.runtime.lock().await.shutdown().await;
         self.task.await.map_err(|_| Error::Closed)??;
         result
@@ -133,6 +144,20 @@ fn router(api: Api) -> Router {
         .route("/meetings/{id}/recordings", get(recordings))
         .route("/meetings/{id}/recordings/{role}", get(recording))
         .route("/api/ai/routes", get(ai_routes))
+        .route("/api/ai/agents", get(agents::catalog))
+        .route(
+            "/api/ai/agents/update-all",
+            axum::routing::post(agents::update_all),
+        )
+        .route(
+            "/api/ai/agents/{id}/install",
+            axum::routing::post(agents::install),
+        )
+        .route(
+            "/api/ai/agents/{id}/connect",
+            axum::routing::post(agents::connect),
+        )
+        .route("/api/ai/agents/{id}", axum::routing::delete(agents::remove))
         .route(
             "/api/ai/routes/assignments",
             axum::routing::put(ai_assignments),
@@ -287,6 +312,8 @@ impl From<Error> for ApiError {
                 StatusCode::UNPROCESSABLE_ENTITY
             }
             Error::Ai(crate::ai::AiError::Busy) => StatusCode::CONFLICT,
+            Error::Busy | Error::Agent(crate::agents::AgentError::Busy) => StatusCode::CONFLICT,
+            Error::Agent(_) => StatusCode::UNPROCESSABLE_ENTITY,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         Self(status, error.to_string().into())
@@ -609,7 +636,21 @@ fn model_error(error: crate::models::ModelError) -> ApiError {
 
 async fn ai_routes(State(api): State<Api>) -> Reply {
     let store = api.shared.settings.lock().await.clone();
-    Ok(Json(crate::ai::routes::catalog(store).await?))
+    // Warm the previously selected agent on startup without prompting the model.
+    if let Some(id) = crate::ai::routes::assignments(&store)?
+        .reply
+        .and_then(|id| id.strip_prefix("acp:").map(str::to_owned))
+    {
+        if !api.shared.live.lock().await.running && !api.shared.agents.pool.status(&id).await.ready
+        {
+            if let Ok(_guard) = api.shared.agents.maintenance.try_lock() {
+                let _ = api.shared.agents.connect(&id, None).await;
+            }
+        }
+    }
+    Ok(Json(
+        crate::ai::routes::catalog(store, &api.shared.agents).await?,
+    ))
 }
 async fn ai_assignments(
     State(api): State<Api>,
@@ -631,7 +672,12 @@ async fn ai_assignments(
         ));
     }
     if let Some(id) = &body.reply {
-        if !matches!(id.as_str(), "openai" | "gemini" | "anthropic" | "ollama") {
+        if let Some(agent) = id.strip_prefix("acp:") {
+            api.shared.agents.launch(agent).await.map_err(Error::from)?;
+            if !api.shared.agents.pool.status(agent).await.ready {
+                return Err(Error::Agent(crate::agents::AgentError::Connect).into());
+            }
+        } else if !matches!(id.as_str(), "openai" | "gemini" | "anthropic" | "ollama") {
             return Err(ApiError(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "このAI経路はまだ選択できません。".into(),
@@ -649,7 +695,7 @@ async fn ai_assignments(
     let mut store = guard.clone();
     let selected = body.reply;
     let saved = tokio::task::spawn_blocking(move || {
-        if let Some(id) = selected {
+        if let Some(id) = selected.filter(|id| !id.starts_with("acp:")) {
             if let Err(Error::Ai(crate::ai::AiError::Unsupported)) =
                 crate::ai::routes::resolve(&store, &id)
             {
@@ -669,7 +715,9 @@ async fn ai_assignments(
         .await
         .cancel_all(&api.shared)
         .await;
-    Ok(Json(crate::ai::routes::catalog(saved).await?))
+    Ok(Json(
+        crate::ai::routes::catalog(saved, &api.shared.agents).await?,
+    ))
 }
 #[derive(Deserialize)]
 struct OllamaQuery {

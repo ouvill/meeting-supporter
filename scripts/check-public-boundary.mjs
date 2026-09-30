@@ -64,6 +64,7 @@ const ALLOWED_DOCS = new Set([
   "doc/adr/013-contextual-api-credential-controls.md",
   "doc/adr/015-localized-ui-message-contract.md",
   "doc/adr/016-rust-runtime-and-ownership-boundaries.md",
+  "doc/adr/017-acp-registry-and-shared-rust-client.md",
 ]);
 
 const PATH_RULES = [

@@ -13,6 +13,7 @@
 - 資料の保存・返答への反映、前提資料フォルダの再読み込み。DOCX は共通 Python worker の MarkItDown に委譲します。
 - 終了済み会議の期限・容量による削除対象確認と明示的な削除実行。
 - Hugging Face 共有キャッシュを使う ReazonSpeech / Whisper のモデル取得・検証・キャンセル。Whisper.cpp Q8 推論を専用 worker で実行します。
+- ACP Registry の更新確認・個別および一括更新・配布版を上限とした npm 導入と、公式 ACP SDK による認証・返答生成・接続の再利用。
 - rig によるモデル API 接続と既存の返答生成・停止・保存。生成 ID と会議 ID により遅延した結果を分離します。
 
 会議の変更操作は直列化します。音声結果の受信・保存は別タスクで継続し、
@@ -43,6 +44,13 @@ cargo clippy --locked --manifest-path crates/meeting-desktop-runtime/Cargo.toml 
 ローカルの模擬 AI サーバーを使い、rig の各 provider の通信契約、返答の部分表示と保存、
 停止・会議終了・途中切断、重複要求、複数スタイル、自動生成、経路設定の保存も検証します。
 実 API キーや外部への推論リクエストは使用しません。
+ACP は合成エージェントで認証・生成・中断・permission 拒否・未知の費用を検証します。
+更新確認の延期・中断、確認間隔の永続化、導入可能な更新だけの通知、失敗時の旧版保持と一括更新の部分失敗も検証します。
+テスト構成では `Config.agent_updates = false` とし、実 Registry や利用者の npm 設定を自動参照しません。
+公開 Registry のメタデータ互換性だけを確認するテストは `public_registry_metadata -- --ignored` で明示実行できます。
+npm の公開後待機設定を維持した旧版の導入、version の上限、導入可能な版がない場合の表示は、Node.js と npm 12 以上がある環境で
+`npm_release_age_with_synthetic_registry -- --ignored` を指定して検証できます。
+このテストは一時設定とローカルの模擬 Registry のみを使用します。
 
 資料の DOCX 解析・サイズ制限・保存と返答への反映、前提資料の再読み込み、
 削除対象の変化・UTC 境界・部分失敗・シンボリックリンクの拒否も一時データで検証します。

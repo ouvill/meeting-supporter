@@ -1,4 +1,5 @@
 //! In-process application composition with optional on-demand Python-only operations.
+mod agents;
 mod ai;
 mod api;
 mod cleanup;
@@ -16,6 +17,7 @@ use thiserror::Error;
 
 #[derive(Clone)]
 pub struct Config {
+    pub agent_updates: bool,
     pub data_dir: PathBuf,
     pub audio_worker: PathBuf,
     pub speech_worker: PathBuf,
@@ -28,6 +30,8 @@ pub struct Config {
 }
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error(transparent)]
+    Agent(#[from] agents::AgentError),
     #[error(transparent)]
     Model(#[from] models::ModelError),
     #[error("資料は10件まで、1件10 MiB・合計20 MiB以内で追加してください。")]

@@ -220,7 +220,7 @@ impl Store {
             "acp":{"command":document.pointer("/ai/routes/acp/command").cloned().unwrap_or(json!([])),"runtime":"acp","capabilities":["reply"]},
             "reply":{"enabled":document["reply"]["enabled"],"auto_generate":document["reply"]["auto_generate"],"default_style":document["reply"]["default_style"],"styles":styles},
             "secrets":secrets,"providers":[],"data_dir":self.directory,"context_dir":context,
-            "usage":{"budget":{"meeting_limit_jpy":document["usage_budget"]["meeting_limit_jpy"],"monthly_limit_jpy":document["usage_budget"]["monthly_limit_jpy"]},"current_meeting":{"input_tokens":0,"output_tokens":0,"estimated_cost_jpy":0.0,"request_count":0},"current_month":crate::usage::month(&self.directory.join("usage.jsonl"))?,"billing_mode": match self.document.pointer("/ai/assignments/reply").and_then(Value::as_str) { Some("ollama")=>"local", Some("openai"|"gemini"|"anthropic")=>"byok", _=>"unassigned" }},
+            "usage":{"budget":{"meeting_limit_jpy":document["usage_budget"]["meeting_limit_jpy"],"monthly_limit_jpy":document["usage_budget"]["monthly_limit_jpy"]},"current_meeting":{"input_tokens":0,"output_tokens":0,"estimated_cost_jpy":0.0,"request_count":0},"current_month":crate::usage::month(&self.directory.join("usage.jsonl"))?,"billing_mode": match self.document.pointer("/ai/assignments/reply").and_then(Value::as_str) { Some(id) if id.starts_with("acp:")=>"unknown", Some("ollama")=>"local", Some("openai"|"gemini"|"anthropic")=>"byok", _=>"unassigned" }},
             "recording_retention":{"cutoff_date":document["recording_retention"]["cutoff_date"],"max_total_bytes":document["recording_retention"]["max_total_bytes"].as_u64().filter(|v| *v>0)}
         }))
     }
@@ -673,6 +673,7 @@ mod tests {
             "[reply]\ndefault_style = 'custom'\n[[reply.styles]]\nid = 'custom'\ninstruction = 'synthetic instruction'\n").unwrap();
         let mut store = Store::open(
             &Config {
+                agent_updates: false,
                 data_dir: temp.path().into(),
                 audio_worker: PathBuf::new(),
                 speech_worker: PathBuf::new(),

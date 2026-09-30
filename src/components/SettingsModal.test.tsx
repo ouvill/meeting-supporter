@@ -24,6 +24,10 @@ const sdkMocks = vi.hoisted(() => ({
   cancelSpeechDownload: vi.fn(),
   getOllamaModels: vi.fn(),
 }));
+vi.mock("./settings/AgentRegistryPanel", () => ({
+  AgentRegistryPanel: () => null,
+}));
+
 vi.mock("../api/generated/sdk.gen", () => ({
   getSettingsApiSettingsGet: sdkMocks.getSettings,
   saveSettingsApiSettingsPost: sdkMocks.saveSettings,

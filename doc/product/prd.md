@@ -80,6 +80,10 @@ readiness は availability と分ける。`ready`、`setup_required`、`unavaila
 | このPCで処理            | Ollama等のlocal inference                      | `available`  | service停止は`unavailable`、model未導入は`setup_required` |      **true** | localまたは指定endpoint | 利用者           | 一般設定にOllamaなどのservice名とroute cardを表示してよい。endpointとmodelの編集はAdvancedに置き、loopback以外はlocalと断定しない。                                                                                    |
 | Hosted service          | 通常のOSS buildでは未設定                      | `planned`    | `not_offered`                                             |     **false** | 未設定                  | 未設定           | server実装と運用文書はこのリポジトリに含まれない。                                                                                                                                                                    |
 
+Rust 構成の外部エージェント接続は [ADR-017](../adr/017-acp-registry-and-shared-rust-client.md) に従い、ACP Registry で導入した経路を共通 client で扱う。
+上表の Codex direct と手動 command の ACP は Python 構成に適用する。
+Registry 経路も experimental とし、認証・session 作成で ready を確認する。料金とデータ送信先はエージェント名から推測しない。
+
 ### Route read model
 
 利用経路の読み取りモデルは次のフィールドを一つの単位として返す。

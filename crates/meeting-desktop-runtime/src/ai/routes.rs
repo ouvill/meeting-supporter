@@ -136,7 +136,7 @@ fn local_url(url: &str) -> bool {
                     .is_ok_and(|ip| ip.is_loopback())
         })
 }
-pub(crate) async fn catalog(store: Store) -> Result<Value, Error> {
+pub(crate) async fn catalog(store: Store, agents: &crate::agents::Manager) -> Result<Value, Error> {
     let assigned = assignments(&store)?;
     let resolved = tokio::task::spawn_blocking(move || {
         [
@@ -230,6 +230,7 @@ pub(crate) async fn catalog(store: Store) -> Result<Value, Error> {
             "message": "この経路はRust構成ではまだ利用できません。", "action": "none",
         }));
     }
+    rows.extend(agents.routes(assigned.reply.as_deref()).await);
     Ok(json!({"routes":rows,"assignments":assigned}))
 }
 pub(crate) async fn ollama_models(base_url: &str) -> Result<Vec<String>, AiError> {

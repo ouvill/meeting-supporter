@@ -203,7 +203,17 @@ mainのnative closeはアプリを終了する。minimize、maximize、restore�
 
 ### Required route copy
 
-#### Codex direct
+#### Rust 構成の Registry エージェント
+
+「支援方法」に検索・追加・認証・更新・削除をまとめ、会議中は変更を無効にする。
+自動確認で導入可能な更新が見つかった場合は、この設定内に件数と「まとめて更新」を表示する。個別更新と手動確認も残し、会話画面には更新通知を出さない。
+公開後待機設定で導入できない版は更新対象に含めない。更新に失敗した場合は旧版を保持し、対象ごとの結果を設定内で示す。
+導入は明示操作で行い、接続済みのエージェントを返答案に割り当てて保存する。
+未対応の配布形式や未認証の状態を利用可能と表示しない。画面に command や protocol payload を出さない。
+既存の Codex direct と手動 command の ACP は Python 構成で維持する。
+境界は [ADR-017](../adr/017-acp-registry-and-shared-rust-client.md) を参照する。
+
+#### Codex direct（Python 構成）
 
 - Label: `このPCのChatGPTログイン`
 - Badge: `試験提供`
@@ -214,7 +224,7 @@ mainのnative closeはアプリを終了する。minimize、maximize、restore�
 
 version番号やApp Serverという語は診断詳細/Advancedにのみ表示する。アプリ内ではCodex CLIのインストールを実行せず、公式の案内ページを開く。インストール・更新後はアプリの再起動を案内する。
 
-#### Generic ACP
+#### Generic ACP（Python 構成）
 
 - 一般向けの`AIの使い方`にACPのroute card、試験提供badge、readinessを表示してよい。
 - command、capability、接続診断は`上級者向け設定`でのみ表示・編集する。

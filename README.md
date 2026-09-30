@@ -59,6 +59,11 @@ OpenAI、Grok / xAI、Deepgramは「音声」の「聞き取り方法」から�
 
 ### Experimental
 
+Rust 構成では、設定の「支援方法」から ACP Registry のエージェントを追加・認証し、返答案へ割り当てられます。
+Codex、Claude、Antigravity を共通の ACP client で扱います。配布形式の条件と未検証事項は
+[Rust バックエンドの直接接続](doc/development/rust-desktop-backend.md#acp-エージェント)を参照してください。
+以下の直接接続と手動 command 設定は、従来の Python 構成についての説明です。
+
 - **Codex App Server直接経路**: 利用者環境の公式`codex`とChatGPT loginを使うAPIキー不要の試験提供経路です。generic ACPとは別の専用runtimeとして扱います。`codex-cli 0.144.0`を最低版とし、それ以降の安定版は起動時のprotocol検証を通れば利用できます。0.144.0 / 0.144.1はschema互換性を追跡する基準版で、未検証の新版は警告を表示します。利用者環境での実Codex turnとdesktop E2Eは未検証であり、一般提供済みとはみなしません。
 - **Generic ACP経路**: 上級者向け設定だけで構成する別のexperimental runtimeです。Codex App Server経路のtransportとしては使わず、一般向けのCodex cardにACPを混在させません。
 

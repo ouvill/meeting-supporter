@@ -181,6 +181,7 @@ export function SettingsModal({
                 />
               ) : activeCategory === "support" ? (
                 <SupportMethodPanel
+                  agentsLocked={audioSettingsLocked}
                   routes={routes.routes}
                   lockedConnectionProviders={lockedConnectionProviders}
                   managedRouteActionsLocked={

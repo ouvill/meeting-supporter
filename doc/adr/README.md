@@ -10,11 +10,12 @@ ADRは、architecture boundary、protocol、永続schema、security/privacy/dist
 | [ADR-002](./002-stt-pipeline-architecture.md) | Accepted | STT pipeline architecture |
 | [ADR-003](./003-meeting-recording-history-architecture.md) | Accepted | meeting recording/history architecture |
 | [ADR-009](./009-live-reply-llm-usecase-runtime-provider-architecture.md) | Accepted | use-case / runtime / provider-model / config-secret boundary |
-| [ADR-010](./010-ai-route-strategy.md) | Accepted | route strategy、Codex direct、generic ACP、hosted fail-closed、distribution gate |
-| [ADR-011](./011-general-route-card-visibility.md) | Accepted | general route-card visibilityとAdvanced configuration boundary |
+| [ADR-010](./010-ai-route-strategy.md) | Accepted（Rust 外部接続は ADR-017 で部分置換） | route strategy、Codex direct、generic ACP、hosted fail-closed、distribution gate |
+| [ADR-011](./011-general-route-card-visibility.md) | Accepted（Registry 導入は ADR-017 で部分置換） | general route-card visibilityとAdvanced configuration boundary |
 | [ADR-012](./012-native-window-chrome-and-pin-preference.md) | Accepted | native window chrome、close policy、always-on-top preference |
 | [ADR-013](./013-contextual-api-credential-controls.md) | Accepted | provider-specific credential controls at points of use |
 | [ADR-015](./015-localized-ui-message-contract.md) | Accepted | frontend-owned localizationとlocale-neutral `UiMessage` protocol |
+| [ADR-017](./017-acp-registry-and-shared-rust-client.md) | Accepted | Rust の共通 ACP client、Registry 導入・認証、実行と費用の境界 |
 
 ## Proposed decisions
 

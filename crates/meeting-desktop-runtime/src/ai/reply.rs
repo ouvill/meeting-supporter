@@ -42,10 +42,25 @@ fn enabled() -> bool {
 fn priority() -> i64 {
     100
 }
+enum ReplyRoute {
+    Model(routes::Route),
+    Agent(crate::agents::registry::Launch),
+}
+impl ReplyRoute {
+    fn model(&self) -> String {
+        match self {
+            Self::Model(route) => route.model.clone(),
+            Self::Agent(launch) => format!("acp:{}", launch.id),
+        }
+    }
+    fn local(&self) -> bool {
+        matches!(self, Self::Model(route) if route.provider == routes::Provider::Ollama)
+    }
+}
 struct Job {
     shared: Arc<Shared>,
     meeting_id: String,
-    route: routes::Route,
+    route: ReplyRoute,
     prompt: String,
     styles: Vec<(ReplyMeta, String)>,
     gate: Arc<Mutex<Vec<String>>>,
@@ -78,10 +93,16 @@ impl Replies {
         let selected = routes::assignments(&store)?
             .reply
             .ok_or(AiError::Configuration)?;
-        let resolved = store.clone();
-        let route = tokio::task::spawn_blocking(move || routes::resolve(&resolved, &selected))
-            .await
-            .map_err(|_| Error::Closed)??;
+        let route = if let Some(id) = selected.strip_prefix("acp:") {
+            ReplyRoute::Agent(shared.agents.launch(id).await?)
+        } else {
+            let resolved = store.clone();
+            ReplyRoute::Model(
+                tokio::task::spawn_blocking(move || routes::resolve(&resolved, &selected))
+                    .await
+                    .map_err(|_| Error::Closed)??,
+            )
+        };
         let live = shared.live.lock().await;
         if !live.running || !live.ai_accepting {
             return Err(Error::NoMeeting);
@@ -249,66 +270,63 @@ impl Job {
         // A request journal records incomplete/cancelled cloud usage as unknown.
         let store = self.shared.settings.lock().await.clone();
         let request_id = meta.suggestion_id.clone();
+        let model = self.route.model();
+        let local = self.route.local();
         crate::usage::begin(
             &store.document,
             &self.shared.config.data_dir,
             &self.meeting_id,
             &request_id,
-            &self.route.model,
-            self.route.provider == routes::Provider::Ollama,
+            &model,
+            local,
         )
         .await?;
-        let (text, terminal) = tokio::time::timeout(Duration::from_secs(90), async {
-            let mut stream =
-                engine::stream(&self.route, instruction.into(), self.prompt.clone()).await?;
-            let mut text = String::new();
-            let mut terminal = None;
-            while let Some(chunk) = stream.next().await {
-                match chunk.map_err(|_| AiError::Provider)? {
-                    StreamedAssistantContent::Text(delta) => {
-                        let delta = delta.text;
-                        if text.len() + delta.len() > 32 * 1024 {
-                            return Err(AiError::Incomplete.into());
+        let mut text = String::new();
+        let usage = tokio::time::timeout(Duration::from_secs(90), async {
+            match &self.route {
+                ReplyRoute::Model(route) => {
+                    let mut stream = engine::stream(route, instruction.into(), self.prompt.clone()).await?;
+                    let mut terminal = None;
+                    while let Some(chunk) = stream.next().await {
+                        match chunk.map_err(|_| AiError::Provider)? {
+                            StreamedAssistantContent::Text(delta) => self.publish(meta, &mut text, delta.text).await?,
+                            StreamedAssistantContent::Final(response) => terminal = Some(response),
+                            StreamedAssistantContent::ToolCall { .. } | StreamedAssistantContent::ToolCallDelta { .. } => return Err(AiError::Incomplete.into()),
+                            _ => {}
                         }
-                        text.push_str(&delta);
-                        let gate = self.gate.lock().await;
-                        if !gate.contains(&meta.suggestion_id) {
-                            return Err(Error::Cancelled);
+                    }
+                    let terminal = terminal.ok_or(AiError::Incomplete)?;
+                    if terminal.finish_reason != Some(rig::completion::FinishReason::Stop) { return Err(AiError::Incomplete.into()); }
+                    Ok::<_, Error>(Some(terminal.usage))
+                }
+                ReplyRoute::Agent(launch) => {
+                    let prompt = format!("{}\n外部ツール、ファイル操作、コマンド実行、追加の質問は使わず、渡された情報だけで返答案を出してください。\n\n{}", instruction, self.prompt);
+                    let mut stream = self.shared.agents.pool.stream(launch.clone(), self.shared.agents.cwd().await?, prompt).await;
+                    let mut done = false;
+                    while let Some(chunk) = stream.recv().await {
+                        match chunk? {
+                            crate::agents::connection::Chunk::Text(delta) => self.publish(meta, &mut text, delta).await?,
+                            crate::agents::connection::Chunk::Done => { done = true; break; }
                         }
-                        self.shared.emit(Event::ReplyChunk {
-                            meta: meta.clone(),
-                            text: delta,
-                            final_chunk: false,
-                        });
                     }
-                    StreamedAssistantContent::Final(response) => terminal = Some(response),
-                    StreamedAssistantContent::ToolCall { .. }
-                    | StreamedAssistantContent::ToolCallDelta { .. } => {
-                        return Err(AiError::Incomplete.into())
-                    }
-                    _ => {} // Reasoning is never displayed or persisted.
+                    if !done { return Err(AiError::Incomplete.into()); }
+                    // Agent-owned billing cannot be inferred from a successful ACP turn.
+                    Ok(None)
                 }
             }
-            let terminal = terminal.ok_or(AiError::Incomplete)?;
-            Ok::<_, Error>((text, terminal))
-        })
-        .await
-        .map_err(|_| AiError::Timeout)??;
-        crate::usage::finish(
-            &self.shared.config.data_dir,
-            &self.meeting_id,
-            &request_id,
-            &self.route.model,
-            &terminal.usage,
-            self.route.provider == routes::Provider::Ollama,
-        )
-        .await?;
-        if text.trim().is_empty()
-            || !matches!(
-                terminal.finish_reason,
-                Some(rig::completion::FinishReason::Stop)
+        }).await.map_err(|_| AiError::Timeout)??;
+        if let Some(usage) = usage {
+            crate::usage::finish(
+                &self.shared.config.data_dir,
+                &self.meeting_id,
+                &request_id,
+                &model,
+                &usage,
+                local,
             )
-        {
+            .await?;
+        }
+        if text.trim().is_empty() {
             return Err(AiError::Incomplete.into());
         }
         // Cancellation waits for an in-flight commit; it cannot revoke a completed result.
@@ -361,6 +379,27 @@ impl Job {
             final_chunk: true,
         });
         gate.retain(|id| id != &meta.suggestion_id);
+        Ok(())
+    }
+    async fn publish(
+        &self,
+        meta: &ReplyMeta,
+        text: &mut String,
+        delta: String,
+    ) -> Result<(), Error> {
+        if text.len() + delta.len() > 32 * 1024 {
+            return Err(AiError::Incomplete.into());
+        }
+        text.push_str(&delta);
+        let gate = self.gate.lock().await;
+        if !gate.contains(&meta.suggestion_id) {
+            return Err(Error::Cancelled);
+        }
+        self.shared.emit(Event::ReplyChunk {
+            meta: meta.clone(),
+            text: delta,
+            final_chunk: false,
+        });
         Ok(())
     }
 }

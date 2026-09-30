@@ -76,6 +76,7 @@ pub fn start(app: AppHandle) {
                 };
             Server::start_with_secrets(
                 Config {
+                    agent_updates: true,
                     data_dir,
                     audio_worker: configured("MEETING_AUDIO_WORKER", audio),
                     speech_worker: configured("MEETING_REAZON_WORKER", speech),

@@ -24,6 +24,7 @@ import {
   type ConnectionProvider,
 } from "./ApiConnectionControl";
 import { SettingsCard, SettingsPage, ToggleField } from "./SettingsPrimitives";
+import { AgentRegistryPanel } from "./AgentRegistryPanel";
 import type { ConnectionUiState } from "./types";
 
 interface ConnectionControlBindings {
@@ -43,6 +44,7 @@ interface ConnectionControlBindings {
 }
 
 interface Props extends ConnectionControlBindings {
+  agentsLocked?: boolean;
   routes: AiRouteReadModel[];
   assignments: AiRouteDraftAssignments;
   loading: boolean;
@@ -305,6 +307,7 @@ function RouteCard({
 }
 
 export function SupportMethodPanel({
+  agentsLocked = false,
   routes,
   assignments,
   loading,
@@ -394,6 +397,7 @@ export function SupportMethodPanel({
       title="支援方法"
       description="APIキーが必要な方法は、各カード内で設定できます。"
     >
+      <AgentRegistryPanel locked={agentsLocked} onChanged={onReload} />
       <SettingsCard title="AI機能の割り当て">
         {loading && !routes.length ? (
           <div

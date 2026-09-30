@@ -11,6 +11,8 @@ import {
   SupportMethodPanel,
 } from "./SupportMethodPanel";
 
+vi.mock("./AgentRegistryPanel", () => ({ AgentRegistryPanel: () => null }));
+
 function route(overrides: Partial<AiRouteReadModel>): AiRouteReadModel {
   return {
     id: "codex",

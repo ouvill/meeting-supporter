@@ -1,6 +1,7 @@
 # ADR-010: AI route strategyとしてCodex直接経路と正直なavailabilityを採用する
 
 - **Status**: Accepted
+- **Partially superseded by**: [ADR-017](./017-acp-registry-and-shared-rust-client.md)（Rust 構成の外部エージェント接続・導入）
 - **Date**: 2026-07-10
 - **Updated**: 2026-09-30（情報 AI の経路・実行機能を削除）
 - **Builds on**: ADR-009

@@ -35,6 +35,7 @@ pub(crate) struct Live {
     pub selected: [Option<String>; 2],
 }
 pub(crate) struct Shared {
+    pub agents: Arc<crate::agents::Manager>,
     pub repository: Repository,
     pub models: Arc<crate::models::Manager>,
     pub replies: Mutex<crate::ai::Replies>,
@@ -325,6 +326,7 @@ impl Runtime {
         let repository = Repository::open(&config.data_dir.join("meeting_history.sqlite3")).await?;
         let devices = list_devices(&config).await.unwrap_or_default();
         let shared = Arc::new(Shared {
+            agents: crate::agents::Manager::open(&config.data_dir)?,
             models: crate::models::Manager::new(&config),
             repository,
             replies: Mutex::new(crate::ai::Replies::default()),
@@ -612,6 +614,12 @@ impl Runtime {
                 meeting_context,
                 references,
             } => {
+                let agents = self.shared.agents.clone();
+                agents.cancel_checks().await;
+                let _maintenance = agents
+                    .maintenance
+                    .try_lock()
+                    .map_err(|_| Error::Agent(crate::agents::AgentError::Busy))?;
                 self.idle()?;
                 if !self.shared.live.lock().await.initialized {
                     return Err(Error::NotPrepared);
@@ -944,6 +952,7 @@ impl Runtime {
             Ok(())
         };
         self.close_sources().await?;
+        self.shared.agents.pool.shutdown().await;
         result
     }
 }
