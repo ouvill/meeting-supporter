@@ -47,8 +47,6 @@ if TYPE_CHECKING:
 
 _CONNECTION_ENDPOINTS: dict[ConnectionProvider, tuple[str, str, dict[str, str]]] = {
     "openai": ("OPENAI_API_KEY", "https://api.openai.com/v1/models", {"Authorization": "Bearer {api_key}"}),
-    "deepgram": ("DEEPGRAM_API_KEY", "https://api.deepgram.com/v1/projects", {"Authorization": "Token {api_key}"}),
-    "xai": ("XAI_API_KEY", "https://api.x.ai/v1/models", {"Authorization": "Bearer {api_key}"}),
     "gemini": (
         "GEMINI_API_KEY",
         "https://generativelanguage.googleapis.com/v1beta/models",
@@ -144,7 +142,7 @@ def create_router(
     async def replace_ai_route_assignments(  # pyright: ignore[reportUnusedFunction]
         body: RouteAssignmentsUpdate,
     ) -> RouteCatalogResponse:
-        candidate = AiRouteAssignments(reply=body.reply, minutes=body.minutes)
+        candidate = AiRouteAssignments(reply=body.reply)
         current = await _route_catalog(
             state=state,
             managed_status=managed_status,
@@ -152,10 +150,7 @@ def create_router(
             ollama_status=ollama_status,
         ).read()
         by_id = {route.id: route for route in current.routes}
-        assignments_by_use_case: tuple[tuple[RouteCapability, str | None], ...] = (
-            ("reply", candidate.reply),
-            ("minutes", candidate.minutes),
-        )
+        assignments_by_use_case: tuple[tuple[RouteCapability, str | None], ...] = (("reply", candidate.reply),)
         for use_case, route_id in assignments_by_use_case:
             if route_id is None:
                 continue

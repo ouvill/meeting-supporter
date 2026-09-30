@@ -49,11 +49,6 @@ class FactoryRoutingTest(unittest.TestCase):
         for backend in (
             "whisper",
             "reazonspeech",
-            "remote",
-            "deepgram",
-            "managed",
-            "openai",
-            "xai",
             "dummy",
         ):
             with self.subTest(backend=backend):
@@ -68,11 +63,18 @@ class FactoryRoutingTest(unittest.TestCase):
                 self.assertIsInstance(pipeline, SttPipeline)
                 self.assertEqual(pipeline.supports_prewarm(), backend in {"whisper", "reazonspeech"})
 
+    def test_retired_cloud_backends_cannot_create_a_pipeline(self) -> None:
+        for backend in ("deepgram", "openai", "xai", "remote", "managed"):
+            with self.subTest(backend=backend), self.assertRaisesRegex(ValueError, "端末内の方式"):
+                _ = build_pipeline(_make_queue(), "other", self._cfg(backend), _noop_broadcast, _noop_handle_speech)
+            with self.subTest(direct=backend), self.assertRaisesRegex(ValueError, "端末内の方式"):
+                _ = SttPipeline(_make_queue(), self._cfg(backend), "other", _noop_broadcast, _noop_handle_speech)
+
     def test_invalid_backends_raise_exact_errors(self) -> None:
-        supported = "whisper / reazonspeech / remote / deepgram / managed / openai / xai / dummy"
+        supported = "whisper / reazonspeech / dummy"
         cases = (
             ("local", f"app.stt では local バックエンドは未対応です ({supported} を使用してください)"),
-            ("mystery", f"未知のSTTバックエンド: 'mystery'  ({supported})"),
+            ("mystery", "以前の音声認識設定は利用できません。端末内の方式を選び直してください。"),
         )
         for backend, message in cases:
             with self.subTest(backend=backend), self.assertRaisesRegex(ValueError, f"^{re.escape(message)}$"):

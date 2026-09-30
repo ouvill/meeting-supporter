@@ -66,7 +66,9 @@ class RouteCatalogSelectionContractTest(unittest.IsolatedAsyncioTestCase):
         )
 
         route = await catalog.read_assigned_route("reply")
-        unassigned = await catalog.read_assigned_route("minutes")
+        unassigned = await RouteCatalog(
+            providers=[], routes=[], assignments=AiRouteAssignments(), secret_store=_SecretStore()
+        ).read_assigned_route("reply")
 
         self.assertIsNotNone(route)
         self.assertEqual("managed", route.id if route is not None else None)

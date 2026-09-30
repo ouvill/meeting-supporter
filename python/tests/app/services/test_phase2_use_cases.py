@@ -6,11 +6,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import cast, override
 
-from app.agents.models import MinutesPrompt, ReplyAgentSpec, ReplyPrompt
+from app.agents.models import ReplyAgentSpec, ReplyPrompt
 from app.core.messages import OutgoingMessage
 from app.core.protocols import TurnLike
 from app.meetings.models import MeetingSession, ReplySuggestion, Turn
-from app.services.minutes_generator import MinutesGenerator
 from app.services.reply_pipeline import ReplyPipeline
 
 
@@ -53,19 +52,6 @@ class RecordingStream:
         self.delta_flags.append(delta)
         for chunk in self._chunks:
             yield chunk
-
-
-class RecordingMinutesRuntime:
-    def __init__(self, chunks: list[str]) -> None:
-        self._chunks: list[str] = chunks
-        self.prompts: list[MinutesPrompt] = []
-        self.streams: list[RecordingStream] = []
-
-    def run_stream(self, prompt: MinutesPrompt) -> RecordingStream:
-        self.prompts.append(prompt)
-        stream = RecordingStream(self._chunks)
-        self.streams.append(stream)
-        return stream
 
 
 class FailsOnceReplyRuntime:
@@ -146,37 +132,6 @@ class Phase2UseCaseBoundaryTest(unittest.IsolatedAsyncioTestCase):
     @override
     def setUp(self) -> None:
         self.messages = []
-
-    async def test_minutes_generator_streams_runtime_deltas_with_transcript_and_ai_note_prompt(self) -> None:
-        runtime = RecordingMinutesRuntime(["## 議題", "\n- 予算確認"])
-        session = MeetingSession(
-            id="minutes-session",
-            started_at=datetime.now(UTC),
-            turns=(
-                Turn(id="utt-1", speaker="other", text="予算は今月中に確定ですか？"),
-                Turn(id="utt-2", speaker="self", text="来週のレビューで決めます。"),
-            ),
-            ai_note="決定事項: レビュー日程を確認",
-        )
-
-        chunks = [chunk async for chunk in MinutesGenerator(runtime).stream(session)]
-
-        self.assertEqual(["## 議題", "\n- 予算確認"], chunks)
-        self.assertEqual(
-            [
-                MinutesPrompt(
-                    text=(
-                        "【会議の書き起こし】\n"
-                        "相手: 予算は今月中に確定ですか？\n"
-                        "自分: 来週のレビューで決めます。\n\n"
-                        "【保存済みの会議メモ】\n"
-                        "決定事項: レビュー日程を確認"
-                    )
-                )
-            ],
-            runtime.prompts,
-        )
-        self.assertEqual([True], runtime.streams[0].delta_flags)
 
     async def test_reply_pipeline_hides_provider_error_details(self) -> None:
         session = MeetingSession(

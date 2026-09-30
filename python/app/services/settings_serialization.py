@@ -18,8 +18,6 @@ STT_PUBLIC_KEYS = frozenset(
     {
         "backend",
         "whisper_model",
-        "deepgram_model",
-        "openai_model",
         "language",
         "vad_engine",
         "vad_sensitivity",
@@ -128,7 +126,7 @@ def flatten_ai_tables(
     cfg["ai"] = {"schema_version": 2}
     if assignments is None:
         assignment_table: TomlTable = {}
-        for key in ("reply", "minutes"):
+        for key in ("reply",):
             value = existing_assignments.get(key)
             if isinstance(value, str) and value:
                 assignment_table[key] = value
@@ -136,8 +134,6 @@ def flatten_ai_tables(
         assignment_table = {}
         if assignments.reply is not None:
             assignment_table["reply"] = assignments.reply
-        if assignments.minutes is not None:
-            assignment_table["minutes"] = assignments.minutes
     cfg["ai.assignments"] = assignment_table
 
     for route_id, raw_route in route_tables.items():

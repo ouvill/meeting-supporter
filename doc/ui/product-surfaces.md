@@ -1,7 +1,7 @@
 # Product Surfaces
 
 - **Status**: Active
-- **Updated**: 2026-07-18
+- **Updated**: 2026-10-01
 - **Authority**: 画面責務、状態、一般向けコピー
 - **Requirements**: [Product Requirements](../product/prd.md)
 
@@ -215,7 +215,7 @@ mainのnative closeはアプリを終了する。minimize、maximize、restore�
 
 #### BYOK/local
 
-一般設定にOpenAI、Gemini、Anthropic、Ollamaなどのprovider/service名、個別route card、readinessを表示してよい。Gemini、OpenAI、Anthropicのroute card内にはprovider固有のAPIキー入力・接続確認controlを置く。mappingにないBYOK routeへ認証方式を推測しない。Deepgram、OpenAI、xAIのcloud音声認識を選んだ場合は、Audioの選択欄直下へ同じcontrolを置く。同じOpenAI credentialは両surfaceでdraft、保存済み状態、検証message、削除予定を共有する。
+一般設定にOpenAI、Gemini、Anthropic、Ollamaなどのprovider/service名、個別route card、readinessを表示してよい。Gemini、OpenAI、Anthropicのroute card内にはprovider固有のAPIキー入力・接続確認controlを置く。mappingにないBYOK routeへ認証方式を推測しない。音声設定にはAPIキー入力を置かない。
 
 保存済みAPIキーの値は表示しない。model識別子、endpointの表示・編集はAdvancedに残す。
 
@@ -225,6 +225,10 @@ Meeting Supporterが運営するhosted serviceのserver実装・運用文書は�
 
 local STT、利用者自身のAPI credential、Ollama、ACPエージェントはhosted accountなしで利用できる。public clientに残る認証境界とschema validationは外部応答を信頼せず、未設定または不正な状態をfail closedで扱う。
 
+### Audio selection
+
+音声設定は Whisper / ReazonSpeech を選択できる。音声認識用の API キー、接続先、クラウドモデルと未提供の方式は表示しない。
+以前の利用不可の方式が保存されている場合は、ローカル方式を選び直すよう案内する。自動で方式を変更しない。
 
 ## 5. Advanced AI Settings
 
@@ -276,19 +280,10 @@ provider固有model、local serviceを理解している利用者が、API crede
 - missing_asset: 会議全体をerrorにせず、該当成果物だけ`利用できません`
 - interrupted: `中断` と記録の欠落の可能性を表示し、保存済みの内容の閲覧と確認付き削除を提供する。専用の復旧画面は設けない。Rust の開始画面では中断・一部未保存・停止確認失敗を分けて案内する。判断条件は [ADR-018](../adr/018-interrupted-meeting-history.md) に従う。
 
-### Post-meeting minutes states
+### Saved minutes
 
-会議が`completed`で書き起こしがある場合だけ、振り返り詳細に`要約・議事録を作成`を表示する。表示だけで外部送信や生成を開始してはならず、利用者が明示操作したときだけ開始する。
-
-| State             | Display                                                | Actions                   |
-| ----------------- | ------------------------------------------------------ | ------------------------- |
-| route_unavailable | `AIの準備を確認してから作成できます。`                 | disabled button、設定確認 |
-| generating        | `要約・議事録を作成しています…` とpartial text         | `生成を中止`              |
-| cancelled         | `生成を停止しました。途中の内容は保存されていません。` | もう一度作成              |
-| error             | APIのsafe message                                      | もう一度作成              |
-| completed         | 保存済みの要約・議事録全文                             | `要約・議事録を作り直す`  |
-
-cancelは当該HTTP streamをabortするだけで、別の生成処理を中断しない。完了全文だけを対象会議へ保存し、再表示する。
+保存済みの議事録があれば、会議状態にかかわらず履歴詳細に「保存済みの議事録」として表示する。
+本文がない場合は欄を表示しない。新規生成、再生成、生成中止、議事録用の AI 割当は提供しない。
 
 ## Error and Privacy Copy Contract
 

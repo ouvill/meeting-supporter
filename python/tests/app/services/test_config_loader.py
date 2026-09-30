@@ -260,12 +260,12 @@ class FromSettingsStoreSttTest(unittest.TestCase):
 class AiRouteConfigurationTest(unittest.TestCase):
     """Schema-v2 AI configuration is strict so stale model strings cannot select a runtime."""
 
-    def test_retired_info_settings_are_ignored_without_changing_reply_or_minutes(self) -> None:
+    def test_retired_info_and_minutes_settings_are_ignored_without_changing_reply(self) -> None:
         config = _toml_table(
             agents={"info_enabled": True},
             ai={
                 "schema_version": 2,
-                "assignments": {"reply": "ollama", "info": "retired-route", "minutes": "gemini"},
+                "assignments": {"reply": "ollama", "info": "retired-route", "minutes": "retired-route"},
             },
             reply={"enabled": False, "auto_generate": True},
         )
@@ -273,7 +273,6 @@ class AiRouteConfigurationTest(unittest.TestCase):
         loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
 
         self.assertEqual("ollama", loader.ai_assignments.reply)
-        self.assertEqual("gemini", loader.ai_assignments.minutes)
         self.assertEqual({"reply_enabled": False, "reply_auto_generate": True}, loader.agent_settings)
 
     def test_retired_runtime_settings_are_ignored_and_assignments_cleared(self) -> None:
@@ -291,7 +290,6 @@ class AiRouteConfigurationTest(unittest.TestCase):
         loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
 
         self.assertIsNone(loader.ai_assignments.reply)
-        self.assertEqual("openai", loader.ai_assignments.minutes)
         self.assertFalse(any(route.id in {"codex", "acp"} for route in loader.routes))
         openai = next(route for route in loader.routes if route.id == "openai")
         self.assertEqual("gpt-test", openai.model)

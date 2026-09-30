@@ -46,7 +46,6 @@ def create_lifespan(
         )
         logger.info("設定: %s  (%s)", cfg_source, config.user_data_dir)
         logger.info("AI経路 (返答AI): %s", config.ai_assignments.reply or "未割当")
-        logger.info("AI経路 (議事録AI): %s", config.ai_assignments.minutes or "未割当")
         logger.info("STT import package: app.stt")
         logger.info(
             "VAD: engine=%s  silero_threshold=%s  webrtc_aggressiveness=%s",
@@ -55,17 +54,7 @@ def create_lifespan(
             config.stt_config.vad_aggressiveness,
         )
 
-        if config.stt_backend == "local":
-            logger.warning("backend=local は未対応です。backend=whisper / reazonspeech / remote を使用してください")
-        elif config.stt_backend == "dummy":
-            logger.info("STT: backend=dummy  外部サービスなしの軽量 smoke 用バックエンド")
-        elif config.stt_backend == "remote":
-            logger.info(
-                "STT: backend=remote  url=%s  auth=%s",
-                config.stt_config.remote_url,
-                "有効" if config.stt_config.remote_token else "無効",
-            )
-        elif config.stt_backend == "whisper":
+        if config.stt_backend == "whisper":
             cfg = config.stt_config
             logger.info(
                 "STT: backend=whisper  model=%s  lang=%s  device=%s"
@@ -93,31 +82,10 @@ def create_lifespan(
                 cfg.vad_aggressiveness,
                 cfg.silence_duration,
             )
-        elif config.stt_backend == "deepgram":
-            has_key = bool(os.getenv("DEEPGRAM_API_KEY"))
-            cfg = config.stt_config
-            logger.info(
-                "STT: backend=deepgram  model=%s  lang=%s  vad_aggressiveness=%s  api_key=%s",
-                cfg.deepgram_model,
-                cfg.language,
-                cfg.vad_aggressiveness,
-                "有効" if has_key else "未設定 (DEEPGRAM_API_KEY を設定してください)",
-            )
-        elif config.stt_backend == "openai":
-            cfg = config.stt_config
-            logger.info(
-                "STT: backend=openai  model=%s  lang=%s  api_key=%s",
-                cfg.openai_model,
-                cfg.language,
-                "有効" if os.getenv("OPENAI_API_KEY") else "未設定 (OPENAI_API_KEY を設定してください)",
-            )
-        elif config.stt_backend == "xai":
-            cfg = config.stt_config
-            logger.info(
-                "STT: backend=xai  lang=%s  api_key=%s",
-                cfg.language,
-                "有効" if os.getenv("XAI_API_KEY") else "未設定 (XAI_API_KEY を設定してください)",
-            )
+        elif config.stt_backend == "dummy":
+            logger.info("STT: backend=dummy  外部サービスなしの軽量 smoke 用バックエンド")
+        else:
+            logger.info("以前の音声認識設定は利用できません。端末内の方式を選び直してください。")
 
         ctx_text = load_context_files(config.context_dir)
         state.context_text = ctx_text

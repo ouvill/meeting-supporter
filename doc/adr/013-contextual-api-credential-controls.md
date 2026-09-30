@@ -1,5 +1,6 @@
 # ADR-013: API credential controlを利用箇所へ配置する
 
+- **Supersession**: 議事録生成とクラウド音声認識の提供範囲は [ADR-019](./019-local-speech-and-saved-history.md) で部分置換する。
 - **Status**: Accepted
 - **Partially superseded by**: [ADR-017](./017-acp-registry-and-shared-rust-client.md)（外部エージェントの command 設定を廃止し Registry へ統一）
 - **Date**: 2026-07-16

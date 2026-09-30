@@ -79,7 +79,7 @@ class RecordingRetentionSettings(BaseModel):
         return None if value == 0 else value
 
 
-type ConnectionProvider = Literal["openai", "deepgram", "xai", "gemini", "anthropic"]
+type ConnectionProvider = Literal["openai", "gemini", "anthropic"]
 
 
 class ConnectionTestRequest(BaseModel):
@@ -104,10 +104,8 @@ class SttSettingsPatch(BaseModel):
 
     model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
 
-    backend: str | None = None
+    backend: Literal["whisper", "reazonspeech", "dummy"] | None = None
     whisper_model: str | None = None
-    deepgram_model: str | None = None
-    openai_model: str | None = None
     language: str | None = None
     vad_engine: Literal["silero", "webrtc"] | None = None
     vad_sensitivity: float | None = Field(default=None, ge=0.05, le=0.95)
@@ -308,7 +306,6 @@ class RouteAssignmentsUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
 
     reply: str | None
-    minutes: str | None
 
 
 class OllamaModelsResponse(BaseModel):

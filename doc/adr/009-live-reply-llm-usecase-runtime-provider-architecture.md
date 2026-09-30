@@ -1,5 +1,6 @@
 # ADR-009: Live Reply 中心の LLM use-case / runtime / provider 境界を採用する
 
+- **Supersession**: 議事録生成とクラウド音声認識の提供範囲は [ADR-019](./019-local-speech-and-saved-history.md) で部分置換する。
 - **Status**: Accepted
 - **Date**: 2026-07-08
 - **Updated**: 2026-09-30（情報 AI を機能・移植対象から削除）

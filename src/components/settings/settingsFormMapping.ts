@@ -47,8 +47,6 @@ export const INITIAL_SETTINGS_FORM: SettingsForm = {
   sttBackend: "reazonspeech",
   sttWhisperModel: "large-v3-turbo",
   sttDevice: "auto",
-  sttDeepgramModel: "nova-2",
-  sttOpenaiModel: "gpt-4o-transcribe",
   sttLang: "ja",
   sttVadEngine: "silero",
   sttVadSensitivity: 0.4,
@@ -116,9 +114,6 @@ export function mapSettingsResponseToForm(
     sttDevice: getTomlString(settings.stt, "device") ?? "auto",
     sttWhisperModel:
       getTomlString(settings.stt, "whisper_model") ?? "large-v3-turbo",
-    sttDeepgramModel: getTomlString(settings.stt, "deepgram_model") ?? "nova-2",
-    sttOpenaiModel:
-      getTomlString(settings.stt, "openai_model") ?? "gpt-4o-transcribe",
     sttLang: sttBackend === "reazonspeech" ? "ja" : sttLanguage,
     sttVadEngine: isVadEngine(sttVadEngine) ? sttVadEngine : "silero",
     sttVadSensitivity: getTomlNumber(settings.stt, "vad_sensitivity") ?? 0.4,
@@ -176,11 +171,14 @@ export function mapSettingsFormToPayload(
     STT_FORM_FIELDS.some((field) => form[field] !== savedBaseline[field])
       ? {
           stt: {
-            backend: form.sttBackend,
+            backend:
+              form.sttBackend === "whisper" ||
+              form.sttBackend === "reazonspeech" ||
+              form.sttBackend === "dummy"
+                ? form.sttBackend
+                : undefined,
             whisper_model: form.sttWhisperModel,
             device: form.sttDevice,
-            deepgram_model: form.sttDeepgramModel,
-            openai_model: form.sttOpenaiModel,
             language: form.sttLang,
             vad_engine: form.sttVadEngine,
             vad_sensitivity: form.sttVadSensitivity,

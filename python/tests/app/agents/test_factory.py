@@ -74,7 +74,6 @@ class BuildAgentsRouteContractTest(unittest.TestCase):
         bundle = self._build(assignments=AiRouteAssignments(), routes=[])
 
         self.assertEqual([], bundle.reply_agent_specs)
-        self.assertIsNone(bundle.minutes_runtime)
 
     def test_managed_reply_assignment_is_not_silently_emulated(self) -> None:
         """A managed route without the native session bridge must fail rather than fall back."""

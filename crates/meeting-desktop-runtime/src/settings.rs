@@ -125,14 +125,13 @@ impl Store {
     }
     pub fn speech(&self) -> Result<SpeechConfig, Error> {
         let stt = &self.document["stt"];
-        if (stt["backend"] != "reazonspeech" && stt["backend"] != "whisper")
-            || stt["vad_engine"] != "silero"
+        self.recognizer()?;
+        if stt["vad_engine"] != "silero"
             || (stt["backend"] == "reazonspeech" && stt["language"] != "ja")
             || self.document["audio"]["sample_rate"] != 16000
         {
             return Err(Error::Unsupported);
         }
-        self.recognizer()?;
         if stt["backend"] == "whisper" {
             self.whisper_model()?;
         }
@@ -171,7 +170,7 @@ impl Store {
                         .map_err(|_| Error::Settings)?;
                 Ok(Recognizer::Whisper { device, language })
             }
-            _ => Err(Error::Unsupported),
+            _ => Err(Error::SpeechSelection),
         }
     }
     pub(crate) fn whisper_model(&self) -> Result<crate::models::catalog::Whisper, Error> {
@@ -240,6 +239,11 @@ impl Store {
     }
     pub fn candidate(&self, patch: &Patch) -> Result<Value, Error> {
         let mut document = self.document.clone();
+        if let Some(backend) = patch.stt.as_ref().and_then(|stt| stt.get("backend")) {
+            if !backend.is_null() && backend != "whisper" && backend != "reazonspeech" {
+                return Err(Error::SpeechSelection);
+            }
+        }
         for (name, section) in [
             ("stt", &patch.stt),
             ("audio", &patch.audio),

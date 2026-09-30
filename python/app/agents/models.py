@@ -52,32 +52,7 @@ class ReplyAgentSpec:
     priority: int = 100
 
 
-@dataclass(frozen=True)
-class MinutesPrompt:
-    """Input for a minutes agent runtime."""
-
-    text: str
-
-
-class MinutesAgentRuntime(Protocol):
-    """議事録生成用 runtime。MCP 初期化は不要なため context-manager は持たない。"""
-
-    def run_stream(self, prompt: MinutesPrompt) -> AbstractAsyncContextManager[StreamLike]: ...
-
-
-@dataclass(frozen=True)
-class PydanticAIMinutesAgentRuntime(MinutesAgentRuntime):
-    agent: AgentLike
-
-    @override
-    def run_stream(self, prompt: MinutesPrompt) -> AbstractAsyncContextManager[StreamLike]:
-        return self.agent.run_stream(prompt.text)
-
-
 __all__ = [
-    "MinutesAgentRuntime",
-    "MinutesPrompt",
-    "PydanticAIMinutesAgentRuntime",
     "PydanticAIReplyAgentRuntime",
     "ReplyAgentDefinition",
     "ReplyAgentRuntime",

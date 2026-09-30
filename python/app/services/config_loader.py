@@ -242,17 +242,11 @@ def _parse_ai_config(cfg: TomlTable) -> tuple[AiRouteAssignments, list[RouteDefi
 
     assignments = AiRouteAssignments(
         reply=optional_route("reply"),
-        minutes=optional_route("minutes"),
     )
-    assigned = {route_id for route_id in (assignments.reply, assignments.minutes) if route_id is not None}
+    assigned = {route_id for route_id in (assignments.reply,) if route_id is not None}
     unknown_assignments = sorted(assigned - set(BUILT_IN_ROUTE_IDS))
     if unknown_assignments:
         raise UnsupportedAiConfigError(f"未知のAI route idです: {', '.join(unknown_assignments)}")
-    for use_case, route_id in (("minutes", assignments.minutes),):
-        unsupported = ("managed",)
-        if route_id in unsupported:
-            raise UnsupportedAiConfigError(f"route '{route_id}' は{use_case}をサポートしません")
-
     raw_routes = ai.get("routes")
     if raw_routes is not None and not isinstance(raw_routes, dict):
         raise UnsupportedAiConfigError("[ai.routes] はTOMLテーブルで指定してください")

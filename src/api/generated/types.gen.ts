@@ -22,12 +22,7 @@ export type AudioSettingsPatch = {
 
 export type BillingOwner = "app" | "external_subscription" | "user" | "none";
 
-export type ConnectionProvider =
-  | "openai"
-  | "deepgram"
-  | "xai"
-  | "gemini"
-  | "anthropic";
+export type ConnectionProvider = "openai" | "gemini" | "anthropic";
 
 /**
  * ConnectionTestRequest
@@ -576,10 +571,6 @@ export type RouteAssignmentsReadModel = {
    * Reply
    */
   reply?: string | null;
-  /**
-   * Minutes
-   */
-  minutes?: string | null;
 };
 
 /**
@@ -592,10 +583,6 @@ export type RouteAssignmentsUpdate = {
    * Reply
    */
   reply: string | null;
-  /**
-   * Minutes
-   */
-  minutes: string | null;
 };
 
 export type RouteAvailability =
@@ -604,7 +591,7 @@ export type RouteAvailability =
   | "planned"
   | "unavailable";
 
-export type RouteCapability = "reply" | "minutes" | "stream" | "cancel";
+export type RouteCapability = "reply" | "stream" | "cancel";
 
 /**
  * RouteCatalogResponse
@@ -957,19 +944,11 @@ export type SttSettingsPatch = {
   /**
    * Backend
    */
-  backend?: string | null;
+  backend?: "whisper" | "reazonspeech" | "dummy" | null;
   /**
    * Whisper Model
    */
   whisper_model?: string | null;
-  /**
-   * Deepgram Model
-   */
-  deepgram_model?: string | null;
-  /**
-   * Openai Model
-   */
-  openai_model?: string | null;
   /**
    * Language
    */
@@ -1526,38 +1505,6 @@ export type CancelSpeechModelDownloadApiSttModelCancelPostResponses = {
 
 export type CancelSpeechModelDownloadApiSttModelCancelPostResponse =
   CancelSpeechModelDownloadApiSttModelCancelPostResponses[keyof CancelSpeechModelDownloadApiSttModelCancelPostResponses];
-
-export type GenerateMinutesMeetingsMeetingIdMinutesPostData = {
-  body?: never;
-  path: {
-    /**
-     * Meeting Id
-     */
-    meeting_id: string;
-  };
-  query?: never;
-  url: "/meetings/{meeting_id}/minutes";
-};
-
-export type GenerateMinutesMeetingsMeetingIdMinutesPostErrors = {
-  /**
-   * Validation Error
-   */
-  422: HttpValidationError;
-};
-
-export type GenerateMinutesMeetingsMeetingIdMinutesPostError =
-  GenerateMinutesMeetingsMeetingIdMinutesPostErrors[keyof GenerateMinutesMeetingsMeetingIdMinutesPostErrors];
-
-export type GenerateMinutesMeetingsMeetingIdMinutesPostResponses = {
-  /**
-   * UTF-8 plaintext minutes stream; saved after the stream completes.
-   */
-  200: string;
-};
-
-export type GenerateMinutesMeetingsMeetingIdMinutesPostResponse =
-  GenerateMinutesMeetingsMeetingIdMinutesPostResponses[keyof GenerateMinutesMeetingsMeetingIdMinutesPostResponses];
 
 export type ListMeetingsMeetingsGetData = {
   body?: never;

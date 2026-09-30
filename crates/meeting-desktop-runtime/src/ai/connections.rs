@@ -8,8 +8,6 @@ pub(crate) enum Provider {
     Openai,
     Gemini,
     Anthropic,
-    Deepgram,
-    Xai,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -36,18 +34,6 @@ pub(crate) async fn check(store: Store, request: Request) -> Result<Value, Error
             "https://api.anthropic.com/v1/models",
             "x-api-key",
             "",
-        ),
-        Provider::Deepgram => (
-            "DEEPGRAM_API_KEY",
-            "https://api.deepgram.com/v1/projects",
-            "Authorization",
-            "Token ",
-        ),
-        Provider::Xai => (
-            "XAI_API_KEY",
-            "https://api.x.ai/v1/models",
-            "Authorization",
-            "Bearer ",
         ),
     };
     let credential = match request.api_key.filter(|s| !s.is_empty()) {

@@ -214,7 +214,6 @@ app = create_app(
         settings_event_bus=event_bus,
         history_service=history_service,
         user_data_dir=_user_data_dir,
-        get_minutes_runtime=lambda: runtime_composition.bundle.minutes_runtime,
         whisper_model_manager=whisper_model_manager,
         reazonspeech_model_manager=reazonspeech_model_manager,
         managed_session_store=managed_session_store,

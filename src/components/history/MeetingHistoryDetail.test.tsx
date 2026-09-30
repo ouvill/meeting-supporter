@@ -55,16 +55,6 @@ const defaultProps = {
   loadingDetail: false,
   saving: false,
   deleting: false,
-  minutesStatus: "idle" as const,
-  minutesProgress: "",
-  minutesError: null,
-  minutesRouteStatus: {
-    readiness: "ready" as const,
-    canGenerate: true,
-    message: null,
-  },
-  onGenerateMinutes: vi.fn().mockResolvedValue(undefined),
-  onCancelMinutes: vi.fn(),
   onUpdateTitle: vi.fn().mockResolvedValue(undefined),
   onDelete: vi.fn().mockResolvedValue(undefined),
 };
@@ -121,105 +111,6 @@ describe("MeetingHistoryDetail", () => {
     expect(screen.queryByText("AI メモ")).not.toBeInTheDocument();
     expect(screen.queryByText("顧客情報")).not.toBeInTheDocument();
     expect(screen.queryByText("予算は来月確定")).not.toBeInTheDocument();
-  });
-
-  it("does not offer minutes generation until a completed meeting has a persisted transcript", () => {
-    const { rerender } = render(<MeetingHistoryDetail {...defaultProps} />);
-
-    expect(
-      screen.queryByRole("button", { name: "議事録を生成" }),
-    ).not.toBeInTheDocument();
-    expect(defaultProps.onGenerateMinutes).not.toHaveBeenCalled();
-
-    rerender(
-      <MeetingHistoryDetail
-        {...defaultProps}
-        meeting={makeMeetingWithTranscript({ status: "recording" })}
-      />,
-    );
-    expect(
-      screen.queryByRole("button", { name: "議事録を生成" }),
-    ).not.toBeInTheDocument();
-
-    rerender(
-      <MeetingHistoryDetail
-        {...defaultProps}
-        meeting={makeMeetingWithTranscript()}
-      />,
-    );
-    expect(screen.getByRole("button", { name: "議事録を生成" })).toBeEnabled();
-    expect(defaultProps.onGenerateMinutes).not.toHaveBeenCalled();
-  });
-
-  it("keeps generation unavailable while preserving minutes and offering settings", () => {
-    const routeError =
-      "議事録AIの準備ができていません。設定を確認してから再試行してください。";
-    const onSettings = vi.fn();
-    render(
-      <MeetingHistoryDetail
-        {...defaultProps}
-        meeting={withPersistedMinutes("# 決定事項\n\n- 保存済みの議事録")}
-        minutesRouteStatus={{
-          readiness: "setup_required",
-          canGenerate: false,
-          message: routeError,
-        }}
-        onSettings={onSettings}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: "議事録を生成" })).toBeDisabled();
-    expect(
-      screen.getByText("AIの準備を確認してから作成できます。"),
-    ).toBeInTheDocument();
-    expect(screen.getByText(routeError)).toBeInTheDocument();
-    expect(screen.getByText("保存済みの議事録")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "設定を確認" }));
-    expect(onSettings).toHaveBeenCalledOnce();
-  });
-
-  it("shows streamed progress and lets the user cancel the active generation", () => {
-    const onCancelMinutes = vi.fn();
-    render(
-      <MeetingHistoryDetail
-        {...defaultProps}
-        meeting={makeMeetingWithTranscript()}
-        minutesStatus="generating"
-        minutesProgress={"# 議事録\n\n- 見積もりを送付"}
-        onCancelMinutes={onCancelMinutes}
-        minutesRouteStatus={{
-          readiness: "unavailable",
-          canGenerate: false,
-          message: "現在は利用できません。",
-        }}
-      />,
-    );
-
-    expect(screen.getByText("議事録")).toBeInTheDocument();
-    expect(screen.getByText("見積もりを送付")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "生成を中止" }));
-    expect(onCancelMinutes).toHaveBeenCalledOnce();
-  });
-
-  it("renders refreshed persisted minutes and permits recovery or deliberate re-generation", () => {
-    const onGenerateMinutes = vi.fn().mockResolvedValue(undefined);
-    const recoverableError =
-      "議事録の生成に失敗しました。もう一度お試しください。";
-    render(
-      <MeetingHistoryDetail
-        {...defaultProps}
-        meeting={withPersistedMinutes("# 決定事項\n\n- 見積もりを送付")}
-        minutesStatus="error"
-        minutesError={recoverableError}
-        onGenerateMinutes={onGenerateMinutes}
-      />,
-    );
-
-    expect(screen.getByText("決定事項")).toBeInTheDocument();
-    expect(screen.getByText("見積もりを送付")).toBeInTheDocument();
-    expect(screen.getByText(recoverableError)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "議事録を生成" }));
-    expect(onGenerateMinutes).toHaveBeenCalledWith("mtg-001");
   });
 
   it("shows stored suggestion labels as reply styles without exposing agent ids", () => {
@@ -442,5 +333,41 @@ describe("MeetingHistoryDetail", () => {
     await waitFor(() => {
       expect(screen.getByText("Test Meeting")).toHaveFocus();
     });
+  });
+  it.each(["completed", "aborted"])(
+    "shows saved minutes for %s meetings without generation controls",
+    (status) => {
+      render(
+        <MeetingHistoryDetail
+          {...defaultProps}
+          meeting={{
+            ...withPersistedMinutes("以前に保存した議事録本文"),
+            status,
+          }}
+        />,
+      );
+      expect(
+        screen.getByRole("heading", { name: "保存済みの議事録" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("以前に保存した議事録本文")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /議事録/ }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("does not show a minutes section when no saved text exists", () => {
+    render(
+      <MeetingHistoryDetail
+        {...defaultProps}
+        meeting={makeMeetingWithTranscript()}
+      />,
+    );
+    expect(
+      screen.queryByRole("heading", { name: /議事録/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /議事録/ }),
+    ).not.toBeInTheDocument();
   });
 });

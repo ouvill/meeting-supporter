@@ -22,16 +22,6 @@ REPLY_INSTRUCTION_MAIN = REPLY_BASE_INSTRUCTION
 REPLY_INSTRUCTION_POLITE = f"{REPLY_BASE_INSTRUCTION}\n{REPLY_STYLE_POLITE}"
 
 
-MINUTES_INSTRUCTION = (
-    "会議の書き起こしが渡されます。以下の構成でMarkdown形式の議事録を作成してください。\n"
-    "## 議題\n"
-    "## 議論の要点\n"
-    "## 決定事項\n"
-    "## 次のアクション\n"
-    "書き起こしから読み取れる内容のみをまとめ、推測で補わないでください。"
-)
-
-
 def build_system(task_instruction: str, context_text: str) -> str:
     """ロール・コンテキスト・タスク指示を組み合わせてシステムプロンプトを生成する。"""
     parts = ["あなたは会議支援AIアシスタントです。"]
@@ -206,21 +196,12 @@ def build_reply_prompt(
     return "\n".join(parts)
 
 
-def build_minutes_prompt(history: list[str], ai_note: str = "") -> str:
-    parts = ["【会議の書き起こし】", *history]
-    if ai_note:
-        parts.append(f"\n【保存済みの会議メモ】\n{ai_note}")
-    return "\n".join(parts)
-
-
 __all__ = [
-    "MINUTES_INSTRUCTION",
     "REPLY_OUTPUT_CONTRACT",
     "REPLY_BASE_INSTRUCTION",
     "REPLY_INSTRUCTION_MAIN",
     "REPLY_INSTRUCTION_POLITE",
     "REPLY_STYLE_POLITE",
-    "build_minutes_prompt",
     "build_reply_instruction",
     "build_mode_instruction",
     "build_reply_prompt",

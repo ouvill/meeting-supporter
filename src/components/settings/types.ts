@@ -42,8 +42,6 @@ export interface SettingsForm {
   sttBackend: string;
   sttWhisperModel: string;
   sttDevice: string;
-  sttDeepgramModel: string;
-  sttOpenaiModel: string;
   sttLang: string;
   sttVadEngine: VadEngine;
   sttVadSensitivity: number;
@@ -64,8 +62,6 @@ export const STT_FORM_FIELDS = [
   "sttBackend",
   "sttWhisperModel",
   "sttDevice",
-  "sttDeepgramModel",
-  "sttOpenaiModel",
   "sttLang",
   "sttVadEngine",
   "sttVadSensitivity",

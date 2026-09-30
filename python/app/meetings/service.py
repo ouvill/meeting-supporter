@@ -237,28 +237,6 @@ class MeetingHistoryService:
         assets = await self._repository.list_recording_assets(meeting_id)
         return (meeting, turns, suggestions, assets)
 
-    async def get_minutes_snapshot(self, meeting_id: str) -> MeetingSession | None:
-        """Return an immutable post-completion snapshot from persisted meeting data."""
-        meeting = await self._repository.get_meeting(meeting_id)
-        if meeting is None or meeting.status != "completed":
-            return None
-        turns = await self._repository.list_turns(meeting_id)
-        return MeetingSession(
-            id=meeting.id,
-            started_at=meeting.started_at,
-            title=meeting.title,
-            ended_at=meeting.ended_at,
-            turns=tuple(
-                Turn(id=turn.id, speaker=turn.speaker, text=turn.text, speaker_id=turn.speaker_id) for turn in turns
-            ),
-            ai_note=meeting.ai_note,
-            is_active=False,
-        )
-
-    async def save_minutes(self, meeting_id: str, minutes: str) -> bool:
-        """Persist one fully completed canonical minutes result."""
-        return await self._repository.update_meeting_minutes(meeting_id, minutes) > 0
-
     async def update_meeting_title(self, meeting_id: str, title: str) -> bool:
         """Update a meeting's title.  Returns True if a row was updated."""
         rowcount = await self._repository.update_meeting_title(meeting_id, title)

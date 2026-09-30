@@ -61,7 +61,6 @@ def _make_http_app() -> FastAPI:
             settings_event_bus=EventBus(),
             history_service=MeetingHistoryService(repository=SqliteMeetingHistoryRepository(":memory:")),
             user_data_dir=Path("/tmp"),
-            get_minutes_runtime=lambda: None,
         ),
         auth_token="secret-token",
     )

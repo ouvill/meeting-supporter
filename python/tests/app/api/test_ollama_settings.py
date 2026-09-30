@@ -136,17 +136,16 @@ class TestOllamaRouteAssignment:
 
             response = client.put(
                 "/api/ai/routes/assignments",
-                json={"reply": "ollama", "minutes": None},
+                json={"reply": "ollama"},
             )
 
             assert response.status_code == 200
             data = response.json_object()
-            assert as_json_object(data["assignments"]) == {"reply": "ollama", "minutes": None}
+            assert as_json_object(data["assignments"]) == {"reply": "ollama"}
             assert events == ["ConfigChanged"]
 
             reloaded = ConfigLoader.from_settings_store(store)
             assert reloaded.ai_assignments.reply == "ollama"
-            assert reloaded.ai_assignments.minutes is None
 
             persisted = store.load_config()
             ai = persisted.get("ai")

@@ -7,10 +7,6 @@ import type {
   AiRouteReadModel,
   AiRoutesController,
 } from "../../hooks/useAiRoutes";
-import {
-  getManagedAuthStatus,
-  getManagedEntitlement,
-} from "../../platform/managedServiceClient";
 import { useMeetingStore } from "../../store/meetingStore";
 import type {
   ConnectionProvider,
@@ -123,8 +119,6 @@ export function useSettingsPersistence({
       sttBackend: savedBaseline.sttBackend,
       sttWhisperModel: savedBaseline.sttWhisperModel,
       sttDevice: savedBaseline.sttDevice,
-      sttDeepgramModel: savedBaseline.sttDeepgramModel,
-      sttOpenaiModel: savedBaseline.sttOpenaiModel,
       sttLang: savedBaseline.sttLang,
       sttVadEngine: savedBaseline.sttVadEngine,
       sttVadSensitivity: savedBaseline.sttVadSensitivity,
@@ -189,29 +183,6 @@ export function useSettingsPersistence({
       savedBaseline,
       pendingDeleteSecrets,
     );
-    if (settingsPayload.stt && form.sttBackend === "managed") {
-      try {
-        const auth = await getManagedAuthStatus();
-        const entitlement = auth.authenticated
-          ? await getManagedEntitlement()
-          : null;
-        if (
-          !entitlement ||
-          entitlement.managed.readiness !== "ready" ||
-          !entitlement.managed.speech_recognition.selectable
-        ) {
-          throw new Error("managed speech recognition unavailable");
-        }
-      } catch {
-        const message =
-          "Meeting Supporter 音声認識を利用できません。アカウントとプランを確認してください。";
-        setFieldErrors({ audio: message });
-        setSectionError({ category: "audio", message });
-        setSaveMessage(null);
-        setActiveCategory("audio");
-        return;
-      }
-    }
     const errors = validateSettingsForm(form, selectedRoutes, connectionStates);
     setFieldErrors(errors);
     setSaveMessage(null);

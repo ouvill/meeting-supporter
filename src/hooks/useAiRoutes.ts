@@ -27,23 +27,19 @@ export type AiRouteAction = RouteAction;
 export type AiRouteReadModel = RouteReadModel;
 export type AiRouteAssignments = RouteAssignmentsReadModel;
 export type AiRouteCatalog = RouteCatalogResponse;
-export type AiAssignableUseCase = "reply" | "minutes";
+export type AiAssignableUseCase = "reply";
 export type AiRouteDraftAssignments = Record<
   AiAssignableUseCase,
   string | null
 >;
 
-const ASSIGNABLE_USE_CASES: readonly AiAssignableUseCase[] = [
-  "reply",
-  "minutes",
-];
+const ASSIGNABLE_USE_CASES: readonly AiAssignableUseCase[] = ["reply"];
 
 function normalizeAssignments(
   assignments: AiRouteAssignments | null | undefined,
 ): AiRouteDraftAssignments {
   return {
     reply: assignments?.reply ?? null,
-    minutes: assignments?.minutes ?? null,
   };
 }
 
@@ -82,10 +78,6 @@ const USE_CASE_ROUTE_MESSAGES: Record<
   reply: {
     unassigned: "返答案を利用する支援方法を設定してください。",
     unsupported: "選択した支援方法では返答案を利用できません。",
-  },
-  minutes: {
-    unassigned: "議事録を利用する支援方法を設定してください。",
-    unsupported: "選択した支援方法では議事録を利用できません。",
   },
 };
 
@@ -321,7 +313,6 @@ export function useAiRoutes() {
       ) ?? null;
     return {
       reply: findAssignedRoute("reply"),
-      minutes: findAssignedRoute("minutes"),
     };
   }, [catalog]);
   const routeStatuses = useMemo(
@@ -331,12 +322,6 @@ export function useAiRoutes() {
         error,
         assignedRouteId: catalog?.assignments.reply ?? null,
         selectedRoute: assignedRoutes.reply,
-      }),
-      minutes: resolveUseCaseRouteStatus("minutes", {
-        loading,
-        error,
-        assignedRouteId: catalog?.assignments.minutes ?? null,
-        selectedRoute: assignedRoutes.minutes,
       }),
     }),
     [assignedRoutes, catalog?.assignments, error, loading],
@@ -351,7 +336,6 @@ export function useAiRoutes() {
     assignments: catalog?.assignments ?? null,
     assignedRoutes,
     replyStatus: routeStatuses.reply,
-    minutesRouteStatus: routeStatuses.minutes,
     draftAssignments,
     assignmentDirty,
     setDraftAssignment,

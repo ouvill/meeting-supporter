@@ -466,48 +466,6 @@
         }
       }
     },
-    "/meetings/{meeting_id}/minutes": {
-      "post": {
-        "tags": [
-          "meetings"
-        ],
-        "summary": "Generate Minutes",
-        "operationId": "generate_minutes_meetings__meeting_id__minutes_post",
-        "parameters": [
-          {
-            "name": "meeting_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Meeting Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "UTF-8 plaintext minutes stream; saved after the stream completes.",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/meetings": {
       "get": {
         "tags": [
@@ -927,8 +885,6 @@
         "type": "string",
         "enum": [
           "openai",
-          "deepgram",
-          "xai",
           "gemini",
           "anthropic"
         ]
@@ -1836,17 +1792,6 @@
               }
             ],
             "title": "Reply"
-          },
-          "minutes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Minutes"
           }
         },
         "type": "object",
@@ -1864,24 +1809,12 @@
               }
             ],
             "title": "Reply"
-          },
-          "minutes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Minutes"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "reply",
-          "minutes"
+          "reply"
         ],
         "title": "RouteAssignmentsUpdate",
         "description": "Full replacement of schema-v2 use-case route assignments."
@@ -1899,7 +1832,6 @@
         "type": "string",
         "enum": [
           "reply",
-          "minutes",
           "stream",
           "cancel"
         ]
@@ -2583,7 +2515,12 @@
           "backend": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "whisper",
+                  "reazonspeech",
+                  "dummy"
+                ]
               },
               {
                 "type": "null"
@@ -2601,28 +2538,6 @@
               }
             ],
             "title": "Whisper Model"
-          },
-          "deepgram_model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deepgram Model"
-          },
-          "openai_model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Openai Model"
           },
           "language": {
             "anyOf": [

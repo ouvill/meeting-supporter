@@ -616,6 +616,53 @@ async fn invalid_or_unsupported_settings_do_not_change_file_or_prepared_state() 
 }
 
 #[tokio::test]
+async fn legacy_cloud_speech_keeps_history_accessible_and_requires_explicit_local_selection() {
+    for backend in ["deepgram", "openai", "xai", "remote", "managed"] {
+        let temp = tempfile::tempdir().unwrap();
+        let settings = config(&temp, "model");
+        std::fs::create_dir_all(&settings.data_dir).unwrap();
+        let path = settings.data_dir.join("config.toml");
+        let original = format!("[stt]\nbackend = '{backend}'\n");
+        std::fs::write(&path, &original).unwrap();
+        let server = Server::start(settings.clone()).await.unwrap();
+        let (status, body) = http(&server, "GET", "/api/settings", "").await;
+        assert_eq!(status, 200);
+        let saved: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(saved["stt"]["backend"], backend);
+        assert_eq!(http(&server, "GET", "/meetings", "").await.0, 200);
+        assert_eq!(
+            post_settings(&server, json!({"stt":{"backend":backend}}))
+                .await
+                .0,
+            422
+        );
+        let mut ws = connect(&server).await;
+        until(&mut ws, |v| v["type"] == "devices_list").await;
+        send(&mut ws, json!({"type":"init_stt"})).await;
+        let error = until(&mut ws, |v| v["type"] == "error").await;
+        assert_eq!(
+            error["text"],
+            "以前の音声認識設定は利用できません。端末内の方式を選び直してください。"
+        );
+        assert!(!settings.model.unwrap().join("preparing").exists());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        assert_eq!(
+            post_settings(&server, json!({"stt":{"backend":"reazonspeech"}}))
+                .await
+                .0,
+            200
+        );
+        send(&mut ws, json!({"type":"init_stt"})).await;
+        until(&mut ws, |v| {
+            v["type"] == "stt_state" && v["initialized"] == true
+        })
+        .await;
+        drop(ws);
+        server.shutdown().await.unwrap();
+    }
+}
+
+#[tokio::test]
 async fn saving_audio_settings_invalidates_prepared_inference_but_keeps_metering() {
     let temp = tempfile::tempdir().unwrap();
     let server = Server::start(config(&temp, "model")).await.unwrap();
@@ -903,12 +950,12 @@ async fn rig_automatic_reply_is_opt_in() {
 }
 
 #[tokio::test]
-async fn retired_info_settings_are_ignored_and_cannot_be_reenabled() {
+async fn retired_info_and_minutes_settings_are_ignored_and_cannot_be_reenabled() {
     let temp = tempfile::tempdir().unwrap();
     let settings = config(&temp, "model");
     std::fs::create_dir_all(&settings.data_dir).unwrap();
     let path = settings.data_dir.join("config.toml");
-    let original = "[ai]\nschema_version = 2\n[ai.assignments]\ninfo = \"retired-route\"\n[agents]\ninfo_enabled = true\n";
+    let original = "[ai]\nschema_version = 2\n[ai.assignments]\ninfo = \"retired-route\"\nminutes = \"retired-route\"\n[agents]\ninfo_enabled = true\n";
     std::fs::write(&path, original).unwrap();
     let server = Server::start(settings).await.unwrap();
 
@@ -919,12 +966,13 @@ async fn retired_info_settings_are_ignored_and_cannot_be_reenabled() {
     let (status, body) = http(&server, "GET", "/api/ai/routes", "").await;
     assert_eq!(status, 200);
     let catalog: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(catalog["assignments"], json!({"reply":null,"minutes":null}));
+    assert_eq!(catalog["assignments"], json!({"reply":null}));
     assert!(catalog["routes"].as_array().unwrap().iter().all(|route| {
         !route["capabilities"]
             .as_array()
             .unwrap()
-            .contains(&json!("info"))
+            .iter()
+            .any(|capability| capability == "info" || capability == "minutes")
     }));
     for (method, path, value) in [
         (
@@ -935,7 +983,7 @@ async fn retired_info_settings_are_ignored_and_cannot_be_reenabled() {
         (
             "PUT",
             "/api/ai/routes/assignments",
-            json!({"reply":null,"minutes":null,"info":"ollama"}),
+            json!({"reply":null,"info":"ollama"}),
         ),
     ] {
         let body = value.to_string();
@@ -964,13 +1012,11 @@ async fn ai_assignments_persist_without_enabling_unported_routes() {
     let config = ai_config(&temp, &ai, false);
     let server = Server::start(config.clone()).await.unwrap();
     for (value, expected) in [
-        (json!({"reply":"codex","minutes":null}), 422),
-        (json!({"reply":"acp","minutes":null}), 422),
-        (
-            json!({"reply":"ollama","info":"ollama","minutes":null}),
-            422,
-        ),
-        (json!({"reply":"gemini","minutes":null}), 200),
+        (json!({"reply":"codex"}), 422),
+        (json!({"reply":"acp"}), 422),
+        (json!({"reply":null,"minutes":"gemini"}), 422),
+        (json!({"reply":"ollama","info":"ollama"}), 422),
+        (json!({"reply":"gemini"}), 200),
     ] {
         let body = value.to_string();
         let extra = format!(
@@ -1733,10 +1779,7 @@ async fn retired_agent_routes_are_cleared_without_changing_registry_agents() {
         let (status, body) = http(&server, "GET", "/api/ai/routes", "").await;
         assert_eq!(status, 200);
         let catalog: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(
-            catalog["assignments"],
-            json!({"reply":expected,"minutes":null})
-        );
+        assert_eq!(catalog["assignments"], json!({"reply":expected}));
         let rows = catalog["routes"].as_array().unwrap();
         assert!(rows.iter().all(|r| r["id"] != "codex" && r["id"] != "acp"));
         assert!(rows.iter().any(|r| r["id"] == "acp:synthetic"));
@@ -1803,7 +1846,7 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
             &server,
             "PUT",
             "/api/ai/routes/assignments",
-            json!({"reply":"acp:synthetic","minutes":null})
+            json!({"reply":"acp:synthetic"})
         )
         .await
         .0,
@@ -1823,7 +1866,7 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
             &server,
             "PUT",
             "/api/ai/routes/assignments",
-            json!({"reply":"acp:synthetic","minutes":null})
+            json!({"reply":"acp:synthetic"})
         )
         .await
         .0,
@@ -1898,7 +1941,7 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
             &server,
             "PUT",
             "/api/ai/routes/assignments",
-            json!({"reply":null,"minutes":null})
+            json!({"reply":null})
         )
         .await
         .0,
@@ -1973,7 +2016,7 @@ async fn acp_cancel_discards_partial_reply_and_keeps_recording_functional() {
             &server,
             "PUT",
             "/api/ai/routes/assignments",
-            json!({"reply":"acp:synthetic","minutes":null})
+            json!({"reply":"acp:synthetic"})
         )
         .await
         .0,
@@ -2034,7 +2077,7 @@ async fn acp_errors_permissions_and_truncated_turns_are_not_saved() {
                 &server,
                 "PUT",
                 "/api/ai/routes/assignments",
-                json!({"reply":"acp:synthetic","minutes":null})
+                json!({"reply":"acp:synthetic"})
             )
             .await
             .0,

@@ -281,7 +281,7 @@ class TestPostSettings:
             client, state, store, _, events = _make_client(Path(td))
             state.current_session = MeetingSession(id="meeting-active", started_at=datetime.now(UTC))
 
-            resp = client.post("/api/settings", json={"stt": {"backend": "deepgram"}})
+            resp = client.post("/api/settings", json={"stt": {"backend": "dummy"}})
 
             assert resp.status_code == 409
             detail = as_json_object(resp.json_object()["detail"])
@@ -416,12 +416,12 @@ hallucination_phrase_blocklist = ["preserve me"]
         with tempfile.TemporaryDirectory() as td:
             client, _, store, _, _ = _make_client(Path(td), config_text=config_text)
 
-            saved = client.post("/api/settings", json={"stt": {"backend": "deepgram"}})
+            saved = client.post("/api/settings", json={"stt": {"backend": "dummy"}})
 
             assert saved.status_code == 200
             persisted_stt = store.load_config()["stt"]
             assert isinstance(persisted_stt, dict)
-            assert persisted_stt["backend"] == "deepgram"
+            assert persisted_stt["backend"] == "dummy"
             assert persisted_stt["soft_no_speech_threshold"] == 0.23
             assert persisted_stt["suspicious_phrases"] == ["preserve me"]
             assert "no_speech_threshold" not in persisted_stt
@@ -438,8 +438,6 @@ hallucination_phrase_blocklist = ["preserve me"]
                     "stt": {
                         "backend": "whisper",
                         "whisper_model": "large-v3-turbo",
-                        "deepgram_model": "nova-3",
-                        "openai_model": "gpt-4o-transcribe",
                         "language": "ja",
                         "vad_engine": "silero",
                         "vad_sensitivity": 0.4,
@@ -475,7 +473,7 @@ hallucination_phrase_blocklist = ["preserve me"]
                 start_responses.append(client.post("/test/meeting/start"))
 
             def call_save() -> None:
-                save_responses.append(client.post("/api/settings", json={"stt": {"backend": "deepgram"}}))
+                save_responses.append(client.post("/api/settings", json={"stt": {"backend": "dummy"}}))
 
             with client:
                 start_thread = Thread(target=call_start)
@@ -537,7 +535,7 @@ hallucination_phrase_blocklist = ["preserve me"]
             start_responses: list[TypedResponse] = []
 
             def call_save() -> None:
-                save_responses.append(client.post("/api/settings", json={"stt": {"backend": "deepgram"}}))
+                save_responses.append(client.post("/api/settings", json={"stt": {"backend": "dummy"}}))
 
             def call_start() -> None:
                 start_responses.append(client.post("/test/meeting/start"))
@@ -972,7 +970,7 @@ dir_override = "existing-context"
             resp = client.post(
                 "/api/settings",
                 json={
-                    "stt": {"backend": "deepgram", "vad_engine": "webrtc"},
+                    "stt": {"backend": "dummy", "vad_engine": "webrtc"},
                     "audio": {"sample_rate": 48000},
                 },
             )
@@ -982,7 +980,7 @@ dir_override = "existing-context"
             cfg = store.load_config()
             stt = cfg["stt"]
             assert isinstance(stt, dict)
-            assert stt["backend"] == "deepgram"
+            assert stt["backend"] == "dummy"
             assert stt["vad_engine"] == "webrtc"
             audio = cfg["audio"]
             assert isinstance(audio, dict)
@@ -993,14 +991,14 @@ dir_override = "existing-context"
             client, _, store, _, _ = _make_client(Path(td))
             resp = client.post(
                 "/api/settings",
-                json={"stt": {"backend": "remote"}},
+                json={"stt": {"backend": "dummy"}},
             )
             assert resp.status_code == 200
 
             cfg = store.load_config()
             stt = cfg["stt"]
             assert isinstance(stt, dict)
-            assert stt["backend"] == "remote"
+            assert stt["backend"] == "dummy"
             assert stt["vad_engine"] == "silero"
 
     def test_nested_context_null_is_noop_without_config_write_or_event(self) -> None:
@@ -1133,12 +1131,12 @@ class TestSettingsApiPostReturnsSavedValues:
             client, state, _, _, _ = _make_client(Path(td))
             resp = client.post(
                 "/api/settings",
-                json={"stt": {"backend": "deepgram"}},
+                json={"stt": {"backend": "dummy"}},
             )
             assert resp.status_code == 200
             settings = self._ok_settings(resp)
             stt = as_json_object(settings["stt"])
-            assert stt["backend"] == "deepgram"
+            assert stt["backend"] == "dummy"
             assert stt["vad_engine"] == "silero"
 
             reply = as_json_object(settings["reply"])
@@ -1160,7 +1158,7 @@ class TestSettingsApiPostReturnsSavedValues:
                 "/api/settings",
                 json={
                     "reply": {"enabled": False},
-                    "stt": {"backend": "remote"},
+                    "stt": {"backend": "dummy"},
                 },
             )
             assert resp.status_code == 200
@@ -1168,7 +1166,7 @@ class TestSettingsApiPostReturnsSavedValues:
             reply = as_json_object(settings["reply"])
             assert reply["enabled"] is False
             stt = as_json_object(settings["stt"])
-            assert stt["backend"] == "remote"
+            assert stt["backend"] == "dummy"
 
     def test_post_reply_styles_patch_reflected_in_response(self) -> None:
         """POST reply.styles patch must return the updated enabled states."""
@@ -1482,8 +1480,6 @@ class TestConnectionSettingsApi:
         ("provider", "secret_key", "url", "authorization"),
         [
             ("openai", "OPENAI_API_KEY", "https://api.openai.com/v1/models", "Bearer draft-secret"),
-            ("deepgram", "DEEPGRAM_API_KEY", "https://api.deepgram.com/v1/projects", "Token draft-secret"),
-            ("xai", "XAI_API_KEY", "https://api.x.ai/v1/models", "Bearer draft-secret"),
             (
                 "gemini",
                 "GEMINI_API_KEY",
@@ -1590,3 +1586,14 @@ class TestConnectionSettingsApi:
             response = as_json_object(as_json_object(operation["post"])["responses"])["200"]
             assert "ConnectionTestRequest" in str(request_body)
             assert "ConnectionTestResponse" in str(response)
+
+
+def test_retired_speech_settings_cannot_be_enabled(tmp_path: Path) -> None:
+    client, _state, store, _events, _secret = _make_client(tmp_path)
+    before = store.load_config()
+    for backend in ("deepgram", "openai", "xai", "remote", "managed"):
+        response = client.post("/api/settings", json={"stt": {"backend": backend}})
+        assert response.status_code == 422
+        assert store.load_config() == before
+    for provider in ("deepgram", "xai"):
+        assert client.post("/api/settings/connections/test", json={"provider": provider}).status_code == 422

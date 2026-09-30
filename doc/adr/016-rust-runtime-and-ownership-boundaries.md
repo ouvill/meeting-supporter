@@ -1,5 +1,6 @@
 # ADR-016: Rust 移行時の実行境界と状態の所有者を明確にする
 
+- **Supersession**: 議事録生成とクラウド音声認識の提供範囲は [ADR-019](./019-local-speech-and-saved-history.md) で部分置換する。
 - **Status**: Proposed
 - **Date**: 2026-09-29
 - **Builds on**: ADR-002、ADR-003、ADR-009、ADR-010、ADR-015

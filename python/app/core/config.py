@@ -26,7 +26,7 @@ type RouteRuntime = Literal["pydantic-ai", "managed"]
 type RouteKind = Literal["managed", "subscription_app", "local", "byok"]
 type RouteAvailability = Literal["available", "experimental", "planned", "unavailable"]
 type RouteReadiness = Literal["ready", "setup_required", "unavailable", "error", "not_offered", "unknown"]
-type RouteCapability = Literal["reply", "minutes", "stream", "cancel"]
+type RouteCapability = Literal["reply", "stream", "cancel"]
 type BillingOwner = Literal["app", "external_subscription", "user", "none"]
 type RouteAction = Literal[
     "none",
@@ -72,7 +72,6 @@ class AiRouteAssignments:
     """Schema-v2 canonical route selection for each AI use case."""
 
     reply: str | None = None
-    minutes: str | None = None
 
 
 # ── STT configuration ─────────────────────────────────────────────────────────

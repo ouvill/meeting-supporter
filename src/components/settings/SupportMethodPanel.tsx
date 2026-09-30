@@ -112,10 +112,7 @@ function routeIcon(route: AiRouteReadModel) {
 const USE_CASE_OPTIONS: ReadonlyArray<{
   useCase: AiAssignableUseCase;
   label: string;
-}> = [
-  { useCase: "reply", label: "返答案" },
-  { useCase: "minutes", label: "要約・議事録" },
-];
+}> = [{ useCase: "reply", label: "返答案" }];
 
 function RouteCard({
   route,

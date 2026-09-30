@@ -69,6 +69,8 @@ pub enum Error {
     Data(#[from] serde_json::Error),
     #[error("この操作は Rust バックエンドではまだ利用できません。")]
     Unsupported,
+    #[error("以前の音声認識設定は利用できません。端末内の方式を選び直してください。")]
+    SpeechSelection,
     #[error("音声認識を準備してから会議を開始してください。")]
     NotPrepared,
     #[error("会議中はこの操作を実行できません。")]

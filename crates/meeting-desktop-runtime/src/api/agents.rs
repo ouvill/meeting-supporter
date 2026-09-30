@@ -76,11 +76,7 @@ pub(super) async fn remove(State(api): State<Api>, Path(id): Path<String>) -> Re
     let _guard = maintenance(&api).await?;
     let store = api.shared.settings.lock().await;
     let assigned = crate::ai::routes::assignments(&store)?;
-    if [&assigned.reply, &assigned.minutes]
-        .into_iter()
-        .flatten()
-        .any(|selected| selected == &format!("acp:{id}"))
-    {
+    if assigned.reply.as_deref() == Some(format!("acp:{id}").as_str()) {
         return Err(ApiError(
             StatusCode::CONFLICT,
             json!({"detail":"利用するAIの選択を解除して保存してから削除してください。"}),

@@ -4,8 +4,7 @@ import { getSpeechCapabilities } from "../../api/speechCapabilities";
 import type { SpeechModelController } from "../../hooks/useSpeechModel";
 import { RuntimeContext } from "../../platform/runtimeContext";
 import { AudioSettingsPanel } from "./AudioSettingsPanel";
-import type { ConnectionProvider } from "./ApiConnectionControl";
-import type { ConnectionUiState, SettingsForm } from "./types";
+import type { SettingsForm } from "./types";
 
 vi.mock("../../api/speechCapabilities", () => ({
   getSpeechCapabilities: vi.fn(),
@@ -18,8 +17,6 @@ const FORM: SettingsForm = {
   sttBackend: "whisper",
   sttWhisperModel: "large-v3-turbo",
   sttDevice: "auto",
-  sttDeepgramModel: "nova-3",
-  sttOpenaiModel: "gpt-4o-transcribe",
   sttLang: "ja",
   sttVadEngine: "silero",
   sttVadSensitivity: 0.4,
@@ -53,14 +50,6 @@ const SPEECH_MODEL: SpeechModelController = {
   cancelDownload: vi.fn(async () => {}),
 };
 
-const CONNECTION_STATES: Record<ConnectionProvider, ConnectionUiState> = {
-  openai: "unconfigured",
-  deepgram: "unconfigured",
-  xai: "unconfigured",
-  gemini: "unconfigured",
-  anthropic: "unconfigured",
-};
-
 describe("AudioSettingsPanel", () => {
   beforeEach(() => {
     vi.mocked(getSpeechCapabilities).mockReset();
@@ -76,27 +65,6 @@ describe("AudioSettingsPanel", () => {
           form={FORM}
           errors={{}}
           speechModel={SPEECH_MODEL}
-          managedStt={{
-            offered: false,
-            loading: false,
-            authenticated: false,
-            selectable: false,
-            message: "このビルドでは提供していません。",
-            refresh: vi.fn(async () => {}),
-          }}
-          onManageAccount={vi.fn()}
-          connectionStates={CONNECTION_STATES}
-          secretsStatus={{}}
-          secretInputs={{}}
-          connectionEditingProvider={null}
-          connectionTestingProvider={null}
-          connectionTestMessages={{}}
-          onBeginConnectionEdit={vi.fn()}
-          onCancelConnectionEdit={vi.fn()}
-          onSecretChange={vi.fn()}
-          onTestConnection={vi.fn()}
-          onRequestSecretDelete={vi.fn()}
-          onCancelSecretDelete={vi.fn()}
           update={update}
         />,
         {
@@ -212,27 +180,6 @@ describe("AudioSettingsPanel", () => {
         errors={{}}
         speechModel={SPEECH_MODEL}
         audioSettingsLocked
-        managedStt={{
-          offered: false,
-          loading: false,
-          authenticated: false,
-          selectable: false,
-          message: "このビルドでは提供していません。",
-          refresh: vi.fn(async () => {}),
-        }}
-        onManageAccount={vi.fn()}
-        connectionStates={CONNECTION_STATES}
-        secretsStatus={{}}
-        secretInputs={{}}
-        connectionEditingProvider={null}
-        connectionTestingProvider={null}
-        connectionTestMessages={{}}
-        onBeginConnectionEdit={vi.fn()}
-        onCancelConnectionEdit={vi.fn()}
-        onSecretChange={vi.fn()}
-        onTestConnection={vi.fn()}
-        onRequestSecretDelete={vi.fn()}
-        onCancelSecretDelete={vi.fn()}
         update={vi.fn()}
       />,
     );
@@ -257,27 +204,6 @@ describe("AudioSettingsPanel", () => {
           backend: "reazonspeech",
           model: null,
         }}
-        managedStt={{
-          offered: false,
-          loading: false,
-          authenticated: false,
-          selectable: false,
-          message: "このビルドでは提供していません。",
-          refresh: vi.fn(async () => {}),
-        }}
-        onManageAccount={vi.fn()}
-        connectionStates={CONNECTION_STATES}
-        secretsStatus={{}}
-        secretInputs={{}}
-        connectionEditingProvider={null}
-        connectionTestingProvider={null}
-        connectionTestMessages={{}}
-        onBeginConnectionEdit={vi.fn()}
-        onCancelConnectionEdit={vi.fn()}
-        onSecretChange={vi.fn()}
-        onTestConnection={vi.fn()}
-        onRequestSecretDelete={vi.fn()}
-        onCancelSecretDelete={vi.fn()}
         update={vi.fn()}
       />,
     );
@@ -308,27 +234,6 @@ function renderRustWhisper(device = "auto") {
         form={{ ...FORM, sttDevice: device }}
         errors={{}}
         speechModel={SPEECH_MODEL}
-        managedStt={{
-          offered: false,
-          loading: false,
-          authenticated: false,
-          selectable: false,
-          message: "このビルドでは提供していません。",
-          refresh: vi.fn(async () => {}),
-        }}
-        onManageAccount={vi.fn()}
-        connectionStates={CONNECTION_STATES}
-        secretsStatus={{}}
-        secretInputs={{}}
-        connectionEditingProvider={null}
-        connectionTestingProvider={null}
-        connectionTestMessages={{}}
-        onBeginConnectionEdit={vi.fn()}
-        onCancelConnectionEdit={vi.fn()}
-        onSecretChange={vi.fn()}
-        onTestConnection={vi.fn()}
-        onRequestSecretDelete={vi.fn()}
-        onCancelSecretDelete={vi.fn()}
         update={update}
       />
     </RuntimeContext.Provider>,

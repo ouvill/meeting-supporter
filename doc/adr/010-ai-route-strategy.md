@@ -1,5 +1,6 @@
 # ADR-010: AI route strategyとしてCodex直接経路と正直なavailabilityを採用する
 
+- **Supersession**: 議事録生成とクラウド音声認識の提供範囲は [ADR-019](./019-local-speech-and-saved-history.md) で部分置換する。
 - **Status**: Accepted
 - **Partially superseded by**: [ADR-017](./017-acp-registry-and-shared-rust-client.md)（外部エージェント接続・導入、旧専用経路の廃止）
 - **Date**: 2026-07-10

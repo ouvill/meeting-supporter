@@ -85,8 +85,6 @@ class RuntimeCompositionCoordinator:
             cfg,
             self._broadcast_manager.broadcast,
             self._handle_speech,
-            self._managed_session_store,
-            lambda: self._state.current_session.id if self._state.current_session is not None else None,
         )
 
     async def on_config_changed(

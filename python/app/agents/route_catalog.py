@@ -32,7 +32,7 @@ from app.core.config import (
 from app.core.protocols import SecretStore
 
 BUILT_IN_ROUTE_IDS = ("managed", "ollama", "gemini", "openai", "anthropic")
-type AssignableUseCase = Literal["reply", "minutes"]
+type AssignableUseCase = Literal["reply"]
 
 
 @dataclass(frozen=True)
@@ -159,11 +159,10 @@ class RouteAssignmentsReadModel(BaseModel):
     model_config = ConfigDict(frozen=True)  # pyright: ignore[reportUnannotatedClassAttribute]
 
     reply: str | None = None
-    minutes: str | None = None
 
     @classmethod
     def from_config(cls, assignments: AiRouteAssignments) -> "RouteAssignmentsReadModel":
-        return cls(reply=assignments.reply, minutes=assignments.minutes)
+        return cls(reply=assignments.reply)
 
 
 class RouteCatalogResponse(BaseModel):
@@ -204,7 +203,7 @@ _METADATA: dict[str, _RouteMetadata] = {
         selectable=True,
         data_location="local",
         billing_owner="none",
-        capabilities=("reply", "minutes", "stream"),
+        capabilities=("reply", "stream"),
     ),
     "gemini": _RouteMetadata(
         kind="byok",
@@ -214,7 +213,7 @@ _METADATA: dict[str, _RouteMetadata] = {
         selectable=True,
         data_location="cloud",
         billing_owner="user",
-        capabilities=("reply", "minutes", "stream"),
+        capabilities=("reply", "stream"),
     ),
     "openai": _RouteMetadata(
         kind="byok",
@@ -224,7 +223,7 @@ _METADATA: dict[str, _RouteMetadata] = {
         selectable=True,
         data_location="cloud",
         billing_owner="user",
-        capabilities=("reply", "minutes", "stream"),
+        capabilities=("reply", "stream"),
     ),
     "anthropic": _RouteMetadata(
         kind="byok",
@@ -234,7 +233,7 @@ _METADATA: dict[str, _RouteMetadata] = {
         selectable=True,
         data_location="cloud",
         billing_owner="user",
-        capabilities=("reply", "minutes", "stream"),
+        capabilities=("reply", "stream"),
     ),
 }
 
@@ -290,14 +289,7 @@ class RouteCatalog:
         return self._assignments
 
     async def read(self) -> RouteCatalogResponse:
-        selected_ids = {
-            route_id
-            for route_id in (
-                self._assignments.reply,
-                self._assignments.minutes,
-            )
-            if route_id is not None
-        }
+        selected_ids = {route_id for route_id in (self._assignments.reply,) if route_id is not None}
         routes = [await self._read_route(route_id, route_id in selected_ids) for route_id in BUILT_IN_ROUTE_IDS]
         return RouteCatalogResponse(
             routes=routes,
@@ -306,7 +298,8 @@ class RouteCatalog:
 
     async def read_assigned_route(self, use_case: AssignableUseCase) -> RouteReadModel | None:
         """Read and probe only the route assigned to one use case."""
-        route_id = self._assignments.reply if use_case == "reply" else self._assignments.minutes
+        _ = use_case
+        route_id = self._assignments.reply
         if route_id is None or route_id not in _METADATA:
             return None
         return await self._read_route(route_id, selected=True)

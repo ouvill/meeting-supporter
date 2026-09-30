@@ -5,8 +5,6 @@ from dataclasses import FrozenInstanceError
 from typing import cast
 
 from app.agents.models import (
-    MinutesPrompt,
-    PydanticAIMinutesAgentRuntime,
     PydanticAIReplyAgentRuntime,
     ReplyAgentDefinition,
     ReplyPrompt,
@@ -65,24 +63,6 @@ class ReplyAgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
     def test_reply_prompt_is_immutable(self) -> None:
         prompt = ReplyPrompt(text="hello")
-
-        with self.assertRaises(FrozenInstanceError):
-            setattr(prompt, "text", "changed")
-
-
-class MinutesAgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
-    async def test_pydantic_ai_minutes_runtime_delegates_prompt_text(self) -> None:
-        agent = RecordingAgent()
-        runtime = PydanticAIMinutesAgentRuntime(agent)
-
-        async with runtime.run_stream(MinutesPrompt(text="minutes")) as stream:
-            chunks = [chunk async for chunk in stream.stream_text(delta=True)]
-
-        self.assertEqual(["minutes"], agent.prompts)
-        self.assertEqual(["ok"], chunks)
-
-    def test_minutes_prompt_is_immutable(self) -> None:
-        prompt = MinutesPrompt(text="hello")
 
         with self.assertRaises(FrozenInstanceError):
             setattr(prompt, "text", "changed")

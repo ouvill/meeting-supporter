@@ -47,13 +47,13 @@ pub(crate) struct Route {
 #[serde(deny_unknown_fields)]
 pub(crate) struct Assignments {
     pub reply: Option<String>,
-    pub minutes: Option<String>,
 }
 pub(crate) fn assignments(store: &Store) -> Result<Assignments, Error> {
-    // Ignore the retired info assignment in saved settings, but reject it in API requests.
+    // Ignore the retired info/minutes assignments in saved settings, but reject it in API requests.
     let mut saved = store.document["ai"]["assignments"].clone();
     if let Some(values) = saved.as_object_mut() {
         values.remove("info");
+        values.remove("minutes");
     }
     serde_json::from_value(saved).map_err(|_| AiError::Configuration.into())
 }
@@ -187,10 +187,7 @@ pub(crate) async fn catalog(store: Store, agents: &crate::agents::Manager) -> Re
             ),
         };
         let selectable = code != "RUST_ROUTE_UNSUPPORTED";
-        let selected = selectable
-            && [&assigned.reply, &assigned.minutes]
-                .iter()
-                .any(|a| a.as_deref() == Some(id));
+        let selected = selectable && assigned.reply.as_deref() == Some(id);
         let label = match p {
             Provider::Openai => "OpenAI",
             Provider::Gemini => "Google Gemini",

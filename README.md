@@ -27,6 +27,7 @@
 
 - 保存された会議を一覧・詳細で確認する
 - 会話ログ、保存された返答提案、利用可能な録音を確認する
+- 保存済みの議事録を閲覧する
 - 会議タイトルを変更する
 - 確認ダイアログから会議を削除する
 
@@ -36,17 +37,12 @@
 
 - Whisper（local。アプリ設定からmodelを準備可能）
 - ReazonSpeech K2-v2 int8（local・日本語専用。アプリ設定からmodelを準備可能）
-- Deepgram（cloud。credentialが必要）
-- OpenAI（cloud。`OPENAI_API_KEY`が必要。発話単位で音声を転送）
-- Grok / xAI（cloud。`XAI_API_KEY`が必要。ストリーミング音声を転送）
-- Remote STT server
 - Dummy（development/smoke用）
 
-既定はWhisperです。modelの利用規約は各backendの提供元に従い、cloud backendの利用料金は各提供元で確認してください。
+既定はReazonSpeechです。モデルの利用規約は各提供元に従います。
 
 VADエンジンはSTT backendとは独立して、Silero VADまたはWebRTC VADから選択します。
 
-OpenAI、Grok / xAI、Deepgramは「音声」の「聞き取り方法」から選択します。クラウド方式を選ぶと、同じ画面のprovider固有controlでAPIキーの入力、保存状態、接続確認、変更、削除予定の指定を行えます。provider固有modelは詳細設定に残ります。OpenAIのcredential draftと状態は音声認識と返答支援で共有し、保存済みAPIキーの値は再表示しません。
 
 ## AIの利用方法
 
@@ -75,7 +71,7 @@ Meeting Supporterが運営するhosted serviceのserver実装・運用文書は�
 - Rust toolchain（Tauri desktop開発時）
 - `uv`（ローカル開発時。配布版は初回起動時に公式配布物を取得）
 
-選択するcloud STT/AI経路には各サービスのcredentialが必要です。local STT/AI経路には対応modelまたはlocal serviceが必要です。
+返答生成のcloud AI経路には各サービスのcredentialが必要です。ローカル音声認識には対応モデル、ローカルAIにはサービスの準備が必要です。
 
 ### 依存関係
 

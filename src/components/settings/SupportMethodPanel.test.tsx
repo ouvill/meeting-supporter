@@ -50,8 +50,6 @@ function renderPanel(
   const onRouteAction = vi.fn();
   const assignments: AiRouteDraftAssignments = {
     reply: null,
-
-    minutes: null,
     ...assignmentOverrides,
   };
   render(
@@ -66,8 +64,6 @@ function renderPanel(
       replyAutoGenerate={options.replyAutoGenerate ?? false}
       connectionStates={{
         openai: "unconfigured",
-        deepgram: "unconfigured",
-        xai: "unconfigured",
         gemini: "unconfigured",
         anthropic: "unconfigured",
       }}
@@ -156,23 +152,24 @@ describe("SupportMethodPanel", () => {
     ).toBe(true);
   });
 
-  it("assigns and clears reply and minutes independently without an info option", () => {
+  it("assigns reply without retired use cases", () => {
     const { onAssignmentChange } = renderPanel(
       [
         route({
-          capabilities: ["reply", "minutes", "stream", "cancel"],
+          capabilities: ["reply", "stream", "cancel"],
         }),
       ],
-      { reply: "ollama", minutes: null },
+      { reply: "ollama" },
     );
 
     const reply = screen.getByRole("button", { name: "返答案" });
-    const minutes = screen.getByRole("button", { name: "要約・議事録" });
+    expect(
+      screen.queryByRole("button", { name: "要約・議事録" }),
+    ).not.toBeInTheDocument();
     expect(reply).toHaveAttribute("aria-pressed", "true");
     expect(
       screen.queryByRole("button", { name: "会話メモ" }),
     ).not.toBeInTheDocument();
-    expect(minutes).toHaveAttribute("aria-pressed", "false");
     expect(
       screen.queryByRole("button", { name: "stream" }),
     ).not.toBeInTheDocument();
@@ -185,10 +182,8 @@ describe("SupportMethodPanel", () => {
     expect(screen.getAllByText("処理場所")).toHaveLength(1);
 
     fireEvent.click(reply);
-    fireEvent.click(minutes);
 
     expect(onAssignmentChange).toHaveBeenNthCalledWith(1, "reply", null);
-    expect(onAssignmentChange).toHaveBeenNthCalledWith(2, "minutes", "ollama");
   });
 
   it("displays processing location and billing responsibility on each route card", () => {

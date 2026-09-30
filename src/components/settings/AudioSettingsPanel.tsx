@@ -1,28 +1,14 @@
 import { useRustBackend } from "../../platform/runtimeContext";
 import { useSpeechCapabilities } from "../../hooks/useSpeechCapabilities";
 import type { SpeechModelController } from "../../hooks/useSpeechModel";
-import type { ManagedSttAvailability } from "../../hooks/useManagedService";
 import { InlineNotice } from "../ui/InlineNotice";
-import { Button } from "../ui/Button";
-import {
-  ApiConnectionControl,
-  CONNECTIONS,
-  type ConnectionProvider,
-} from "./ApiConnectionControl";
 import { SpeechModelPreparationCard } from "./SpeechModelPreparationCard";
 import { FieldRow, SettingsCard, SettingsPage } from "./SettingsPrimitives";
 import {
   isVadEngine,
-  type ConnectionUiState,
   type SettingsFieldErrors,
   type SettingsForm,
 } from "./types";
-
-const CLOUD_STT = {
-  deepgram: { label: "Deepgram" },
-  openai: { label: "OpenAI" },
-  xai: { label: "Grok / xAI" },
-} as const satisfies Partial<Record<ConnectionProvider, { label: string }>>;
 
 interface Props {
   form: SettingsForm;
@@ -30,20 +16,6 @@ interface Props {
   speechModel: SpeechModelController;
   speechModelActionsDisabled?: boolean;
   audioSettingsLocked?: boolean;
-  managedStt: ManagedSttAvailability;
-  onManageAccount: () => void;
-  connectionStates: Record<ConnectionProvider, ConnectionUiState>;
-  secretsStatus: Record<string, boolean>;
-  secretInputs: Record<string, string>;
-  connectionEditingProvider: ConnectionProvider | null;
-  connectionTestingProvider: ConnectionProvider | null;
-  connectionTestMessages: Partial<Record<ConnectionProvider, string>>;
-  onBeginConnectionEdit: (provider: ConnectionProvider) => void;
-  onCancelConnectionEdit: (provider: ConnectionProvider) => void;
-  onSecretChange: (provider: ConnectionProvider, value: string) => void;
-  onTestConnection: (provider: ConnectionProvider) => void;
-  onRequestSecretDelete: (provider: ConnectionProvider) => void;
-  onCancelSecretDelete: (provider: ConnectionProvider) => void;
   update: <K extends keyof SettingsForm>(
     key: K,
     value: SettingsForm[K],
@@ -56,20 +28,6 @@ export function AudioSettingsPanel({
   speechModel,
   speechModelActionsDisabled = false,
   audioSettingsLocked = false,
-  managedStt,
-  onManageAccount,
-  connectionStates,
-  secretsStatus,
-  secretInputs,
-  connectionEditingProvider,
-  connectionTestingProvider,
-  connectionTestMessages,
-  onBeginConnectionEdit,
-  onCancelConnectionEdit,
-  onSecretChange,
-  onTestConnection,
-  onRequestSecretDelete,
-  onCancelSecretDelete,
   update,
 }: Props) {
   const speechModelControlsDisabled =
@@ -88,11 +46,6 @@ export function AudioSettingsPanel({
         : gpuSupport === "loading"
           ? "GPUへの対応状況を確認しています。"
           : "GPUへの対応状況を確認できませんでした。設定を開き直して再確認するか、「自動」または「CPU」を選んでください。";
-  const cloudProvider =
-    form.sttBackend in CLOUD_STT
-      ? (form.sttBackend as keyof typeof CLOUD_STT)
-      : null;
-  const cloud = cloudProvider ? CLOUD_STT[cloudProvider] : null;
   const usesLocalSpeechModel =
     form.sttBackend === "whisper" || form.sttBackend === "reazonspeech";
   return (
@@ -127,65 +80,21 @@ export function AudioSettingsPanel({
                 <option value="reazonspeech">
                   端末内・日本語高精度（ReazonSpeech）
                 </option>
-                <option value="managed" disabled={!managedStt.selectable}>
-                  Meeting Supporter AI（共通利用枠）
-                </option>
-                <option value="deepgram">Deepgram（クラウド処理）</option>
-                <option value="openai">OpenAI（クラウド処理）</option>
-                <option value="xai">Grok / xAI（クラウド処理）</option>
                 {form.sttBackend === "dummy" && (
                   <option value="dummy">テスト用</option>
                 )}
+                {!usesLocalSpeechModel && form.sttBackend !== "dummy" && (
+                  <option value={form.sttBackend} disabled>
+                    以前の設定（利用不可）
+                  </option>
+                )}
               </select>
             </FieldRow>
-            {managedStt.offered && (
-              <InlineNotice tone={managedStt.selectable ? "info" : "warning"}>
-                <p>{managedStt.message}</p>
-                {!managedStt.selectable && (
-                  <Button
-                    size="sm"
-                    variant="quiet"
-                    className="mt-2"
-                    onClick={onManageAccount}
-                  >
-                    アカウントとプランを確認
-                  </Button>
-                )}
-              </InlineNotice>
-            )}
-            {cloudProvider && (
-              <ApiConnectionControl
-                provider={cloudProvider}
-                state={connectionStates[cloudProvider]}
-                hasSavedKey={
-                  secretsStatus[CONNECTIONS[cloudProvider].secretKey] ?? false
-                }
-                draftKey={
-                  secretInputs[CONNECTIONS[cloudProvider].secretKey] ?? ""
-                }
-                editing={connectionEditingProvider === cloudProvider}
-                testing={connectionTestingProvider === cloudProvider}
-                disabled={
-                  connectionTestingProvider !== null &&
-                  connectionTestingProvider !== cloudProvider
-                }
-                testMessage={connectionTestMessages[cloudProvider] ?? null}
-                onBeginEdit={() => onBeginConnectionEdit(cloudProvider)}
-                onCancelEdit={() => onCancelConnectionEdit(cloudProvider)}
-                onDraftChange={(value) => onSecretChange(cloudProvider, value)}
-                onTest={() => onTestConnection(cloudProvider)}
-                onRequestDelete={() => onRequestSecretDelete(cloudProvider)}
-                onCancelDelete={() => onCancelSecretDelete(cloudProvider)}
-              />
-            )}
-
-            {cloud && (
+            {!usesLocalSpeechModel && form.sttBackend !== "dummy" && (
               <InlineNotice tone="warning">
-                音声データは {cloud.label}{" "}
-                に送信され、利用料は各サービスの契約先から請求されます。APIキーはこの画面で設定します。モデル識別子は詳細設定で管理します。
+                以前の音声認識設定は利用できません。端末内の方式を選び直してください。
               </InlineNotice>
             )}
-
             {form.sttBackend === "reazonspeech" && (
               <InlineNotice tone="info">
                 ReazonSpeech

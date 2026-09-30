@@ -26,24 +26,21 @@ Usage (OpenAPI schema generation — no runtime deps needed)::
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import override
 
 from fastapi import APIRouter, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from app.agents.models import MinutesAgentRuntime, MinutesPrompt
 from app.agents.route_catalog import ManagedStatusProvider, OllamaStatusProvider
-from app.api import managed_session, meeting, meeting_history, settings, stt_models, system
+from app.api import managed_session, meeting_history, settings, stt_models, system
 from app.core.config import AgentSettings, AiRouteAssignments, RouteDefinition, SttConfig
 from app.core.event_bus import EventBus
 from app.core.local_auth import get_backend_auth_token, is_bearer_token_authorized, is_origin_allowed
-from app.core.protocols import StreamLike
 from app.core.state import AppState
 from app.core.types import InputDevice
 from app.meetings.history_models import (
@@ -117,7 +114,6 @@ class HttpRouterDependencies:
     settings_event_bus: EventBus
     history_service: MeetingHistoryService
     user_data_dir: Path
-    get_minutes_runtime: Callable[[], MinutesAgentRuntime | None]
     managed_status: ManagedStatusProvider | None = None
     ollama_status: OllamaStatusProvider | None = None
     whisper_model_manager: WhisperModelManager | None = None
@@ -151,10 +147,6 @@ def create_http_routers(dependencies: HttpRouterDependencies) -> tuple[APIRouter
             reazonspeech_model_manager=reazonspeech_model_manager,
         ),
         managed_session.create_router(managed_session_store),
-        meeting.create_router(
-            history_service=dependencies.history_service,
-            get_minutes_runtime=dependencies.get_minutes_runtime,
-        ),
         meeting_history.create_router(
             history_service=dependencies.history_service,
             user_data_dir=dependencies.user_data_dir,
@@ -274,7 +266,6 @@ def create_openapi_app() -> FastAPI:
     dummy_whisper_model_manager = WhisperModelManager()
     dummy_secret_store = FileSecretStore(path=Path(_NONEXISTENT) / "secrets.toml")
     dummy_state = AppState(config=dummy_config, secret_store=dummy_secret_store)
-    dummy_minutes_runtime: MinutesAgentRuntime = _DummyMinutesRuntime()
     dummy_history_repo: MeetingHistoryRepository = _DummyMeetingHistoryRepository()
     dummy_history_service = MeetingHistoryService(repository=dummy_history_repo)
 
@@ -286,7 +277,6 @@ def create_openapi_app() -> FastAPI:
             settings_event_bus=dummy_event_bus,
             history_service=dummy_history_service,
             user_data_dir=Path("/tmp"),
-            get_minutes_runtime=lambda: dummy_minutes_runtime,
             whisper_model_manager=dummy_whisper_model_manager,
         )
     )
@@ -298,31 +288,6 @@ def create_openapi_app() -> FastAPI:
 def _stub_get_input_devices() -> list[InputDevice]:
     """Return an empty device list — never called during schema generation."""
     return []
-
-
-class _DummyStream(StreamLike):
-    """Stub ``StreamLike`` — never actually entered during schema generation."""
-
-    async def __aenter__(self) -> _DummyStream:
-        return self
-
-    async def __aexit__(self, *_: object) -> None:
-        pass
-
-    @override
-    async def stream_text(self, *, delta: bool) -> AsyncIterator[str]:
-        """Return an empty async iterator (stub, never actually called at runtime)."""
-        _ = delta
-        for chunk in ():
-            yield chunk
-
-
-class _DummyMinutesRuntime:
-    """Minimal ``MinutesAgentRuntime`` stub — no LLM backend."""
-
-    def run_stream(self, prompt: MinutesPrompt) -> _DummyStream:
-        _ = prompt
-        return _DummyStream()
 
 
 class _DummyMeetingHistoryRepository:

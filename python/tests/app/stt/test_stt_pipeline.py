@@ -77,7 +77,7 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
             chunk_size=960,
         )
 
-    def _make_pipeline(self, backend: str = "deepgram") -> SttPipeline:
+    def _make_pipeline(self, backend: str = "dummy") -> SttPipeline:
         stt_q = queue.Queue[_AudioFrame | None]()
         return SttPipeline(
             stt_queue=cast("queue.Queue[AudioFrame | None]", stt_q),
@@ -95,24 +95,9 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
         p = self._make_pipeline("reazonspeech")
         self.assertTrue(p.supports_prewarm())
 
-    def test_supports_prewarm_false_for_deepgram(self) -> None:
-        p = self._make_pipeline("deepgram")
-        self.assertFalse(p.supports_prewarm())
-
-    def test_supports_prewarm_false_for_remote(self) -> None:
-        p = self._make_pipeline("remote")
-        self.assertFalse(p.supports_prewarm())
-
     def test_supports_prewarm_false_for_dummy(self) -> None:
         p = self._make_pipeline("dummy")
         self.assertFalse(p.supports_prewarm())
-
-    async def test_managed_rejects_non_16khz_audio(self) -> None:
-        pipeline = self._make_pipeline("managed")
-        pipeline._cfg.sample_rate = 48_000  # pyright: ignore[reportPrivateUsage]
-
-        with self.assertRaisesRegex(ValueError, "16 kHz"):
-            pipeline.start(asyncio.get_running_loop())
 
     async def test_initialize_whisper_returns_before_slow_acquire_and_publishes_progress(self) -> None:
         broadcast = FakeBroadcast()
@@ -215,8 +200,8 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(called.is_set())
         self.assertTrue(p._reazonspeech_initialized)  # pyright: ignore[reportPrivateUsage]
 
-    async def test_initialize_non_whisper_calls_on_ready_immediately(self) -> None:
-        p = self._make_pipeline("deepgram")
+    async def test_initialize_dummy_calls_on_ready_immediately(self) -> None:
+        p = self._make_pipeline("dummy")
         loop = asyncio.get_running_loop()
         called = asyncio.Event()
 
@@ -230,7 +215,7 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(called.is_set())
 
     async def test_start_and_stop(self) -> None:
-        p = self._make_pipeline("deepgram")
+        p = self._make_pipeline("dummy")
         loop = asyncio.get_running_loop()
 
         p.start(loop)
@@ -304,7 +289,7 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
                 p.stop()
 
     async def test_idempotent_start(self) -> None:
-        p = self._make_pipeline("deepgram")
+        p = self._make_pipeline("dummy")
         loop = asyncio.get_running_loop()
         p.start(loop)
         first_pipeline = p._pipeline  # pyright: ignore[reportPrivateUsage]
@@ -313,7 +298,7 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
         p.stop()
 
     async def test_idempotent_stop(self) -> None:
-        p = self._make_pipeline("deepgram")
+        p = self._make_pipeline("dummy")
         p.stop()
         self.assertFalse(p._started)  # pyright: ignore[reportPrivateUsage]
         self.assertIsNone(p._pipeline)  # pyright: ignore[reportPrivateUsage]
@@ -345,7 +330,7 @@ class SttPipelineLifecycleTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(p._reazonspeech_initialized)  # pyright: ignore[reportPrivateUsage]
 
     async def test_start_failure_rolls_back_and_allows_retry(self) -> None:
-        p = self._make_pipeline("deepgram")
+        p = self._make_pipeline("dummy")
         loop = asyncio.get_running_loop()
 
         with patch("app.stt.pipeline._make_vad_engine", side_effect=RuntimeError("invalid VAD")):

@@ -333,8 +333,6 @@ function MainWindowContent({
             <MeetingHistoryScreen
               key="history"
               onBack={() => onNavigate("home")}
-              minutesRouteStatus={routes.minutesRouteStatus}
-              onSettings={onOpenSettings}
             />
           ) : (
             <SetupScreen

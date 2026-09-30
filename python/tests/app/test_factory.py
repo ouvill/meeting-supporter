@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from datetime import datetime
 from pathlib import Path
-from typing import cast, override
+from typing import cast
 
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
-from app.agents.models import MinutesAgentRuntime, MinutesPrompt
 from app.core.config import AgentSettings, AiRouteAssignments, RouteDefinition, SttConfig
 from app.core.event_bus import EventBus
-from app.core.protocols import StreamLike
 from app.core.state import AppState
 from app.factory import HttpRouterDependencies, create_app, create_openapi_app
 from app.meetings.history_models import (
@@ -63,33 +60,6 @@ def _get_http_routes(app: FastAPI) -> set[tuple[str, str]]:
             for method in route.methods:
                 routes.add((route.path, method))
     return routes
-
-
-# ── Reusable stub implementations (satisfy MinutesAgentRuntime / StreamLike) ─────────
-
-
-class _StubStream(StreamLike):
-    """Minimal ``StreamLike`` implementation — never actually entered at runtime."""
-
-    async def __aenter__(self) -> _StubStream:
-        return self
-
-    async def __aexit__(self, *_: object) -> None:
-        pass
-
-    @override
-    async def stream_text(self, *, delta: bool) -> AsyncIterator[str]:
-        _ = delta
-        for chunk in ():
-            yield chunk
-
-
-class _StubMinutesRuntime:
-    """Minimal ``MinutesAgentRuntime`` implementation — no LLM backend."""
-
-    def run_stream(self, prompt: MinutesPrompt) -> _StubStream:
-        _ = prompt
-        return _StubStream()
 
 
 class _StubRepo:
@@ -171,11 +141,6 @@ class _StubRepo:
         return None
 
 
-def _make_dummy_minutes_runtime() -> MinutesAgentRuntime:
-    """Return a minimal stub implementing the ``MinutesAgentRuntime`` protocol."""
-    return _StubMinutesRuntime()
-
-
 def _make_dummy_history_service() -> MeetingHistoryService:
     """Return a minimal ``MeetingHistoryService`` with a no-op repository."""
     return MeetingHistoryService(repository=_StubRepo())
@@ -231,7 +196,6 @@ def _make_dummy_state() -> AppState:
 
 def _make_http_dependencies() -> HttpRouterDependencies:
     """Build inert dependencies for inspecting the production HTTP contract."""
-    minutes_runtime = _make_dummy_minutes_runtime()
     return HttpRouterDependencies(
         get_input_devices=lambda: [],
         state=_make_dummy_state(),
@@ -239,7 +203,6 @@ def _make_http_dependencies() -> HttpRouterDependencies:
         settings_event_bus=EventBus(),
         history_service=_make_dummy_history_service(),
         user_data_dir=Path("/tmp"),
-        get_minutes_runtime=lambda: minutes_runtime,
     )
 
 
@@ -284,22 +247,10 @@ def test_create_openapi_app_has_exact_canonical_http_paths() -> None:
         "/meetings/recordings/cleanup/preview",
         "/meetings",
         "/meetings/{meeting_id}",
-        "/meetings/{meeting_id}/minutes",
         "/meetings/{meeting_id}/recordings",
         "/meetings/{meeting_id}/recordings/{role}",
     }
     assert "/minutes" not in paths
-
-
-def test_minutes_openapi_response_is_plain_text_string() -> None:
-    """Minutes clients receive a documented plaintext stream rather than a JSON payload."""
-    paths = _get_openapi_paths(create_openapi_app())
-    minutes_path = _as_string_object_map(paths["/meetings/{meeting_id}/minutes"])
-    post_operation = _as_string_object_map(minutes_path["post"])
-    responses = _as_string_object_map(post_operation["responses"])
-    success_response = _as_string_object_map(responses["200"])
-    content = _as_string_object_map(success_response["content"])
-    assert content == {"text/plain": {"schema": {"type": "string"}}}
 
 
 def test_http_routes_match_between_create_app_and_create_openapi_app() -> None:

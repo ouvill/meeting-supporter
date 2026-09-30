@@ -104,16 +104,10 @@ const readyLocalRoute: AiRouteReadModel = {
 function routeCatalog(overrides: Record<string, unknown> = {}) {
   return {
     routes: [readyLocalRoute],
-    assignments: { reply: "ollama", minutes: null },
-    assignedRoutes: { reply: readyLocalRoute, minutes: null },
+    assignments: { reply: "ollama" },
+    assignedRoutes: { reply: readyLocalRoute },
     replyStatus: { readiness: "ready", canGenerate: true, message: null },
-
-    minutesRouteStatus: {
-      readiness: "setup_required",
-      canGenerate: false,
-      message: "議事録を利用する支援方法を設定してください。",
-    },
-    draftAssignments: { reply: "ollama", minutes: null },
+    draftAssignments: { reply: "ollama" },
     assignmentDirty: false,
     setDraftAssignment: vi.fn(),
     resetDraftAssignments: vi.fn(),
@@ -152,8 +146,6 @@ describe("LiveReplySidePanel", () => {
       routeCatalog({
         assignedRoutes: {
           reply: nonSelectableRoute,
-
-          minutes: null,
         },
         replyStatus: {
           readiness: "unavailable",
@@ -302,9 +294,9 @@ describe("LiveReplySidePanel", () => {
     useAiRoutesMock.mockReturnValue(
       routeCatalog({
         routes: [],
-        assignments: { reply: null, minutes: null },
-        assignedRoutes: { reply: null, minutes: null },
-        draftAssignments: { reply: null, minutes: null },
+        assignments: { reply: null },
+        assignedRoutes: { reply: null },
+        draftAssignments: { reply: null },
         replyStatus: {
           readiness: "setup_required",
           canGenerate: false,

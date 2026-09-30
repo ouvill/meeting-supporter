@@ -57,6 +57,7 @@ const ALLOWED_DOCS = new Set([
   "doc/adr/002-stt-pipeline-architecture.md",
   "doc/adr/003-meeting-recording-history-architecture.md",
   "doc/adr/018-interrupted-meeting-history.md",
+  "doc/adr/019-local-speech-and-saved-history.md",
   "doc/adr/009-live-reply-llm-usecase-runtime-provider-architecture.md",
   "doc/adr/010-ai-route-strategy.md",
   "doc/adr/011-general-route-card-visibility.md",

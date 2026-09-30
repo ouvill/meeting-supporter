@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { testConnectionApiSettingsConnectionsTestPost } from "../../api/generated/sdk.gen";
 import {
   CONNECTIONS,
@@ -13,7 +6,6 @@ import {
   type ConnectionSecretKey,
   type ConnectionVerification,
 } from "./ApiConnectionControl";
-import { CONNECTION_PROVIDER_BY_STT } from "./settingsValidation";
 import type {
   ConnectionUiState,
   SettingsCategory,
@@ -26,8 +18,6 @@ const INITIAL_CONNECTION_VERIFICATION: Record<
   ConnectionVerification
 > = {
   openai: "unverified",
-  deepgram: "unverified",
-  xai: "unverified",
   gemini: "unverified",
   anthropic: "unverified",
 };
@@ -40,8 +30,6 @@ type SectionError = {
 interface UseConnectionSettingsOptions {
   form: SettingsForm;
   setForm: Dispatch<SetStateAction<SettingsForm>>;
-  savedBaseline: SettingsForm | null;
-  audioSettingsLocked: boolean;
   setFieldErrors: Dispatch<SetStateAction<SettingsFieldErrors>>;
   setSectionError: Dispatch<SetStateAction<SectionError>>;
   setSaveMessage: Dispatch<SetStateAction<string | null>>;
@@ -50,8 +38,6 @@ interface UseConnectionSettingsOptions {
 export function useConnectionSettings({
   form,
   setForm,
-  savedBaseline,
-  audioSettingsLocked,
   setFieldErrors,
   setSectionError,
   setSaveMessage,
@@ -69,53 +55,6 @@ export function useConnectionSettings({
   const [connectionTestMessages, setConnectionTestMessages] = useState<
     Partial<Record<ConnectionProvider, string>>
   >({});
-  const previousAudioSettingsLocked = useRef(audioSettingsLocked);
-
-  useEffect(() => {
-    if (!audioSettingsLocked) {
-      previousAudioSettingsLocked.current = false;
-      return;
-    }
-    if (previousAudioSettingsLocked.current || savedBaseline === null) return;
-
-    previousAudioSettingsLocked.current = true;
-    const activeProvider =
-      CONNECTION_PROVIDER_BY_STT[savedBaseline.sttBackend] ?? null;
-    if (activeProvider === null) return;
-
-    const activeSecretKey = CONNECTIONS[activeProvider].secretKey;
-    setForm((previous) => {
-      const secretInputs = { ...previous.secretInputs };
-      if (
-        Object.prototype.hasOwnProperty.call(
-          savedBaseline.secretInputs,
-          activeSecretKey,
-        )
-      ) {
-        secretInputs[activeSecretKey] =
-          savedBaseline.secretInputs[activeSecretKey];
-      } else {
-        delete secretInputs[activeSecretKey];
-      }
-      return { ...previous, secretInputs };
-    });
-    setPendingDeleteSecrets((previous) =>
-      previous.filter((secretKey) => secretKey !== activeSecretKey),
-    );
-    setConnectionEditingProvider((previous) =>
-      previous === activeProvider ? null : previous,
-    );
-    setConnectionVerification((previous) => ({
-      ...previous,
-      [activeProvider]: "unverified",
-    }));
-    setConnectionTestMessages((previous) => {
-      const next = { ...previous };
-      delete next[activeProvider];
-      return next;
-    });
-  }, [audioSettingsLocked, savedBaseline, setForm]);
-
   const connectionStates = useMemo(
     () =>
       (Object.keys(CONNECTIONS) as ConnectionProvider[]).reduce<

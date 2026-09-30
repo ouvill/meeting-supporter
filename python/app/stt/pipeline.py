@@ -23,15 +23,9 @@ from app.core.messages import ErrorMsg, OutgoingBroadcastFn
 from app.core.pipeline import Pipeline
 from app.core.publisher import OutgoingPublisher, ThreadSafePublisher
 from app.core.types import HandleSpeechFn
-from app.services.managed_session import ManagedSessionStore
-from app.stt.stages.stt_deepgram import DeepgramStage
 from app.stt.stages.stt_dummy import DummyStage
-from app.stt.stages.stt_managed import ManagedSttStage
-from app.stt.stages.stt_openai import OpenAIStage
 from app.stt.stages.stt_reazonspeech import ReazonSpeechEngine, ReazonSpeechStage
-from app.stt.stages.stt_remote import RemoteStage
 from app.stt.stages.stt_whisper import WhisperEngine, WhisperStage
-from app.stt.stages.stt_xai import XaiStage
 from app.stt.stages.vad import SileroVadEngine, VadEngine, VadStage, WebRtcVadEngine
 
 _Q2_SIZE = 200
@@ -53,46 +47,14 @@ def _make_stt_stage(
     role: str,
     publisher: OutgoingPublisher,
     handle_speech_fn: HandleSpeechFn,
-    managed_session_store: ManagedSessionStore | None,
-    get_managed_session_id: Callable[[], str | None] | None,
-) -> (
-    WhisperStage
-    | DeepgramStage
-    | ManagedSttStage
-    | DummyStage
-    | OpenAIStage
-    | ReazonSpeechStage
-    | RemoteStage
-    | XaiStage
-):
+) -> WhisperStage | DummyStage | ReazonSpeechStage:
     if cfg.backend == "whisper":
         return WhisperStage(in_q, cfg, role, publisher, handle_speech_fn)
-    if cfg.backend == "deepgram":
-        return DeepgramStage(in_q, cfg, role, publisher, handle_speech_fn)
-    if cfg.backend == "managed":
-        if cfg.sample_rate != 16_000:
-            raise ValueError("managed STT requires 16 kHz mono PCM")
-        if managed_session_store is None or get_managed_session_id is None:
-            raise ValueError("managed STT session bridge is not connected")
-        return ManagedSttStage(
-            in_q,
-            role,
-            publisher,
-            handle_speech_fn,
-            managed_session_store,
-            get_managed_session_id,
-        )
-    if cfg.backend == "openai":
-        return OpenAIStage(in_q, cfg, role, publisher, handle_speech_fn)
     if cfg.backend == "dummy":
         return DummyStage(in_q, cfg, role, publisher, handle_speech_fn)
     if cfg.backend == "reazonspeech":
         return ReazonSpeechStage(in_q, cfg, role, publisher, handle_speech_fn)
-    if cfg.backend == "remote":
-        return RemoteStage(in_q, cfg, role, publisher, handle_speech_fn)
-    if cfg.backend == "xai":
-        return XaiStage(in_q, cfg, role, publisher, handle_speech_fn)
-    raise ValueError(f"未知の STT バックエンド: {cfg.backend!r}")
+    raise ValueError("以前の音声認識設定は利用できません。端末内の方式を選び直してください。")
 
 
 class SttPipeline:
@@ -112,16 +74,14 @@ class SttPipeline:
         role: str,
         broadcast_fn: OutgoingBroadcastFn,
         handle_speech_fn: HandleSpeechFn,
-        managed_session_store: ManagedSessionStore | None = None,
-        get_managed_session_id: Callable[[], str | None] | None = None,
     ) -> None:
+        if cfg.backend not in {"whisper", "reazonspeech", "dummy"}:
+            raise ValueError("以前の音声認識設定は利用できません。端末内の方式を選び直してください。")
         self._stt_queue: queue.Queue[AudioFrame | None] = stt_queue
         self._cfg: SttConfig = cfg
         self._role: str = role
         self._broadcast: OutgoingBroadcastFn = broadcast_fn
         self._handle_speech: HandleSpeechFn = handle_speech_fn
-        self._managed_session_store: ManagedSessionStore | None = managed_session_store
-        self._get_managed_session_id: Callable[[], str | None] | None = get_managed_session_id
         self._lock: threading.Lock = threading.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._publisher: ThreadSafePublisher | None = None
@@ -144,7 +104,7 @@ class SttPipeline:
         return self._cfg.backend in {"whisper", "reazonspeech"}
 
     def initialize(self, loop: asyncio.AbstractEventLoop) -> None:
-        """Pre-warm local STT models. No-op for cloud/remote/dummy backends."""
+        """Pre-warm local STT models. No-op for the dummy backend."""
         if self._cfg.backend == "whisper":
             self._initialize_whisper(loop)
             return
@@ -349,8 +309,6 @@ class SttPipeline:
             self._role,
             self._publisher,
             self._handle_speech,
-            self._managed_session_store,
-            self._get_managed_session_id,
         )
 
         if isinstance(stt, WhisperStage) and not self._whisper_initialized:

@@ -67,12 +67,9 @@ def test_retired_info_settings_are_not_exposed_or_writable(tmp_path: Path) -> No
 
     assert "agents" not in client.get("/api/settings").json_object()
     catalog = client.get("/api/ai/routes").json_object()
-    assert as_json_object(catalog["assignments"]) == {"reply": None, "minutes": None}
+    assert as_json_object(catalog["assignments"]) == {"reply": None}
     assert all("info" not in as_json_array(route["capabilities"]) for route in _routes(catalog).values())
-    assert (
-        client.put("/api/ai/routes/assignments", json={"reply": None, "minutes": None, "info": "openai"}).status_code
-        == 422
-    )
+    assert client.put("/api/ai/routes/assignments", json={"reply": None, "info": "openai"}).status_code == 422
     assert client.post("/api/settings", json={"agents": {"info_enabled": True}}).status_code == 422
     assert store.config_path.read_text(encoding="utf-8") == original_config
     assert events == []
@@ -86,7 +83,7 @@ def test_catalog_exposes_unassigned_routes_and_non_selectable_managed_and_unread
 
     assert response.status_code == 200
     data = response.json_object()
-    assert as_json_object(data["assignments"]) == {"reply": None, "minutes": None}
+    assert as_json_object(data["assignments"]) == {"reply": None}
     routes = _routes(data)
     managed = routes["managed"]
     assert {
@@ -158,33 +155,21 @@ def test_assignment_update_persists_an_openai_selection_across_reload(tmp_path: 
 
     client, store, events = _make_client(tmp_path)
 
-    response = client.put("/api/ai/routes/assignments", json={"reply": "openai", "minutes": None})
+    response = client.put("/api/ai/routes/assignments", json={"reply": "openai"})
 
     assert response.status_code == 200
     data = response.json_object()
-    assert as_json_object(data["assignments"]) == {"reply": "openai", "minutes": None}
+    assert as_json_object(data["assignments"]) == {"reply": "openai"}
     assert _routes(data)["openai"]["selected"] is True
     assert events == ["ConfigChanged"]
     reloaded = ConfigLoader.from_settings_store(store)
     assert reloaded.ai_assignments.reply == "openai"
-    assert reloaded.ai_assignments.minutes is None
 
 
-def test_assignment_update_persists_an_openai_minutes_selection_across_reload(tmp_path: Path) -> None:
-    """Minutes assignment selects OpenAI directly and must not depend on a reply assignment."""
-
-    client, store, events = _make_client(tmp_path)
-
+def test_retired_minutes_assignment_is_rejected(tmp_path: Path) -> None:
+    client, _state, _store = _make_client(tmp_path)
     response = client.put("/api/ai/routes/assignments", json={"reply": None, "minutes": "openai"})
-
-    assert response.status_code == 200
-    data = response.json_object()
-    assert as_json_object(data["assignments"]) == {"reply": None, "minutes": "openai"}
-    assert _routes(data)["openai"]["selected"] is True
-    assert events == ["ConfigChanged"]
-    reloaded = ConfigLoader.from_settings_store(store)
-    assert reloaded.ai_assignments.reply is None
-    assert reloaded.ai_assignments.minutes == "openai"
+    assert response.status_code == 422
 
 
 def test_assignment_update_rejects_unknown_or_unsupported_or_not_offered_routes(tmp_path: Path) -> None:
@@ -192,8 +177,8 @@ def test_assignment_update_rejects_unknown_or_unsupported_or_not_offered_routes(
 
     client, store, events = _make_client(tmp_path)
     cases = (
-        ("unknown route", {"reply": "missing", "minutes": None}, "AI_ROUTE_NOT_FOUND"),
-        ("planned managed reply", {"reply": "managed", "minutes": None}, "AI_ROUTE_NOT_SELECTABLE"),
+        ("unknown route", {"reply": "missing"}, "AI_ROUTE_NOT_FOUND"),
+        ("planned managed reply", {"reply": "managed"}, "AI_ROUTE_NOT_SELECTABLE"),
     )
 
     for name, body, code in cases:
@@ -206,7 +191,6 @@ def test_assignment_update_rejects_unknown_or_unsupported_or_not_offered_routes(
     assert events == []
     reloaded = ConfigLoader.from_settings_store(store)
     assert reloaded.ai_assignments.reply is None
-    assert reloaded.ai_assignments.minutes is None
 
 
 @pytest.mark.parametrize("route_id", ["codex", "acp"])
@@ -222,8 +206,8 @@ def test_retired_routes_are_ignored_on_load_and_rejected_on_save(tmp_path: Path,
     original = store.config_path.read_text(encoding="utf-8")
     catalog = client.get("/api/ai/routes").json_object()
     assert not {"codex", "acp"}.intersection(_routes(catalog))
-    assert as_json_object(catalog["assignments"]) == {"reply": None, "minutes": None}
+    assert as_json_object(catalog["assignments"]) == {"reply": None}
     assert "acp" not in client.get("/api/settings").json_object()
-    assert client.put("/api/ai/routes/assignments", json={"reply": route_id, "minutes": None}).status_code == 422
+    assert client.put("/api/ai/routes/assignments", json={"reply": route_id}).status_code == 422
     assert store.config_path.read_text(encoding="utf-8") == original
     assert events == []

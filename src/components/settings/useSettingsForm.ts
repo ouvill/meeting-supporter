@@ -37,8 +37,6 @@ export function useSettingsForm({
   const connections = useConnectionSettings({
     form,
     setForm,
-    savedBaseline,
-    audioSettingsLocked,
     setFieldErrors,
     setSectionError,
     setSaveMessage,
@@ -69,15 +67,9 @@ export function useSettingsForm({
   const selectedRoutes = useMemo(
     () =>
       routes.routes.filter(
-        (route) =>
-          route.id === routes.draftAssignments.reply ||
-          route.id === routes.draftAssignments.minutes,
+        (route) => route.id === routes.draftAssignments.reply,
       ),
-    [
-      routes.draftAssignments.minutes,
-      routes.draftAssignments.reply,
-      routes.routes,
-    ],
+    [routes.draftAssignments.reply, routes.routes],
   );
   const selectedRoute = selectedRoutes[0] ?? null;
   const busy = persistence.savingSettings || routes.saving;

@@ -116,16 +116,10 @@ function routeCatalog(
 ): AiRoutesController {
   return {
     routes: [route()],
-    assignments: { reply: "ollama", minutes: null },
-    assignedRoutes: { reply: route(), minutes: null },
+    assignments: { reply: "ollama" },
+    assignedRoutes: { reply: route() },
     replyStatus: { readiness: "ready", canGenerate: true, message: null },
-
-    minutesRouteStatus: {
-      readiness: "setup_required",
-      canGenerate: false,
-      message: "議事録を利用する支援方法を設定してください。",
-    },
-    draftAssignments: { reply: "ollama", minutes: null },
+    draftAssignments: { reply: "ollama" },
     assignmentDirty: false,
     loading: false,
     saving: false,
@@ -255,56 +249,6 @@ describe("SettingsModal connection UX", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
-  it("shares an OpenAI draft across Support and Audio, tests it once, and saves it globally", async () => {
-    const openaiRoute = route({
-      id: "openai",
-      kind: "byok",
-      label: "OpenAI API",
-      description: "OpenAI BYOK",
-      readiness: "setup_required",
-      selected: true,
-    });
-    await renderModal(
-      settings({ stt: { backend: "openai", language: "ja" } }),
-      routeCatalog({
-        routes: [openaiRoute],
-        draftAssignments: { reply: "openai", minutes: null },
-      }),
-    );
-
-    fireEvent.change(screen.getByLabelText("OpenAI APIキー"), {
-      target: { value: "test-only-openai-key" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "OpenAI 接続を確認" }));
-
-    await waitFor(() =>
-      expect(testConnectionApiSettingsConnectionsTestPost).toHaveBeenCalledWith(
-        {
-          body: { provider: "openai", api_key: "test-only-openai-key" },
-        },
-      ),
-    );
-    expect(testConnectionApiSettingsConnectionsTestPost).toHaveBeenCalledOnce();
-    expect(saveSettingsApiSettingsPost).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: /音声/ }));
-    expect(await screen.findByLabelText("OpenAI APIキー")).toHaveValue(
-      "test-only-openai-key",
-    );
-    expect(screen.getByText("OpenAI connection verified")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    await waitFor(() =>
-      expect(saveSettingsApiSettingsPost).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({
-            secrets: { OPENAI_API_KEY: "test-only-openai-key" },
-          }),
-        }),
-      ),
-    );
-  });
-
   it.each([
     {
       provider: "gemini",
@@ -339,56 +283,12 @@ describe("SettingsModal connection UX", () => {
         settings({ stt: { backend: "dummy", language: "ja" } }),
         routeCatalog({
           routes: [providerRoute],
-          draftAssignments: { reply: provider, minutes: null },
+          draftAssignments: { reply: provider },
         }),
       );
       const draft = `${provider}-inline-key`;
 
       fireEvent.change(screen.getByLabelText(inputLabel), {
-        target: { value: draft },
-      });
-      fireEvent.click(screen.getByRole("button", { name: actionLabel }));
-
-      await waitFor(() =>
-        expect(
-          testConnectionApiSettingsConnectionsTestPost,
-        ).toHaveBeenCalledWith({
-          body: { provider, api_key: draft },
-        }),
-      );
-      expect(
-        testConnectionApiSettingsConnectionsTestPost,
-      ).toHaveBeenCalledOnce();
-      expect(saveSettingsApiSettingsPost).not.toHaveBeenCalled();
-    },
-  );
-
-  it.each([
-    {
-      provider: "deepgram",
-      inputLabel: "Deepgram APIキー",
-      actionLabel: "Deepgram 接続を確認",
-    },
-    {
-      provider: "openai",
-      inputLabel: "OpenAI APIキー",
-      actionLabel: "OpenAI 接続を確認",
-    },
-    {
-      provider: "xai",
-      inputLabel: "Grok / xAI APIキー",
-      actionLabel: "Grok / xAI 接続を確認",
-    },
-  ])(
-    "tests the $provider credential directly from Audio",
-    async ({ provider, inputLabel, actionLabel }) => {
-      await renderModal(
-        settings({ stt: { backend: provider, language: "ja" } }),
-      );
-      fireEvent.click(screen.getByRole("button", { name: /音声/ }));
-      const draft = `${provider}-audio-key`;
-
-      fireEvent.change(await screen.findByLabelText(inputLabel), {
         target: { value: draft },
       });
       fireEvent.click(screen.getByRole("button", { name: actionLabel }));
@@ -464,13 +364,13 @@ describe("SettingsModal connection UX", () => {
     );
   });
 
-  it("keeps cloud models in Advanced without an API connection list", async () => {
+  it("does not expose retired speech models or credentials in Advanced", async () => {
     await renderModal(settings({ stt: { backend: "openai", language: "ja" } }));
     fireEvent.click(screen.getByRole("button", { name: /詳細設定/ }));
 
     expect(screen.queryByText("API接続")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("OpenAI APIキー")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("OpenAIモデル")).toBeInTheDocument();
+    expect(screen.queryByLabelText("OpenAIモデル")).not.toBeInTheDocument();
   });
 
   it("shows every route in general or setup groups and keeps the selected route visible", async () => {
@@ -502,7 +402,7 @@ describe("SettingsModal connection UX", () => {
             readiness: "setup_required",
           }),
         ],
-        draftAssignments: { reply: "openai", minutes: null },
+        draftAssignments: { reply: "openai" },
       }),
     );
     expect(screen.getByRole("heading", { name: "一般" })).toBeInTheDocument();
@@ -532,7 +432,7 @@ describe("SettingsModal connection UX", () => {
             selected: true,
           }),
         ],
-        draftAssignments: { reply: "openai", minutes: null },
+        draftAssignments: { reply: "openai" },
       }),
       onClose,
     );
@@ -614,7 +514,7 @@ describe("SettingsModal connection UX", () => {
       settings({ stt: { backend: "dummy", language: "ja" } }),
       routeCatalog({
         routes: [openaiRoute],
-        draftAssignments: { reply: "openai", minutes: null },
+        draftAssignments: { reply: "openai" },
       }),
     );
 
@@ -643,18 +543,18 @@ describe("SettingsModal connection UX", () => {
     ).toBe(true);
   });
 
-  it("validates credentials for every route selected by info or minutes", async () => {
+  it("validates the credential of the selected reply route", async () => {
     const openaiRoute = route({
       id: "openai",
       kind: "byok",
       label: "OpenAI API",
-      capabilities: ["minutes"],
+      capabilities: ["reply"],
     });
     const geminiRoute = route({
       id: "gemini",
       kind: "byok",
       label: "Gemini API",
-      capabilities: ["minutes"],
+      capabilities: ["reply"],
     });
     await renderModal(
       settings({
@@ -663,11 +563,9 @@ describe("SettingsModal connection UX", () => {
       }),
       routeCatalog({
         routes: [openaiRoute, geminiRoute],
-        assignments: { reply: null, minutes: "gemini" },
+        assignments: { reply: "gemini" },
         draftAssignments: {
-          reply: null,
-
-          minutes: "gemini",
+          reply: "gemini",
         },
       }),
     );
@@ -687,8 +585,8 @@ describe("SettingsModal connection UX", () => {
     await renderModal(
       settings({ stt: { backend: "dummy", language: "ja" } }),
       routeCatalog({
-        assignments: { reply: null, minutes: null },
-        draftAssignments: { reply: null, minutes: null },
+        assignments: { reply: null },
+        draftAssignments: { reply: null },
         assignmentDirty: true,
         saveAssignments,
       }),
@@ -734,42 +632,18 @@ describe("SettingsModal connection UX", () => {
     );
   });
 
-  it("moves a missing cloud STT credential to its Audio control", async () => {
-    await renderModal(
-      settings({ stt: { backend: "openai", language: "ja" } }),
-      routeCatalog(),
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
-
-    expect(sdkMocks.saveSettings).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("OpenAI APIキー")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "クラウド音声認識を利用するには、利用可能なAPIキーが必要です。",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("keeps credentials at their use surface and reports partial route save success", async () => {
+  it("reports partial route save success without discarding unsaved assignments", async () => {
     const routes = routeCatalog({
       assignmentDirty: true,
       saveAssignments: vi.fn().mockResolvedValue(false),
     });
     await renderModal(
       settings({
-        stt: { backend: "openai", language: "ja" },
+        stt: { backend: "dummy", language: "ja" },
         secrets: { OPENAI_API_KEY: true },
       }),
       routes,
     );
-    fireEvent.click(screen.getByRole("button", { name: /音声/ }));
-    expect(
-      screen.getByRole("button", { name: "OpenAI APIキーを変更" }),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /詳細設定/ }));
-    expect(screen.queryByLabelText("OpenAI APIキー")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("OpenAIモデル")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     expect(
       await screen.findByText(
@@ -864,124 +738,6 @@ describe("SettingsModal connection UX", () => {
     ).toBeEnabled();
   });
 
-  it("restores stale STT and active-provider drafts when the meeting lock engages", async () => {
-    const initial = settings({
-      stt: {
-        backend: "openai",
-        language: "ja",
-        openai_model: "whisper-1",
-      },
-      secrets: { OPENAI_API_KEY: true },
-    });
-    const routes = routeCatalog();
-    const onClose = vi.fn();
-    const rendered = await renderModal(initial, routes, onClose);
-
-    fireEvent.click(screen.getByRole("button", { name: /音声/ }));
-    fireEvent.change(await screen.findByLabelText("会議の言語"), {
-      target: { value: "en" },
-    });
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "OpenAI APIキーを変更",
-      }),
-    );
-    fireEvent.change(screen.getByLabelText("OpenAI APIキー"), {
-      target: { value: "stale-active-provider-key" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: /詳細設定/ }));
-    fireEvent.change(await screen.findByLabelText("OpenAIモデル"), {
-      target: { value: "gpt-4o-mini-transcribe" },
-    });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /データとプライバシー/ }),
-    );
-    fireEvent.change(await screen.findByLabelText("録音の最大合計容量（MB）"), {
-      target: { value: "64" },
-    });
-
-    rendered.rerender(
-      <SettingsModal onClose={onClose} routes={routes} audioSettingsLocked />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /音声/ }));
-    await waitFor(() =>
-      expect(screen.getByLabelText("会議の言語")).toHaveValue("ja"),
-    );
-    expect(screen.queryByLabelText("OpenAI APIキー")).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "OpenAI APIキーを変更" }),
-    ).toBeDisabled();
-
-    fireEvent.click(screen.getByRole("button", { name: /詳細設定/ }));
-    expect(await screen.findByLabelText("OpenAIモデル")).toHaveValue(
-      "whisper-1",
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /データとプライバシー/ }),
-    );
-    expect(
-      await screen.findByLabelText("録音の最大合計容量（MB）"),
-    ).toHaveValue(64);
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
-
-    await waitFor(() => expect(sdkMocks.saveSettings).toHaveBeenCalledOnce());
-    const body = sdkMocks.saveSettings.mock.calls[0]![0].body;
-    expect(body).not.toHaveProperty("stt");
-    expect(body).not.toHaveProperty("secrets");
-    expect(body.recording_retention).toEqual({
-      cutoff_date: null,
-      max_total_bytes: 64 * 1024 * 1024,
-    });
-  });
-
-  it("cancels an active STT credential deletion when the lock engages", async () => {
-    const initial = settings({
-      stt: { backend: "openai", language: "ja" },
-      secrets: { OPENAI_API_KEY: true },
-    });
-    const routes = routeCatalog();
-    const onClose = vi.fn();
-    const rendered = await renderModal(initial, routes, onClose);
-
-    fireEvent.click(screen.getByRole("button", { name: /音声/ }));
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "OpenAI APIキーを削除",
-      }),
-    );
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "OpenAI APIキーを削除予定にする",
-      }),
-    );
-    expect(
-      screen.getByRole("button", {
-        name: "OpenAI APIキーの削除を取り消す",
-      }),
-    ).toBeInTheDocument();
-
-    rendered.rerender(
-      <SettingsModal onClose={onClose} routes={routes} audioSettingsLocked />,
-    );
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("button", {
-          name: "OpenAI APIキーの削除を取り消す",
-        }),
-      ).not.toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    await waitFor(() => expect(sdkMocks.saveSettings).toHaveBeenCalledOnce());
-    const body = sdkMocks.saveSettings.mock.calls[0]![0].body;
-    expect(body).not.toHaveProperty("delete_secrets");
-    expect(body).not.toHaveProperty("stt");
-  });
-
   it("saves unrelated settings while locked speech status is pending", async () => {
     const pendingSpeechStatus = new Promise<never>(() => {
       // Intentionally unresolved to keep the speech-model status check pending.
@@ -1045,5 +801,40 @@ describe("SettingsModal connection UX", () => {
     expect(screen.getByTestId("third-party-notices")).toHaveTextContent(
       "uv 0.11.7",
     );
+  });
+  it.each(["deepgram", "openai", "xai", "remote", "managed"])(
+    "keeps an old %s speech setting visible as unavailable without credentials or automatic replacement",
+    async (backend) => {
+      await renderModal(settings({ stt: { backend, language: "ja" } }));
+      fireEvent.click(screen.getByRole("button", { name: /音声/ }));
+      expect(screen.getByLabelText("音声認識方式")).toHaveValue(backend);
+      expect(
+        screen.getByText(
+          "以前の音声認識設定は利用できません。端末内の方式を選び直してください。",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("textbox", { name: /APIキー/ }),
+      ).not.toBeInTheDocument();
+      expect(sdkMocks.testConnection).not.toHaveBeenCalled();
+      expect(sdkMocks.saveSettings).not.toHaveBeenCalled();
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText("音声認識方式"), {
+          target: { value: "reazonspeech" },
+        });
+      });
+      expect(screen.getByLabelText("音声認識方式")).toHaveValue("reazonspeech");
+    },
+  );
+
+  it("offers only local speech choices", async () => {
+    await renderModal();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /音声/ }));
+    });
+    const select = screen.getByLabelText("音声認識方式");
+    expect(
+      Array.from(select.querySelectorAll("option"), (option) => option.value),
+    ).toEqual(["whisper", "reazonspeech"]);
   });
 });

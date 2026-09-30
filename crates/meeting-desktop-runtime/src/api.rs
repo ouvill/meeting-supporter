@@ -581,7 +581,7 @@ fn settings_error(error: Error) -> ApiError {
             StatusCode::CONFLICT,
             json!({"code":"AUDIO_SETTINGS_LOCKED","message":"会議中・準備中は音声認識の設定を変更できません。"}),
         ),
-        Error::Settings | Error::Unsupported => {
+        Error::Settings | Error::Unsupported | Error::SpeechSelection => {
             ApiError(StatusCode::UNPROCESSABLE_ENTITY, error.to_string().into())
         }
         _ => error.into(),
@@ -668,14 +668,6 @@ async fn ai_assignments(
         )
     })?;
     let mut guard = api.shared.settings.lock().await;
-    let old = crate::ai::routes::assignments(&guard)?;
-    // Keep existing assignments for not-yet-ported use cases, never silently replace them.
-    if body.minutes != old.minutes {
-        return Err(ApiError(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "議事録の割当変更は移植中です。".into(),
-        ));
-    }
     if let Some(id) = &body.reply {
         if let Some(agent) = id.strip_prefix("acp:") {
             api.shared.agents.launch(agent).await.map_err(Error::from)?;

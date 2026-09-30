@@ -9,7 +9,6 @@ interface Props {
   ollamaTesting: boolean;
   ollamaMessage: string;
   ollamaMessageIsError: boolean;
-  audioSettingsLocked?: boolean;
   update: <K extends keyof SettingsForm>(
     key: K,
     value: SettingsForm[K],
@@ -23,60 +22,12 @@ export function AdvancedSettingsPanel({
   ollamaTesting,
   ollamaMessage,
   ollamaMessageIsError,
-  audioSettingsLocked = false,
   update,
   onTestOllama,
 }: Props) {
   return (
-    <SettingsPage
-      title="詳細設定"
-      description="音声認識モデルとOllamaの接続先を設定します。"
-    >
+    <SettingsPage title="詳細設定" description="Ollamaの接続先を設定します。">
       {error && <InlineNotice tone="danger">{error}</InlineNotice>}
-      {audioSettingsLocked && (
-        <InlineNotice tone="warning">
-          会議中は音声認識のmodel設定を変更できません。
-        </InlineNotice>
-      )}
-      {(form.sttBackend === "deepgram" || form.sttBackend === "openai") && (
-        <SettingsCard
-          title="クラウド音声認識モデル"
-          description="選択中の音声認識サービスへ送るmodel識別子です。"
-        >
-          {form.sttBackend === "deepgram" ? (
-            <FieldRow label="Deepgram model識別子">
-              <input
-                type="text"
-                value={form.sttDeepgramModel}
-                disabled={audioSettingsLocked}
-                onChange={(event) =>
-                  update("sttDeepgramModel", event.target.value)
-                }
-                className="field"
-                aria-label="Deepgramモデル"
-              />
-            </FieldRow>
-          ) : (
-            <FieldRow label="OpenAI model識別子">
-              <select
-                value={form.sttOpenaiModel}
-                disabled={audioSettingsLocked}
-                onChange={(event) =>
-                  update("sttOpenaiModel", event.target.value)
-                }
-                className="field"
-                aria-label="OpenAIモデル"
-              >
-                <option value="gpt-4o-transcribe">gpt-4o-transcribe</option>
-                <option value="gpt-4o-mini-transcribe">
-                  gpt-4o-mini-transcribe
-                </option>
-                <option value="whisper-1">whisper-1</option>
-              </select>
-            </FieldRow>
-          )}
-        </SettingsCard>
-      )}
       <SettingsCard
         title="Ollama 接続設定"
         description="OpenAI互換の /v1 endpointへ接続します。"

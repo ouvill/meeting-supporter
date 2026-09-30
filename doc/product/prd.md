@@ -1,7 +1,7 @@
 # Product Requirements
 
 - **Status**: Active
-- **Updated**: 2026-07-16
+- **Updated**: 2026-10-01
 - **Authority**: 何を提供するか、および現在の availability
 - **Vision**: [Product Vision](./vision.md)
 
@@ -22,7 +22,7 @@
 
 ### Meeting preparation
 
-- 音声認識の準備状態と入力デバイスを確認できる。
+- ローカルの Whisper / ReazonSpeech の準備状態と入力デバイスを確認できる。
 - 会議の場面、利用者の役割、相手の役割、目的、制約を任意で指定できる。
 - 対応する形式の参照資料を会議文脈へ追加できる。
 - 開始できない場合は、理由と復旧操作を示す。
@@ -47,12 +47,12 @@
 - 保存された会議を一覧・詳細で確認できる。
 - 会話、返答案、利用可能な録音を確認できる。
 - 会議タイトルを変更し、不要な会議を確認付きで削除できる。
-- 会議後の要約はライブ返答の補助成果物として扱う。
+- 保存済みの議事録は閲覧できる。議事録の新規生成・再生成と生成経路の設定は提供しない。
 
 ### Setup and recovery
 
 - 一般設定では「どの方法でAIを使うか」「準備できているか」「データをどこで処理するか」「誰が費用を負担するか」を理解できる。
-- 一般設定ではOpenAI、Gemini、Anthropic、Ollama、ACPエージェントの経路名とroute cardを表示してよい。Gemini、OpenAI、AnthropicのAPIキーは対応する支援方法card、Deepgram、OpenAI、xAIのAPIキーは選択中の音声provider直下にあるprovider固有controlで入力・確認する。
+- 一般設定ではOpenAI、Gemini、Anthropic、Ollama、ACPエージェントの経路名とroute cardを表示してよい。Gemini、OpenAI、AnthropicのAPIキーは返答生成用の対応する支援方法cardで入力・確認する。音声認識用のAPIキー設定は提供しない。
 - provider固有controlは保存済みAPIキーの値を再表示しない。model識別子、endpoint、command、runtime診断は上級者向け設定に置く。
 - 接続テストまたは状態確認が失敗した場合は、同じprovider固有controlに秘密情報を含まない復旧案を示す。
 - 未保存の設定変更がある状態で閉じるときは、`変更を破棄して閉じる`または`設定に戻る`を求める。破棄はform、secret draft/deletion、route選択をsaved baselineへ戻してから一度だけ閉じる。変更がなければ確認を挟まない。

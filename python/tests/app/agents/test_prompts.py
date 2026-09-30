@@ -126,18 +126,6 @@ class ReplyPromptContractTest(unittest.TestCase):
         self.assertLessEqual(len(reply_prompt), 6000)
         self.assertIn("- 追加指示: " + custom_instructions, reply_prompt)
 
-    def test_minutes_prompt_keeps_its_full_existing_payload(self) -> None:
-        """Reply-budget shortening must not alter the independent minutes prompt contract."""
-        history = ["【相手】" + "A" * 6500, "【自分】最後の確認事項です。"]
-        ai_note = "保存済みの要約"
-
-        minutes_prompt = prompts.build_minutes_prompt(history, ai_note)
-
-        self.assertEqual(
-            "【会議の書き起こし】\n" + "\n".join(history) + "\n\n【保存済みの会議メモ】\n" + ai_note,
-            minutes_prompt,
-        )
-
 
 if __name__ == "__main__":
     _ = unittest.main()

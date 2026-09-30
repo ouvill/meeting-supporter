@@ -9,17 +9,7 @@ export const CONNECTIONS = {
   openai: {
     secretKey: "OPENAI_API_KEY",
     label: "OpenAI",
-    usage: "クラウド音声認識とAI機能",
-  },
-  deepgram: {
-    secretKey: "DEEPGRAM_API_KEY",
-    label: "Deepgram",
-    usage: "クラウド音声認識",
-  },
-  xai: {
-    secretKey: "XAI_API_KEY",
-    label: "Grok / xAI",
-    usage: "クラウド音声認識",
+    usage: "返答案の生成",
   },
   gemini: {
     secretKey: "GEMINI_API_KEY",

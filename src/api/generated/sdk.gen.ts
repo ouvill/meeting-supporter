@@ -12,9 +12,6 @@ import type {
   ExecuteRecordingCleanupMeetingsRecordingsCleanupPostData,
   ExecuteRecordingCleanupMeetingsRecordingsCleanupPostErrors,
   ExecuteRecordingCleanupMeetingsRecordingsCleanupPostResponses,
-  GenerateMinutesMeetingsMeetingIdMinutesPostData,
-  GenerateMinutesMeetingsMeetingIdMinutesPostErrors,
-  GenerateMinutesMeetingsMeetingIdMinutesPostResponses,
   GetAiRoutesApiAiRoutesGetData,
   GetAiRoutesApiAiRoutesGetResponses,
   GetMeetingMeetingsMeetingIdGetData,
@@ -292,23 +289,6 @@ export const cancelSpeechModelDownloadApiSttModelCancelPost = <
     CancelSpeechModelDownloadApiSttModelCancelPostErrors,
     ThrowOnError
   >({ url: "/api/stt/model/cancel", ...options });
-
-/**
- * Generate Minutes
- */
-export const generateMinutesMeetingsMeetingIdMinutesPost = <
-  ThrowOnError extends boolean = false,
->(
-  options: Options<
-    GenerateMinutesMeetingsMeetingIdMinutesPostData,
-    ThrowOnError
-  >,
-) =>
-  (options.client ?? client).post<
-    GenerateMinutesMeetingsMeetingIdMinutesPostResponses,
-    GenerateMinutesMeetingsMeetingIdMinutesPostErrors,
-    ThrowOnError
-  >({ url: "/meetings/{meeting_id}/minutes", ...options });
 
 /**
  * List Meetings
