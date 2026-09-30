@@ -68,7 +68,7 @@ impl Capture {
             .await;
             if result.is_err() {
                 reader_recording_failed.store(true, Ordering::Release);
-                process::reap(&mut *reader_child.lock().await).await;
+                let _ = process::reap(&mut *reader_child.lock().await).await;
                 if let Some(active) = reader_route.lock().unwrap().take() {
                     active.failed.store(true, Ordering::Release);
                     let _ = active.sender.try_send(Err(Error::Capture));
@@ -86,7 +86,7 @@ impl Capture {
                 name,
             }))) => name,
             _ => {
-                process::reap(&mut *child.lock().await).await;
+                let _ = process::reap(&mut *child.lock().await).await;
                 reader.abort();
                 return Err(Error::Capture);
             }
@@ -135,15 +135,16 @@ impl Capture {
             .as_ref()
             .is_some_and(|reader| !reader.is_finished())
     }
-    pub async fn close(&mut self) {
+    pub async fn close(&mut self) -> Result<(), Error> {
         self.route.lock().unwrap().take();
         // A normal shutdown finalizes any WAV still open.
         let _ = self.request(serde_json::json!({"op":"shutdown"})).await;
-        process::reap(&mut *self.child.lock().await).await;
+        let result = process::reap(&mut *self.child.lock().await).await;
         if let Some(reader) = self.reader.take() {
             reader.abort();
             let _ = reader.await;
         }
+        result
     }
 }
 async fn read(

@@ -19,6 +19,25 @@ describe("meetingStore", () => {
     expect(useMeetingStore.getState().statusText).toBe("Ready");
   });
 
+  it("retains the server end status across UI updates and clears it on a new meeting", () => {
+    const store = useMeetingStore.getState();
+    store.dispatch({
+      type: "meeting_state",
+      running: false,
+      saved: false,
+      end_status: "unsaved",
+    });
+    store.dispatch({ type: "status", text: "ready" });
+    expect(useMeetingStore.getState().meetingEndStatus).toBe("unsaved");
+    store.dispatch({
+      type: "meeting_state",
+      running: true,
+      saved: false,
+      end_status: null,
+    });
+    expect(useMeetingStore.getState().meetingEndStatus).toBeNull();
+  });
+
   it("dispatches meeting_state running", () => {
     useMeetingStore
       .getState()

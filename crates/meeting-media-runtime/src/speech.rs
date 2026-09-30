@@ -117,7 +117,7 @@ impl Prepared {
         }
         .await;
         if let Err(error) = result {
-            self.close().await;
+            self.close().await?;
             return Err(error);
         }
         Ok(())
@@ -159,7 +159,7 @@ impl Prepared {
     ) -> Result<Running, Error> {
         let reset = self.request(json!({"op":"reset","role":role}), 10).await;
         if !matches!(reset, Ok(SpeechBody::Reset {})) {
-            self.close().await;
+            self.close().await?;
             return Err(Error::Speech);
         }
         self.generation += 1;
@@ -177,7 +177,7 @@ impl Prepared {
                 result = self.transcribe(role, input, &failed, &events) => result,
             };
             if let Err(error) = result {
-                self.close().await;
+                let error = self.close().await.err().unwrap_or(error);
                 let _ = timeout(
                     Duration::from_secs(2),
                     events.send(Event::SpeechError { code: error }),
@@ -285,8 +285,8 @@ impl Prepared {
     pub fn generation(&self) -> u64 {
         self.generation
     }
-    pub async fn close(&mut self) {
-        process::reap(&mut self.child).await;
+    pub async fn close(&mut self) -> Result<(), Error> {
+        process::reap(&mut self.child).await
     }
 }
 impl Running {
@@ -297,22 +297,28 @@ impl Running {
         // The caller detached every input before entering here. Bound the whole
         // drain, including in-flight inference, rather than each queued frame.
         match timeout(deadline, &mut self.task).await {
-            Ok(result) => result.map_err(|_| Error::Speech)?,
+            Ok(result) => result.map_err(|_| Error::Shutdown)?,
             Err(_) => {
                 if let Some(cancel) = self.cancel.take() {
                     let _ = cancel.send(());
                 }
-                let _ = self.task.await;
+                match self.task.await {
+                    Ok(Ok(mut prepared)) => prepared.close().await?,
+                    Ok(Err(Error::Shutdown)) | Err(_) => return Err(Error::Shutdown),
+                    Ok(Err(_)) => {}
+                }
                 Err(Error::Timeout)
             }
         }
     }
-    pub async fn cancel(mut self) {
+    pub async fn cancel(mut self) -> Result<(), Error> {
         if let Some(cancel) = self.cancel.take() {
             let _ = cancel.send(());
         }
-        if let Ok(Ok(mut prepared)) = self.task.await {
-            prepared.close().await;
+        match self.task.await {
+            Ok(Ok(mut prepared)) => prepared.close().await,
+            Ok(Err(Error::Shutdown)) | Err(_) => Err(Error::Shutdown),
+            Ok(Err(_)) => Ok(()),
         }
     }
 }
@@ -343,5 +349,29 @@ mod tests {
             Err(Error::Timeout)
         ));
         assert!(reaped.load(Ordering::Acquire));
+    }
+    #[tokio::test]
+    async fn stop_deadline_does_not_hide_failure_to_reap_the_worker() {
+        let (cancel, cancelled) = oneshot::channel();
+        let task = tokio::spawn(async move {
+            let _ = cancelled.await;
+            Err(Error::Shutdown)
+        });
+        let running = Running {
+            cancel: Some(cancel),
+            task,
+        };
+        assert!(matches!(
+            running
+                .finish_with_deadline(Duration::from_millis(20))
+                .await,
+            Err(Error::Shutdown)
+        ));
+    }
+    #[tokio::test]
+    async fn cancellation_reports_failure_to_release_the_worker() {
+        let task = tokio::spawn(async { Err(Error::Shutdown) });
+        let running = Running { cancel: None, task };
+        assert!(matches!(running.cancel().await, Err(Error::Shutdown)));
     }
 }

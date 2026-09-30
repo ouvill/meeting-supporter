@@ -176,7 +176,7 @@ async fn existing_ui_flow_drains_both_final_transcripts_and_serves_recording_ran
     server.shutdown().await.unwrap();
 }
 #[tokio::test]
-async fn inference_crash_keeps_draft_and_audio_instead_of_claiming_completion() {
+async fn inference_crash_preserves_records_and_allows_another_meeting() {
     let temp = tempfile::tempdir().unwrap();
     let server = Server::start(config(&temp, "crash")).await.unwrap();
     let mut ws = connect(&server).await;
@@ -187,13 +187,34 @@ async fn inference_crash_keeps_draft_and_audio_instead_of_claiming_completion() 
     })
     .await;
     assert_eq!(stopped["saved"], false);
+    assert_eq!(stopped["end_status"], "interrupted");
     let (_, body) = http(&server, "GET", "/meetings", "").await;
     let page: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(page["items"][0]["status"], "active");
+    assert_eq!(page["items"][0]["status"], "aborted");
     assert_eq!(page["items"][0]["has_recording"], true);
     let id = page["items"][0]["id"].as_str().unwrap();
     assert_eq!(
         http(&server, "DELETE", &format!("/meetings/{id}"), "")
+            .await
+            .0,
+        200
+    );
+    send(&mut ws, json!({"type":"init_stt"})).await;
+    until(&mut ws, |v| {
+        v["type"] == "stt_state" && v["initialized"] == true
+    })
+    .await;
+    send(&mut ws, json!({"type":"start_meeting"})).await;
+    until(&mut ws, |v| {
+        v["type"] == "meeting_state" && v["running"] == true
+    })
+    .await;
+    // Current ownership, rather than the status of an older meeting, protects deletion.
+    let (_, body) = http(&server, "GET", "/meetings", "").await;
+    let page: Value = serde_json::from_slice(&body).unwrap();
+    let active_id = page["items"][0]["id"].as_str().unwrap();
+    assert_eq!(
+        http(&server, "DELETE", &format!("/meetings/{active_id}"), "")
             .await
             .0,
         409
@@ -391,11 +412,12 @@ async fn failed_transcript_write_prevents_saved_notification_and_completion() {
     })
     .await;
     assert_eq!(stopped["saved"], false);
+    assert_eq!(stopped["end_status"], "unsaved");
     let record = repository
         .execute(Command::GetMeeting { meeting_id: id })
         .await
         .unwrap();
-    assert_eq!(record["status"], "active");
+    assert_eq!(record["status"], "aborted");
     repository.close().await;
     drop(ws);
     server.shutdown().await.unwrap();
@@ -2039,4 +2061,171 @@ async fn acp_errors_permissions_and_truncated_turns_are_not_saved() {
         drop(ws);
         server.shutdown().await.unwrap();
     }
+}
+
+#[tokio::test]
+async fn startup_reconciles_interrupted_meetings_and_preserves_usable_recordings() {
+    use meeting_storage::models::Status;
+    let temp = tempfile::tempdir().unwrap();
+    let settings = config(&temp, "model");
+    std::fs::create_dir_all(&settings.data_dir).unwrap();
+    seed_retention(&settings, "interrupted", Status::Active, None, 0).await;
+    seed_retention(
+        &settings,
+        "completed",
+        Status::Completed,
+        Some("2025-01-01T01:00:00Z"),
+        0,
+    )
+    .await;
+    let directory = settings.data_dir.join("recordings/interrupted");
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("self.wav");
+    let mut writer = hound::WavWriter::create(
+        &path,
+        hound::WavSpec {
+            channels: 1,
+            sample_rate: 16000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        },
+    )
+    .unwrap();
+    for _ in 0..640 {
+        writer.write_sample(1_i16).unwrap();
+    }
+    writer.finalize().unwrap();
+    let original = std::fs::read(&path).unwrap();
+    let broken = directory.join("other.wav");
+    std::fs::write(&broken, b"synthetic incomplete recording").unwrap();
+    for _ in 0..2 {
+        let server = Server::start(settings.clone()).await.unwrap();
+        let (_, body) = http(&server, "GET", "/meetings/interrupted", "").await;
+        let detail: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(detail["status"], "aborted");
+        assert!(detail["ended_at"].is_null());
+        assert!(detail["duration_seconds"].is_null());
+        assert_eq!(detail["recording_assets"].as_array().unwrap().len(), 1);
+        let (status, audio) =
+            http(&server, "GET", "/meetings/interrupted/recordings/self", "").await;
+        assert_eq!(status, 200);
+        assert_eq!(audio, original);
+        assert_eq!(
+            std::fs::read(&broken).unwrap(),
+            b"synthetic incomplete recording"
+        );
+        let (_, body) = http(&server, "GET", "/meetings/completed", "").await;
+        assert_eq!(
+            serde_json::from_slice::<Value>(&body).unwrap()["status"],
+            "completed"
+        );
+        server.shutdown().await.unwrap();
+    }
+    let server = Server::start(settings).await.unwrap();
+    assert_eq!(
+        http(&server, "DELETE", "/meetings/interrupted", "").await.0,
+        200
+    );
+    assert!(!directory.exists());
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn another_runtime_cannot_reconcile_a_live_meeting() {
+    let temp = tempfile::tempdir().unwrap();
+    let settings = config(&temp, "model");
+    let server = Server::start(settings.clone()).await.unwrap();
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    assert!(matches!(
+        Server::start(settings).await,
+        Err(meeting_desktop_runtime::Error::AlreadyRunning)
+    ));
+    let (_, body) = http(&server, "GET", "/meetings", "").await;
+    let page: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(page["items"][0]["status"], "active");
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn interrupted_recordings_do_not_follow_symlinks() {
+    use meeting_storage::models::Status;
+    let temp = tempfile::tempdir().unwrap();
+    let settings = config(&temp, "model");
+    std::fs::create_dir_all(&settings.data_dir).unwrap();
+    seed_retention(&settings, "linked", Status::Active, None, 0).await;
+    let outside = temp.path().join("outside.wav");
+    let mut writer = hound::WavWriter::create(
+        &outside,
+        hound::WavSpec {
+            channels: 1,
+            sample_rate: 16000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        },
+    )
+    .unwrap();
+    writer.write_sample(1_i16).unwrap();
+    writer.finalize().unwrap();
+    let original = std::fs::read(&outside).unwrap();
+    let directory = settings.data_dir.join("recordings/linked");
+    std::fs::create_dir_all(&directory).unwrap();
+    std::os::unix::fs::symlink(&outside, directory.join("self.wav")).unwrap();
+    let server = Server::start(settings).await.unwrap();
+    let (_, body) = http(&server, "GET", "/meetings/linked", "").await;
+    let detail: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(detail["status"], "aborted");
+    assert_eq!(detail["recording_assets"], json!([]));
+    assert_eq!(http(&server, "DELETE", "/meetings/linked", "").await.0, 200);
+    assert_eq!(std::fs::read(outside).unwrap(), original);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn recording_finalization_error_preserves_both_files_and_partial_history() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut settings = config(&temp, "model");
+    let worker = temp.path().join(format!(
+        "recording-failure-worker{}",
+        std::env::consts::EXE_SUFFIX
+    ));
+    std::fs::copy(&settings.audio_worker, &worker).unwrap();
+    settings.audio_worker = worker;
+    let server = Server::start(settings.clone()).await.unwrap();
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    send(&mut ws, json!({"type":"stop_meeting"})).await;
+    let stopped = until(&mut ws, |v| {
+        v["type"] == "meeting_state" && v["running"] == false
+    })
+    .await;
+    assert_eq!(stopped["end_status"], "interrupted");
+    let (_, body) = http(&server, "GET", "/meetings", "").await;
+    let page: Value = serde_json::from_slice(&body).unwrap();
+    let id = page["items"][0]["id"].as_str().unwrap();
+    assert_eq!(page["items"][0]["status"], "aborted");
+    let (_, body) = http(&server, "GET", &format!("/meetings/{id}"), "").await;
+    let detail: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(detail["turns"].as_array().unwrap().len(), 2);
+    assert_eq!(detail["recording_assets"].as_array().unwrap().len(), 2);
+    for role in ["self", "other"] {
+        assert_eq!(
+            http(
+                &server,
+                "GET",
+                &format!("/meetings/{id}/recordings/{role}"),
+                ""
+            )
+            .await
+            .0,
+            200
+        );
+        assert!(settings
+            .data_dir
+            .join(format!("recordings/{id}/{role}.wav"))
+            .is_file());
+    }
+    server.shutdown().await.unwrap();
 }

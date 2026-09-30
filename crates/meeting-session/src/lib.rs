@@ -37,6 +37,10 @@ pub enum Effect {
 pub enum Outcome {
     Ok,
     Failed,
+    /// Remaining records are usable, but some input or writes were lost.
+    Interrupted,
+    /// The executor could not confirm that all producers have stopped.
+    ResourcesActive,
     RecordingSaved,
     RecordingEmpty,
     RecordingDisabled,
@@ -172,9 +176,17 @@ impl Coordinator {
                     Effect::FinalizeRecording => matches!(
                         outcome,
                         Outcome::Failed
+                            | Outcome::Interrupted
                             | Outcome::RecordingSaved
                             | Outcome::RecordingEmpty
                             | Outcome::RecordingDisabled
+                    ),
+                    Effect::FlushHistory => matches!(
+                        outcome,
+                        Outcome::Ok
+                            | Outcome::Failed
+                            | Outcome::Interrupted
+                            | Outcome::ResourcesActive
                     ),
                     _ => matches!(outcome, Outcome::Ok | Outcome::Failed),
                 };
@@ -254,6 +266,13 @@ impl Coordinator {
                 self.next(Effect::CancelFinalReplies);
             }
             Effect::FinalizeRecording => match outcome {
+                Outcome::Interrupted => {
+                    if !matches!(self.finish, Finish::Halt) {
+                        self.finish = Finish::Abort;
+                    }
+                    self.notice(Notice::RecordingIntegrityFailed);
+                    self.next(Effect::FlushHistory);
+                }
                 Outcome::RecordingSaved | Outcome::RecordingDisabled => {
                     self.next(Effect::FlushHistory)
                 }
@@ -279,7 +298,14 @@ impl Coordinator {
             }
             Effect::FlushHistory => {
                 self.end_session();
-                if !ok {
+                if outcome == Outcome::ResourcesActive {
+                    self.finish = Finish::Halt;
+                    self.notice(Notice::StopFailed);
+                } else if outcome == Outcome::Interrupted {
+                    if !matches!(self.finish, Finish::Halt) {
+                        self.finish = Finish::Abort;
+                    }
+                } else if !ok {
                     if !matches!(self.finish, Finish::Halt) {
                         self.finish = Finish::RetainDraft;
                     }
@@ -494,6 +520,33 @@ mod tests {
             ack(&mut owner, Outcome::Failed).effect,
             Some(Effect::AbortDraft)
         );
+    }
+    #[test]
+    fn interrupted_content_with_released_resources_can_start_another_meeting() {
+        let mut owner = Coordinator::default();
+        start(&mut owner);
+        stop_to_recording(&mut owner);
+        ack(&mut owner, Outcome::RecordingSaved);
+        assert_eq!(
+            ack(&mut owner, Outcome::Interrupted).effect,
+            Some(Effect::AbortDraft)
+        );
+        ack(&mut owner, Outcome::Ok);
+        assert_eq!(ack(&mut owner, Outcome::Ok).phase, Phase::Idle);
+        assert_eq!(start(&mut owner).phase, Phase::Active);
+    }
+    #[test]
+    fn unconfirmed_resource_release_blocks_completion_and_new_meetings() {
+        let mut owner = Coordinator::default();
+        start(&mut owner);
+        stop_to_recording(&mut owner);
+        ack(&mut owner, Outcome::RecordingSaved);
+        assert_eq!(
+            ack(&mut owner, Outcome::ResourcesActive).effect,
+            Some(Effect::ReloadAudio)
+        );
+        assert_eq!(ack(&mut owner, Outcome::Ok).phase, Phase::Faulted);
+        assert_eq!(owner.execute(Command::Start {}).unwrap_err(), Error::Busy);
     }
     #[test]
     fn uncertain_stop_requires_restart_even_after_cleanup() {

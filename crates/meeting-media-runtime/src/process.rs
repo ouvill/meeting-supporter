@@ -82,8 +82,14 @@ pub async fn write(input: &mut ChildStdin, value: &impl serde::Serialize) -> Res
         .map_err(|_| Error::Timeout)??;
     Ok(())
 }
-pub async fn reap(child: &mut Child) {
-    // Tokio kill sends the signal and waits for exit (reaping the process).
-    let _ = child.kill().await;
-    let _ = child.wait().await;
+pub async fn reap(child: &mut Child) -> Result<(), Error> {
+    if child.try_wait().map_err(|_| Error::Shutdown)?.is_some() {
+        return Ok(());
+    }
+    child.start_kill().map_err(|_| Error::Shutdown)?;
+    timeout(Duration::from_secs(5), child.wait())
+        .await
+        .map_err(|_| Error::Shutdown)?
+        .map_err(|_| Error::Shutdown)?;
+    Ok(())
 }

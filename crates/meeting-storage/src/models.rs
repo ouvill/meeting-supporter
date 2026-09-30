@@ -149,8 +149,9 @@ pub enum Command {
     },
     AbortMeeting {
         meeting_id: String,
-        ended_at: Timestamp,
+        ended_at: Option<Timestamp>,
     },
+    ListActiveMeetingIds {},
     GetMeeting {
         meeting_id: String,
     },

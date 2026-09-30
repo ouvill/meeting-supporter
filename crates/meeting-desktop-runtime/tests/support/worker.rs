@@ -195,6 +195,13 @@ fn capture() {
                 }
                 "stop_recording" => {
                     let recording = writer.take().map(|w| { w.finalize().unwrap(); json!({"size_bytes":path.metadata().unwrap().len(),"samples":samples,"started_ms":started,"ended_ms":now()}) });
+                    if std::env::current_exe().unwrap().file_stem().unwrap()
+                        == "recording-failure-worker"
+                        && path.file_name().is_some_and(|name| name == "other.wav")
+                    {
+                        packet(json!({"type":"error","id":value["id"]}), &[]);
+                        continue;
+                    }
                     packet(
                         json!({"type":"recording_stopped","id":value["id"],"recording":recording}),
                         &[],

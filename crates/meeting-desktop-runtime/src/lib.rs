@@ -3,6 +3,7 @@ mod agents;
 mod ai;
 mod api;
 mod cleanup;
+mod interrupted;
 pub mod models;
 mod python_worker;
 mod references;
@@ -52,8 +53,12 @@ pub enum Error {
     Secrets,
     #[error("認証情報の復元に失敗しました。設定を確認してください。")]
     SecretsRollback,
-    #[error("保存処理に失敗しました。未確定の会議を保持しています。")]
+    #[error("一部の記録を保存できませんでした。保存先の空き容量と状態を確認してください。保存済みの記録は保持しています。")]
     Storage(#[from] meeting_storage::StorageError),
+    #[error("音声処理の停止を確認できませんでした。アプリを再起動してください。保存済みの記録は保持しています。")]
+    ResourcesActive,
+    #[error("同じ保存先を別のアプリが使用しています。先に起動したアプリを閉じてください。")]
+    AlreadyRunning,
     #[error("音声処理に失敗しました。デバイスとモデルを確認してください。")]
     Media(#[from] meeting_media_runtime::wire::Error),
     #[error("会議の処理中です。完了を待ってください。")]

@@ -86,6 +86,28 @@ describe("MeetingHistoryDetail", () => {
     expect(screen.getByText("Test Meeting")).toBeInTheDocument();
   });
 
+  it("shows interrupted records and permits the usual confirmed deletion", () => {
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MeetingHistoryDetail
+        {...defaultProps}
+        meeting={makeMeetingWithTranscript({ status: "aborted" })}
+        onDelete={onDelete}
+      />,
+    );
+    expect(screen.getByText("中断")).toBeInTheDocument();
+    expect(
+      screen.getByText(/文字起こしや録音が欠けている可能性があります/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("次回までに見積もりを送付してください。"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("削除"));
+    expect(onDelete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("削除する"));
+    expect(onDelete).toHaveBeenCalledWith("mtg-001");
+  });
+
   it("hides AI memo section even when ai_note is present", () => {
     render(
       <MeetingHistoryDetail

@@ -672,6 +672,16 @@ export function MeetingHistoryDetail({
         </div>
       </header>
 
+      {meeting.status === "aborted" && (
+        <div
+          role="status"
+          className="rounded-xl border border-warning/25 bg-warning-soft px-4 py-3 text-sm text-ink"
+        >
+          この会議は正常に終了しませんでした。保存できた記録を表示しています。
+          文字起こしや録音が欠けている可能性があります。
+        </div>
+      )}
+
       <DeleteDialog
         open={deleteOpen}
         onConfirm={() => {

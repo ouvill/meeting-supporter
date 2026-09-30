@@ -41,11 +41,10 @@ flate2 = "1"
 tempfile = "3"
 
 [features]
-test-fixtures = ["dep:hound"]
+test-fixtures = []
 
 [dependencies.hound]
 version = "3.5"
-optional = true
 
 [[bin]]
 name = "synthetic-worker"

@@ -129,6 +129,7 @@ pub enum Event {
     MeetingState {
         running: bool,
         saved: bool,
+        end_status: Option<MeetingEndStatus>,
     },
     SttState {
         backend: String,
@@ -212,4 +213,14 @@ pub struct ReplyMeta {
 pub enum CancelStatus {
     Applied,
     NotApplied,
+}
+
+/// A meeting's terminal result is separate from whether its resources can be reused.
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeetingEndStatus {
+    Completed,
+    Interrupted,
+    Unsaved,
+    StopFailed,
 }

@@ -3,7 +3,7 @@
 - **Status**: Proposed
 - **Date**: 2026-09-29
 - **Builds on**: ADR-002、ADR-003、ADR-009、ADR-010、ADR-015
-- **Supersession**: 現時点ではなし。採用・切替時に下記の境界を更新する。
+- **Supersession**: Rust 直接接続の中断会議の扱いは [ADR-018](./018-interrupted-meeting-history.md) で部分置換する。その他は提案のままとする。
 
 ## Context
 

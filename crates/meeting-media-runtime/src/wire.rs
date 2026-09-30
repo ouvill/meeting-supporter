@@ -21,6 +21,8 @@ pub enum Error {
     Speech,
     #[error("recording_failed")]
     Recording,
+    #[error("worker_shutdown_failed")]
+    Shutdown,
     #[error("media_busy")]
     Busy,
 }

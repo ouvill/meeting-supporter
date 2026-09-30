@@ -26,7 +26,7 @@ pub async fn whisper_gpu_supported(path: &Path) -> Result<bool, Error> {
     .map_err(|_| Error::Timeout)
     .and_then(|result| result);
     if result.is_err() {
-        process::reap(&mut child).await;
+        process::reap(&mut child).await?;
     }
     result
 }

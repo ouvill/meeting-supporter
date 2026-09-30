@@ -134,7 +134,7 @@ async fn run() -> Result<(), Error> {
             break;
         }
     }
-    supervisor.close().await;
+    let _ = supervisor.close().await;
     drop(supervisor);
     drop(events);
     // A non-reading client must not hold the children alive or hang shutdown.

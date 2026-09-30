@@ -104,6 +104,12 @@ export interface SocketState {
   statusText: string;
   isRunning: boolean;
   meetingSaved?: boolean;
+  meetingEndStatus?:
+    | "completed"
+    | "interrupted"
+    | "unsaved"
+    | "stop_failed"
+    | null;
   sttBackend: string;
   sttInitialized: boolean;
   sttInitializing: boolean;

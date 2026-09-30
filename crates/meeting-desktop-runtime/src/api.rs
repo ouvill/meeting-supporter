@@ -106,6 +106,11 @@ impl Server {
         }
         let result = self.runtime.lock().await.shutdown().await;
         self.task.await.map_err(|_| Error::Closed)??;
+        if result.is_ok() {
+            // Release explicitly after requests and producers finish; external
+            // process transports may defer dropping inherited descriptors.
+            self.runtime.lock().await.release_ownership()?;
+        }
         result
     }
 }
@@ -425,15 +430,15 @@ async fn title(State(api): State<Api>, Path(id): Path<String>, Json(body): Json<
 async fn delete(State(api): State<Api>, Path(id): Path<String>) -> Reply {
     // Accepted deletion finishes even if the HTTP client disconnects.
     tokio::spawn(async move {
-        let _guard = api
+        let mut guard = api
             .runtime
             .try_lock()
             .map_err(|_| ApiError(StatusCode::CONFLICT, "会議を処理中です。".into()))?;
-        let meeting = get_meeting(&api, &id).await?;
-        if meeting["status"] == "active" {
+        get_meeting(&api, &id).await?;
+        if !guard.can_delete(&id) {
             return Err(ApiError(
                 StatusCode::CONFLICT,
-                "未確定の会議は保持されます。".into(),
+                "処理中の会議は削除できません。終了してから削除してください。".into(),
             ));
         }
         let root = api.shared.config.data_dir.clone();

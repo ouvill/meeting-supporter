@@ -17,6 +17,8 @@ ADRは、architecture boundary、protocol、永続schema、security/privacy/dist
 | [ADR-015](./015-localized-ui-message-contract.md) | Accepted | frontend-owned localizationとlocale-neutral `UiMessage` protocol |
 | [ADR-017](./017-acp-registry-and-shared-rust-client.md) | Accepted | Rust の共通 ACP client、Registry 導入・認証、実行と費用の境界 |
 
+| [ADR-018](./018-interrupted-meeting-history.md) | Accepted | Rust 直接接続の中断会議、起動時の整理、保存失敗と停止失敗の分離 |
+
 ## Proposed decisions
 
 | ADR | Status | Review scope |

@@ -32,6 +32,7 @@ pub struct Supervisor {
     options: Options,
     events: mpsc::Sender<Event>,
     generation: u64,
+    release_failed: bool,
 }
 impl Supervisor {
     pub async fn open(options: Options, events: mpsc::Sender<Event>) -> Result<Self, Error> {
@@ -56,6 +57,7 @@ impl Supervisor {
             options,
             events,
             generation: 0,
+            release_failed: false,
         })
     }
     pub fn detach_speech_input(&mut self) {
@@ -77,6 +79,11 @@ impl Supervisor {
             .map_err(|_| Error::Protocol)
     }
     pub async fn execute(&mut self, command: Command) -> Result<Option<Recording>, Error> {
+        let result = self.execute_inner(command).await;
+        self.release_failed |= matches!(result, Err(Error::Shutdown));
+        result
+    }
+    async fn execute_inner(&mut self, command: Command) -> Result<Option<Recording>, Error> {
         match command {
             Command::Prepare {
                 recognizer,
@@ -87,7 +94,7 @@ impl Supervisor {
                 if matches!(self.speech, Speech::Running(_)) {
                     return Err(Error::Busy);
                 }
-                self.shutdown_speech().await;
+                self.shutdown_speech().await?;
                 // Store the child before the first await so cancellation can reap it.
                 self.speech = Speech::Preparing(Box::new(Prepared::spawn(
                     &self.options.speech_worker,
@@ -139,7 +146,7 @@ impl Supervisor {
                     }
                 }
             }
-            Command::ShutdownSpeech {} => self.shutdown_speech().await,
+            Command::ShutdownSpeech {} => self.shutdown_speech().await?,
             Command::StartRecording { path } => {
                 self.capture
                     .recording_failed
@@ -175,25 +182,29 @@ impl Supervisor {
                 }
                 return Ok(recording);
             }
-            Command::Shutdown {} => self.close().await,
+            Command::Shutdown {} => self.close().await?,
         }
         Ok(None)
     }
     pub fn generation(&self) -> u64 {
         self.generation
     }
-    async fn shutdown_speech(&mut self) {
+    async fn shutdown_speech(&mut self) -> Result<(), Error> {
         self.capture.route.lock().unwrap().take();
         match std::mem::replace(&mut self.speech, Speech::Unprepared) {
             Speech::Preparing(mut prepared) | Speech::Prepared(mut prepared) => {
                 prepared.close().await
             }
             Speech::Running(running) => running.cancel().await,
-            _ => {}
+            _ => Ok(()),
         }
     }
-    pub async fn close(&mut self) {
-        self.shutdown_speech().await;
-        self.capture.close().await;
+    pub async fn close(&mut self) -> Result<(), Error> {
+        let speech = self.shutdown_speech().await;
+        let capture = self.capture.close().await;
+        if self.release_failed {
+            return Err(Error::Shutdown);
+        }
+        speech.and(capture)
     }
 }

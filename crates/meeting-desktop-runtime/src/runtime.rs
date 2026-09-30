@@ -21,10 +21,13 @@ pub(crate) struct Live {
     pub session: Option<Session>,
     pub running: bool,
     pub saved: bool,
+    pub end_status: Option<wire::MeetingEndStatus>,
     pub backend: String,
     pub initialized: bool,
     pub initializing: bool,
     pub failed: bool,
+    pub storage_failed: bool,
+    pub release_failed: bool,
     pub turns: Vec<wire::TurnItem>,
     pub sequence: i64,
     pub context: wire::Context,
@@ -51,7 +54,8 @@ impl Shared {
     }
     pub fn error(&self, error: &Error) {
         let message = match error {
-            Error::Media(media::Error::Timeout) => Some("音声処理が制限時間内に完了しませんでした。未確定の文字起こしが残る可能性があります。取得済みの履歴と録音は未確定の会議として保持します。"),
+            Error::Media(media::Error::Timeout) => Some("音声処理が制限時間内に完了しませんでした。未確定の文字起こしが残る可能性があります。保存できた記録は履歴から確認できます。"),
+            Error::Media(media::Error::Shutdown) => Some("音声処理の停止を確認できませんでした。アプリを再起動してください。"),
             Error::Media(media::Error::GpuUnavailable) => Some("GPUを初期化できません。GPU対応ワーカーを確認するか、実行デバイスを自動またはCPUに変更してください。"),
             Error::Media(media::Error::Discontinuity) => Some("音声処理の待ち行列が上限に達したか、入力が途切れたため認識を停止しました。録音が有効な場合は録音を確認してください。"),
             _ => None,
@@ -78,6 +82,7 @@ impl Shared {
             Event::MeetingState {
                 running: live.running,
                 saved: live.saved,
+                end_status: live.end_status,
             },
             Event::SttState {
                 backend: live.backend.clone(),
@@ -104,7 +109,11 @@ impl Shared {
         });
         if live.failed {
             events.push(Event::Error {
-                text: "音声または保存でエラーが発生しました。会議を未確定として保持します。".into(),
+                text: if live.storage_failed {
+                    "一部の記録を保存できませんでした。保存済みの記録は履歴から確認できます。"
+                } else {
+                    "音声処理が中断されました。文字起こしや録音が欠けている可能性があります。保存できた記録は履歴から確認できます。"
+                }.into(),
             });
         }
         (events, self.events.subscribe())
@@ -133,6 +142,7 @@ impl Shared {
             .await;
         if let Err(error) = result {
             live.failed = true;
+            live.storage_failed = true;
             return Err(error.into());
         }
         // Reconnect state is bounded; complete transcripts remain in SQLite.
@@ -232,9 +242,13 @@ impl Shared {
                     media::Event::SpeechError { code } => code,
                     _ => media::Error::Capture,
                 };
+                live.release_failed |= matches!(code, media::Error::Shutdown);
                 self.error(&Error::Media(code));
             }
-            media::Event::RecordingError {} => self.error(&Error::Media(media::Error::Recording)),
+            media::Event::RecordingError {} => {
+                self.live.lock().await.failed = true;
+                self.error(&Error::Media(media::Error::Recording));
+            }
             _ => {}
         }
     }
@@ -296,10 +310,18 @@ impl Source {
     }
     async fn close(mut self) -> Result<(), Error> {
         self.closing.store(true, Ordering::Release);
-        self.supervisor.close().await;
+        let result = self.supervisor.close().await;
         drop(self.supervisor);
         // Every producer is stopped before joining: final transcripts are now committed.
-        self.collector.await.map_err(|_| Error::Closed)
+        let collected = tokio::time::timeout(Duration::from_secs(10), &mut self.collector).await;
+        match collected {
+            Ok(Ok(())) => result.map_err(Into::into),
+            _ => {
+                self.collector.abort();
+                let _ = self.collector.await;
+                Err(Error::ResourcesActive)
+            }
+        }
     }
 }
 struct MeetingInput {
@@ -312,6 +334,8 @@ pub(crate) struct Runtime {
     coordinator: Coordinator,
     sources: Vec<Source>,
     closed: bool,
+    resources_failed: bool,
+    ownership: Option<std::fs::File>,
     stopping: tokio::sync::watch::Receiver<bool>,
 }
 impl Runtime {
@@ -321,9 +345,17 @@ impl Runtime {
         secrets: Arc<dyn crate::settings::Secrets>,
     ) -> Result<Self, Error> {
         tokio::fs::create_dir_all(&config.data_dir).await?;
+        let ownership = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(config.data_dir.join("desktop-runtime.lock"))?;
+        fs2::FileExt::try_lock_exclusive(&ownership).map_err(|_| Error::AlreadyRunning)?;
         let settings = crate::settings::Store::open(&config, secrets)?;
         let backend = settings.backend();
         let repository = Repository::open(&config.data_dir.join("meeting_history.sqlite3")).await?;
+        crate::interrupted::reconcile(&repository, &config.data_dir).await?;
         let devices = list_devices(&config).await.unwrap_or_default();
         let shared = Arc::new(Shared {
             agents: crate::agents::Manager::open(&config.data_dir)?,
@@ -338,10 +370,13 @@ impl Runtime {
                 session: None,
                 running: false,
                 saved: false,
+                end_status: None,
                 backend,
                 initialized: false,
                 initializing: false,
                 failed: false,
+                storage_failed: false,
+                release_failed: false,
                 turns: vec![],
                 sequence: 0,
                 context: wire::Context::default(),
@@ -357,10 +392,31 @@ impl Runtime {
             coordinator: Coordinator::default(),
             sources: vec![],
             closed: false,
+            resources_failed: false,
+            ownership: Some(ownership),
             stopping,
         })
     }
+    pub(crate) fn can_delete(&mut self, id: &str) -> bool {
+        let Ok(state) = self.coordinator.execute(SessionCommand::Snapshot {}) else {
+            return false;
+        };
+        !state
+            .session
+            .as_ref()
+            .is_some_and(|s| s.id == id && (state.phase != Phase::Idle || self.resources_failed))
+    }
+    pub(crate) fn release_ownership(&mut self) -> Result<(), Error> {
+        if let Some(file) = &self.ownership {
+            fs2::FileExt::unlock(file).map_err(|_| Error::ResourcesActive)?;
+        }
+        self.ownership.take();
+        Ok(())
+    }
     fn idle(&mut self) -> Result<(), Error> {
+        if self.resources_failed {
+            return Err(Error::ResourcesActive);
+        }
         if self.coordinator.execute(SessionCommand::Snapshot {})?.phase != Phase::Idle {
             return Err(Error::Busy);
         }
@@ -385,6 +441,7 @@ impl Runtime {
             }
             self.shared.emit(Event::AudioLevel { role, level: 0.0 });
         }
+        self.resources_failed |= result.is_err();
         self.stt_state(false, false).await;
         result
     }
@@ -621,6 +678,13 @@ impl Runtime {
                     .try_lock()
                     .map_err(|_| Error::Agent(crate::agents::AgentError::Busy))?;
                 self.idle()?;
+                // Previous failed writes may now be writable. Reconcile before a new draft,
+                // while no previous meeting is producing data.
+                crate::interrupted::reconcile(
+                    &self.shared.repository,
+                    &self.shared.config.data_dir,
+                )
+                .await?;
                 if !self.shared.live.lock().await.initialized {
                     return Err(Error::NotPrepared);
                 }
@@ -666,8 +730,27 @@ impl Runtime {
             let outcome = match result {
                 Ok(outcome) => outcome,
                 Err(error) => {
+                    if matches!(effect, Effect::StartRecording | Effect::StartSpeech) {
+                        self.shared.live.lock().await.failed = true;
+                    }
+                    if matches!(
+                        effect,
+                        Effect::CreateDraft | Effect::CompleteDraft | Effect::AbortDraft
+                    ) {
+                        let mut live = self.shared.live.lock().await;
+                        live.storage_failed = true;
+                        live.failed = true;
+                        live.saved = false;
+                    }
                     self.shared.error(&error);
-                    Outcome::Failed
+                    if effect == Effect::FinalizeRecording {
+                        // Even malformed/missing finalization metadata does not
+                        // authorize deleting audio that may already be on disk.
+                        self.shared.live.lock().await.failed = true;
+                        Outcome::Interrupted
+                    } else {
+                        Outcome::Failed
+                    }
                 }
             };
             state = self.coordinator.execute(SessionCommand::Acknowledge {
@@ -679,11 +762,22 @@ impl Runtime {
         let mut live = self.shared.live.lock().await;
         live.running = state.phase == Phase::Active;
         live.session = state.session;
-        for notice in &state.notices {
-            self.shared.emit(Event::Error {
-                text: format!("会議処理を確認してください: {notice:?}"),
-            });
+        if self.resources_failed || state.phase == Phase::Faulted {
+            live.saved = false;
         }
+        live.end_status = if live.running {
+            None
+        } else if self.resources_failed || state.phase == Phase::Faulted {
+            Some(wire::MeetingEndStatus::StopFailed)
+        } else if live.storage_failed {
+            Some(wire::MeetingEndStatus::Unsaved)
+        } else if live.saved {
+            Some(wire::MeetingEndStatus::Completed)
+        } else if live.session.as_ref().is_some_and(|s| s.ended_at.is_some()) {
+            Some(wire::MeetingEndStatus::Interrupted)
+        } else {
+            None
+        };
         if let Some(s) = &live.session {
             self.shared.emit(Event::SessionInfo {
                 id: s.id.clone(),
@@ -695,6 +789,7 @@ impl Runtime {
         self.shared.emit(Event::MeetingState {
             running: live.running,
             saved: live.saved,
+            end_status: live.end_status,
         });
         let idle = state.phase == Phase::Idle;
         drop(live);
@@ -709,7 +804,7 @@ impl Runtime {
         session: &Session,
         context: Option<&MeetingInput>,
     ) -> Result<Outcome, Error> {
-        let shared = &self.shared;
+        let shared = self.shared.clone();
         let id = session.id.clone();
         match effect {
             Effect::Prepare => {
@@ -746,7 +841,10 @@ impl Runtime {
                 live.turns.clear();
                 live.sequence = 0;
                 live.saved = false;
+                live.end_status = None;
                 live.failed = false;
+                live.storage_failed = false;
+                live.release_failed = false;
                 shared.emit(Event::SessionInfo {
                     id: session.id.clone(),
                     started_at: session.started_at.clone(),
@@ -808,8 +906,11 @@ impl Runtime {
                 )
                 .await;
                 if let Some(error) = results.into_iter().find_map(Result::err) {
-                    shared.live.lock().await.failed = true;
-                    return Err(error.into());
+                    let mut live = shared.live.lock().await;
+                    live.failed = true;
+                    live.release_failed |= matches!(error, media::Error::Shutdown);
+                    shared.error(&Error::Media(error));
+                    // Finish recording before releasing both producers in FlushHistory.
                 }
             }
             Effect::FinalizeRecording => {
@@ -848,9 +949,13 @@ impl Runtime {
                     source.recording = false;
                 }
                 if let Some(error) = failure {
-                    return Err(error.into());
+                    shared.live.lock().await.failed = true;
+                    shared.error(&Error::Media(error));
                 }
                 if assets.is_empty() {
+                    if failure.is_some() || shared.live.lock().await.failed {
+                        return Ok(Outcome::Interrupted);
+                    }
                     return Ok(Outcome::RecordingEmpty);
                 }
                 if let Err(error) = shared
@@ -858,11 +963,17 @@ impl Runtime {
                     .execute(db::Command::InsertRecordingAssets { records: assets })
                     .await
                 {
-                    // A failed commit can have an uncertain outcome. Keep WAVs and the draft.
-                    shared.live.lock().await.failed = true;
+                    // Keep both usable recordings and their meeting if metadata cannot be saved.
+                    let mut live = shared.live.lock().await;
+                    live.failed = true;
+                    live.storage_failed = true;
                     shared.error(&Error::Storage(error));
                 }
-                return Ok(Outcome::RecordingSaved);
+                return Ok(if failure.is_some() {
+                    Outcome::Interrupted
+                } else {
+                    Outcome::RecordingSaved
+                });
             }
             Effect::RemoveRecording => {
                 // Reap capture before removing potentially open WAVs.
@@ -876,10 +987,21 @@ impl Runtime {
             }
             Effect::FlushHistory => {
                 for source in &self.sources {
-                    source.supervisor.drain_events().await?;
+                    if let Err(error) = source.supervisor.drain_events().await {
+                        shared.live.lock().await.failed = true;
+                        shared.error(&Error::Media(error));
+                    }
                 }
-                if self.shared.live.lock().await.failed {
-                    return Err(Error::Media(media::Error::Speech));
+                if shared.live.lock().await.failed {
+                    // A recognition failure does not make already committed records unusable.
+                    // Confirm resource release before interrupting the meeting and allowing Start.
+                    let released = self.close_sources().await;
+                    if released.is_err() || shared.live.lock().await.release_failed {
+                        self.resources_failed = true;
+                        shared.error(&Error::ResourcesActive);
+                        return Ok(Outcome::ResourcesActive);
+                    }
+                    return Ok(Outcome::Interrupted);
                 }
             }
             Effect::CompleteDraft => {
@@ -903,13 +1025,36 @@ impl Runtime {
                 });
             }
             Effect::AbortDraft => {
-                shared
-                    .repository
-                    .execute(db::Command::AbortMeeting {
-                        meeting_id: id,
-                        ended_at: timestamp(session.ended_at.as_deref().ok_or(Error::NoMeeting)?)?,
-                    })
+                let meeting: Option<db::Meeting> = serde_json::from_value(
+                    shared
+                        .repository
+                        .execute(db::Command::GetMeeting {
+                            meeting_id: session.id.clone(),
+                        })
+                        .await?,
+                )?;
+                if let Some(meeting) = meeting {
+                    crate::interrupted::register_recordings(
+                        &shared.repository,
+                        &shared.config.data_dir,
+                        &meeting,
+                    )
                     .await?;
+                    shared
+                        .repository
+                        .execute(db::Command::AbortMeeting {
+                            meeting_id: id,
+                            ended_at: Some(timestamp(
+                                session.ended_at.as_deref().ok_or(Error::NoMeeting)?,
+                            )?),
+                        })
+                        .await?;
+                }
+                shared.emit(Event::Status { text: if shared.live.lock().await.storage_failed {
+                    "会議を中断しました。一部の記録を保存できませんでした。保存済みの記録は履歴から確認できます。"
+                } else {
+                    "会議を中断しました。保存できた記録は履歴から確認できます。"
+                }.into() });
             }
             Effect::ReloadAudio => {
                 let live = self.shared.live.lock().await;
@@ -927,7 +1072,7 @@ impl Runtime {
             }
             Effect::CancelReplies | Effect::CancelFinalReplies => {
                 shared.live.lock().await.ai_accepting = false;
-                shared.replies.lock().await.cancel_all(shared).await;
+                shared.replies.lock().await.cancel_all(&shared).await;
             }
         }
         Ok(Outcome::Ok)

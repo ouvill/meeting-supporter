@@ -47,6 +47,10 @@ export const InboundMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("meeting_state"),
     running: z.boolean(),
     saved: z.boolean().optional(),
+    end_status: z
+      .enum(["completed", "interrupted", "unsaved", "stop_failed"])
+      .nullable()
+      .optional(),
   }),
   z.object({
     type: z.literal("stt_state"),

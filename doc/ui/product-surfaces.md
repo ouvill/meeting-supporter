@@ -274,6 +274,7 @@ provider固有model、local serviceを理解している利用者が、API crede
 - load_error: `履歴を読み込めませんでした` / `もう一度`
 - deleting: dialog操作を無効化し`削除しています…`
 - missing_asset: 会議全体をerrorにせず、該当成果物だけ`利用できません`
+- interrupted: `中断` と記録の欠落の可能性を表示し、保存済みの内容の閲覧と確認付き削除を提供する。専用の復旧画面は設けない。Rust の開始画面では中断・一部未保存・停止確認失敗を分けて案内する。判断条件は [ADR-018](../adr/018-interrupted-meeting-history.md) に従う。
 
 ### Post-meeting minutes states
 

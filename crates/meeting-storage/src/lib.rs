@@ -158,11 +158,11 @@ r#"SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema
                 meeting_id,
                 ended_at,
             } => {
-                let ended_at_value = ended_at.as_str();
+                let ended_at_value = ended_at.as_ref().map(Timestamp::as_str);
                 let updated_at = now.as_str();
                 sqlx::query!(
-                    "UPDATE meetings SET status='aborted',ended_at=?,updated_at=?
-                     WHERE id=?",
+                    "UPDATE meetings SET status='aborted',ended_at=COALESCE(ended_at,?),updated_at=?
+                     WHERE id=? AND status='active'",
                     ended_at_value,
                     updated_at,
                     meeting_id,
@@ -171,6 +171,10 @@ r#"SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema
                 .await?;
                 Ok(Value::Null)
             }
+            Command::ListActiveMeetingIds {} => encode(
+                sqlx::query_scalar!(r#"SELECT id AS "id!: String" FROM meetings WHERE status='active'"#)
+                    .fetch_all(&self.pool).await?
+            ),
             Command::UpdateMeetingTitle { meeting_id, title } => {
                 let updated_at = now.as_str();
                 let result = sqlx::query!(
