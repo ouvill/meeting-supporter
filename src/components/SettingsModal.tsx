@@ -95,8 +95,7 @@ export function SettingsModal({
     return providers;
   }, [audioSettingsLocked, currentSttBackend]);
   const managedActionsLocked =
-    audioSettingsLocked &&
-    (!loaded || currentSttBackend === "managed");
+    audioSettingsLocked && (!loaded || currentSttBackend === "managed");
   const speechModelBlocksSave =
     speechModel.blocksSettingsSave && !audioSettingsLocked;
 
@@ -261,7 +260,6 @@ export function SettingsModal({
                 <AdvancedSettingsPanel
                   error={fieldErrors.advanced}
                   form={form}
-                  acpRoute={routes.routes.find((route) => route.id === "acp")}
                   ollamaTesting={ollamaTesting}
                   ollamaMessage={ollamaMessage}
                   audioSettingsLocked={audioSettingsLocked}
@@ -329,9 +327,7 @@ export function SettingsModal({
                   onClick={() => {
                     void save();
                   }}
-                  disabled={
-                    !loaded || routes.loading || speechModelBlocksSave
-                  }
+                  disabled={!loaded || routes.loading || speechModelBlocksSave}
                 >
                   保存
                 </Button>

@@ -514,7 +514,7 @@ async fn settings_preserve_existing_sections_survive_restart_and_reconfigure_spe
     let temp = tempfile::tempdir().unwrap();
     let settings = config(&temp, "model");
     std::fs::create_dir_all(&settings.data_dir).unwrap();
-    std::fs::write(settings.data_dir.join("config.toml"),"[ai.assignments]\nreply = 'codex'\n[custom]\nretain = 'synthetic'\n[stt]\nvad_sensitivity = 0.6\n").unwrap();
+    std::fs::write(settings.data_dir.join("config.toml"),"[ai.assignments]\nreply = 'gemini'\n[custom]\nretain = 'synthetic'\n[stt]\nvad_sensitivity = 0.6\n").unwrap();
     let server = Server::start(settings.clone()).await.unwrap();
     let (_, body) = http(&server, "GET", "/api/settings", "").await;
     let body: Value = serde_json::from_slice(&body).unwrap();
@@ -540,7 +540,7 @@ async fn settings_preserve_existing_sections_survive_restart_and_reconfigure_spe
         v["type"] == "audio_level" && v["level"].as_f64().is_some_and(|l| l > 0.0)
     })
     .await;
-    let (status,body)=post_settings(&server,json!({"stt":{"vad_sensitivity":0.7,"silence_duration":0.9},"reply":{"styles":[{"id":"standard","enabled":false}],"enabled":false},"acp":{"command":["synthetic-acp","--stdio"]},"recording_retention":{"cutoff_date":null,"max_total_bytes":null}})).await;
+    let (status,body)=post_settings(&server,json!({"stt":{"vad_sensitivity":0.7,"silence_duration":0.9},"reply":{"styles":[{"id":"standard","enabled":false}],"enabled":false},"recording_retention":{"cutoff_date":null,"max_total_bytes":null}})).await;
     assert_eq!((status, body["ok"].clone()), (200, json!(true)));
     send(&mut ws, json!({"type":"init_stt"})).await;
     until(&mut ws, |v| {
@@ -561,7 +561,7 @@ async fn settings_preserve_existing_sections_survive_restart_and_reconfigure_spe
     let persisted: toml::Value = toml::from_str(&text).unwrap();
     assert_eq!(
         persisted["ai"]["assignments"]["reply"].as_str(),
-        Some("codex")
+        Some("gemini")
     );
     assert_eq!(persisted["custom"]["retain"].as_str(), Some("synthetic"));
     let server = Server::start(settings).await.unwrap();
@@ -943,6 +943,7 @@ async fn ai_assignments_persist_without_enabling_unported_routes() {
     let server = Server::start(config.clone()).await.unwrap();
     for (value, expected) in [
         (json!({"reply":"codex","minutes":null}), 422),
+        (json!({"reply":"acp","minutes":null}), 422),
         (
             json!({"reply":"ollama","info":"ollama","minutes":null}),
             422,
@@ -968,6 +969,7 @@ async fn ai_assignments_persist_without_enabling_unported_routes() {
     let catalog: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(catalog["assignments"]["reply"], "gemini");
     let rows = catalog["routes"].as_array().unwrap();
+    assert!(rows.iter().all(|r| r["id"] != "codex" && r["id"] != "acp"));
     assert_eq!(
         rows.iter().find(|r| r["id"] == "gemini").unwrap()["readiness"],
         "setup_required"
@@ -1689,6 +1691,69 @@ fn acp_config(temp: &tempfile::TempDir) -> (Config, std::path::PathBuf) {
     std::fs::write(root.join("installed.json"), json!({"synthetic":{"entry":entry,"directory":"synthetic-1","executable":"agent","args":[marker],"env":{},"node":false}}).to_string()).unwrap();
     std::fs::write(config.data_dir.join("config.toml"), "[reply]\nenabled = true\nauto_generate = false\n[[reply.styles]]\nid = 'standard'\nlabel = '標準'\nenabled = true\npriority = 1\ninstruction = '合成テスト'\n").unwrap();
     (config, marker)
+}
+
+#[tokio::test]
+async fn retired_agent_routes_are_cleared_without_changing_registry_agents() {
+    for (reply, expected) in [
+        ("codex", Value::Null),
+        ("acp", Value::Null),
+        ("acp:synthetic", json!("acp:synthetic")),
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        let (config, _) = acp_config(&temp);
+        let manifest = config.data_dir.join("agents/installed.json");
+        let installed = std::fs::read(&manifest).unwrap();
+        let path = config.data_dir.join("config.toml");
+        let original = format!("[ai.assignments]\nreply = '{reply}'\nminutes = 'codex'\n[ai.routes.codex]\nruntime = 'codex-app-server'\n[ai.routes.acp]\ncommand = 123\n");
+        std::fs::write(&path, &original).unwrap();
+        let server = Server::start(config.clone()).await.unwrap();
+        let (status, body) = http(&server, "GET", "/api/ai/routes", "").await;
+        assert_eq!(status, 200);
+        let catalog: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            catalog["assignments"],
+            json!({"reply":expected,"minutes":null})
+        );
+        let rows = catalog["routes"].as_array().unwrap();
+        assert!(rows.iter().all(|r| r["id"] != "codex" && r["id"] != "acp"));
+        assert!(rows.iter().any(|r| r["id"] == "acp:synthetic"));
+        let (_, body) = http(&server, "GET", "/api/settings", "").await;
+        let settings: Value = serde_json::from_slice(&body).unwrap();
+        assert!(settings.get("acp").is_none());
+        assert_eq!(
+            http(&server, "GET", "/api/ai-runtimes/codex/status", "")
+                .await
+                .0,
+            501
+        );
+        let removed_patch = json!({"acp":{"command":["synthetic-agent"]}}).to_string();
+        let request = format!(
+            "Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+            removed_patch.len(),
+            removed_patch
+        );
+        assert_eq!(
+            http(&server, "POST", "/api/settings", &request).await.0,
+            422
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        assert_eq!(
+            post_settings(&server, json!({"reply":{"auto_generate":false}}))
+                .await
+                .0,
+            200
+        );
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(!saved.contains("[ai.routes.codex]") && !saved.contains("[ai.routes.acp]"));
+        assert_eq!(std::fs::read(&manifest).unwrap(), installed);
+        server.shutdown().await.unwrap();
+        let server = Server::start(config).await.unwrap();
+        let (_, body) = http(&server, "GET", "/api/ai/routes", "").await;
+        let catalog: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(catalog["assignments"]["reply"], expected);
+        server.shutdown().await.unwrap();
+    }
 }
 
 #[tokio::test]

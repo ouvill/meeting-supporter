@@ -2,8 +2,9 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-30
+- **Updated**: 2026-10-01
 - **Builds on**: ADR-009、ADR-010、ADR-011
-- **Partially supersedes**: ADR-010 の Codex 専用 runtime・外部検出限定方針、および ADR-011 の外部エージェント構成方法を Rust 構成について置き換える
+- **Partially supersedes**: ADR-010 の Codex 専用 runtime・外部検出限定方針、ADR-011・ADR-013 の外部エージェント構成方法を置き換える
 
 ## Context
 
@@ -14,6 +15,8 @@ ACP Registry にはこれらの配布情報があり、共通 client と明示�
 ## Decision
 
 - Rust の外部エージェント経路は公式 Rust ACP SDK に接続する。Codex は Registry の ACP adapter を使う。
+- Python の Codex App Server と手動 command の ACP runtime、専用ログイン API、Tauri の Codex CLI 検出を削除する。旧 `codex`・`acp` の経路・設定欄は提供しない。
+- 保存済みの旧経路設定は無視し、旧経路の割当は読み込み時に未選択とする。`acp:<id>` の割当・導入済み manifest・認証情報を変更しない。
 - 設定の「支援方法」で Registry の検索、追加、認証、更新、削除を行う。返答案への割当は導入と分け、利用可能な経路だけ選択できる。
 - Registry は公開された固定の HTTPS index を使う。導入済みエージェントがある場合、起動後に1日1回を目安に更新を自動確認し、最終確認時刻と結果を app-data に保存する。会議中は延期し、確認中に会議を開始した場合も確認を中断する。手動での一覧取得・更新確認も提供する。
 - 配布形式は対応 platform の binary と、上限 version が明示された npm package を扱う。uvx、未対応の archive、terminal 認証は利用可能と表示しない。
@@ -49,9 +52,9 @@ npm の公開日制限で旧版が選ばれた場合、Registry の起動引数�
 
 ## Supersession
 
-[ADR-010](./010-ai-route-strategy.md) の Codex direct と generic ACP の分離、Registry 導入を行わない判断を Rust 構成で置き換える。
-[ADR-011](./011-general-route-card-visibility.md) の command を Advanced で構成する境界に、一般設定での Registry 導入・認証を追加する。
-既存の Python 専用経路・保存設定を自動変換しない。hosted service の fail-closed、秘密情報の境界、正直な readiness 表示は維持する。
+[ADR-010](./010-ai-route-strategy.md) の Codex direct と generic ACP の分離、Registry 導入を行わない判断を置き換える。
+[ADR-011](./011-general-route-card-visibility.md)・[ADR-013](./013-contextual-api-credential-controls.md) の command を Advanced で構成する境界を、一般設定での Registry 導入・認証に置き換える。
+廃止した Python 専用経路を Registry の別エージェントへ自動変換しない。hosted service の fail-closed、秘密情報の境界、正直な readiness 表示は維持する。
 
 ## Related Documents
 

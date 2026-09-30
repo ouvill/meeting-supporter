@@ -147,7 +147,7 @@ function createScenarios(): PreviewScenario[] {
     {
       id: "failed",
       label: "生成失敗",
-      description: "Codex との通信が切れ、再試行できる状態です。",
+      description: "AI との通信が切れ、再試行できる状態です。",
       state: createBaseState({
         activeSuggestionGenerationId: "preview-generation-1",
         suggestionCards: [
@@ -155,7 +155,7 @@ function createScenarios(): PreviewScenario[] {
             ...createSuggestionCard(""),
             status: "error",
             errorText:
-              "Codex との通信が途中で切れました。接続を確認してもう一度お試しください。",
+              "AI との通信が途中で切れました。接続を確認してもう一度お試しください。",
           },
         ],
       }),

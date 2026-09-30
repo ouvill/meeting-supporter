@@ -22,7 +22,7 @@ type ProviderKind = Literal[
 ]
 
 type DataLocation = Literal["cloud", "external", "local", "unknown"]
-type RouteRuntime = Literal["pydantic-ai", "codex-app-server", "acp", "managed"]
+type RouteRuntime = Literal["pydantic-ai", "managed"]
 type RouteKind = Literal["managed", "subscription_app", "local", "byok"]
 type RouteAvailability = Literal["available", "experimental", "planned", "unavailable"]
 type RouteReadiness = Literal["ready", "setup_required", "unavailable", "error", "not_offered", "unknown"]
@@ -65,8 +65,6 @@ class RouteDefinition:
     runtime: RouteRuntime
     provider_id: str | None = None
     model: str | None = None
-    command: list[str] | None = None
-    env: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)

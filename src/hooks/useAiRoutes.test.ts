@@ -26,10 +26,10 @@ let visibilityState: DocumentVisibilityState;
 
 function route(overrides: Partial<RouteReadModel> = {}): RouteReadModel {
   return {
-    id: "codex",
-    kind: "subscription_app",
-    label: "Codex",
-    description: "ChatGPT subscription",
+    id: "ollama",
+    kind: "local",
+    label: "Ollama",
+    description: "Local model",
     availability: "experimental",
     readiness: "ready",
     selectable: true,
@@ -49,7 +49,7 @@ function catalog(
 ): RouteCatalogResponse {
   return {
     routes: [route()],
-    assignments: { reply: "codex", minutes: null },
+    assignments: { reply: "ollama", minutes: null },
     ...overrides,
   };
 }
@@ -68,7 +68,7 @@ describe("resolveUseCaseRouteStatus", () => {
       resolveUseCaseRouteStatus("reply", {
         loading: false,
         error: null,
-        assignedRouteId: "codex",
+        assignedRouteId: "ollama",
         selectedRoute: route(),
       }),
     ).toEqual({ readiness: "ready", canGenerate: true, message: null });
@@ -114,7 +114,7 @@ describe("resolveUseCaseRouteStatus", () => {
       input: {
         loading: false,
         error: null,
-        assignedRouteId: "codex",
+        assignedRouteId: "ollama",
         selectedRoute: route({ capabilities: [] }),
       },
       expected: {
@@ -128,7 +128,7 @@ describe("resolveUseCaseRouteStatus", () => {
       input: {
         loading: false,
         error: null,
-        assignedRouteId: "codex",
+        assignedRouteId: "ollama",
         selectedRoute: route({ selectable: false }),
       },
       expected: {
@@ -142,7 +142,7 @@ describe("resolveUseCaseRouteStatus", () => {
       input: {
         loading: false,
         error: null,
-        assignedRouteId: "codex",
+        assignedRouteId: "ollama",
         selectedRoute: route({
           readiness: "setup_required",
           message: "ログインしてください",
@@ -188,7 +188,7 @@ describe("resolveUseCaseRouteStatus", () => {
         resolveUseCaseRouteStatus(capability, {
           loading: false,
           error: null,
-          assignedRouteId: "codex",
+          assignedRouteId: "ollama",
           selectedRoute: route({ capabilities: ["reply"] }),
         }),
       ).toEqual({
@@ -224,11 +224,11 @@ describe("useAiRoutes", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.assignments).toEqual({
-      reply: "codex",
+      reply: "ollama",
       minutes: null,
     });
     expect(result.current.assignedRoutes.reply).toMatchObject({
-      id: "codex",
+      id: "ollama",
       readiness: "ready",
     });
     expect(result.current.assignmentDirty).toBe(false);
@@ -297,9 +297,9 @@ describe("useAiRoutes", () => {
     });
     const refreshedCatalog = catalog({
       routes: [
-        route({ id: "codex", readiness: "ready", message: "Codex is ready" }),
+        route({ id: "ollama", readiness: "ready", message: "Ollama is ready" }),
       ],
-      assignments: { reply: "codex", minutes: null },
+      assignments: { reply: "ollama", minutes: null },
     });
     sdkMocks.getAiRoutes
       .mockResolvedValueOnce(apiResult(staleCatalog))
@@ -315,11 +315,11 @@ describe("useAiRoutes", () => {
     });
 
     await waitFor(() => expect(sdkMocks.getAiRoutes).toHaveBeenCalledTimes(2));
-    expect(result.current.assignments?.reply).toBe("codex");
+    expect(result.current.assignments?.reply).toBe("ollama");
     expect(result.current.assignedRoutes.reply).toMatchObject({
-      id: "codex",
+      id: "ollama",
       readiness: "ready",
-      message: "Codex is ready",
+      message: "Ollama is ready",
     });
   });
 

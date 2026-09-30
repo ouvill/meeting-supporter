@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 
-from app.agents.route_catalog import CodexStatusProvider, OllamaStatusProvider, RouteProbeStatus
+from app.agents.route_catalog import OllamaStatusProvider, RouteProbeStatus
 from app.api.settings import create_router
 from app.core.event_bus import EventBus
 from app.core.events import ConfigChanged
@@ -22,7 +22,6 @@ def _make_client(
     tmp_path: Path,
     *,
     config_text: str = "[ai]\nschema_version = 2\n",
-    codex_status: CodexStatusProvider | None = None,
     ollama_status: OllamaStatusProvider | None = None,
 ) -> tuple[TypedTestClient, SettingsStore, list[str]]:
     config_path = tmp_path / "config.toml"
@@ -47,7 +46,6 @@ def _make_client(
             state=state,
             store=store,
             event_bus=event_bus,
-            codex_status=codex_status,
             ollama_status=ollama_status,
         )
     )
@@ -72,7 +70,7 @@ def test_retired_info_settings_are_not_exposed_or_writable(tmp_path: Path) -> No
     assert as_json_object(catalog["assignments"]) == {"reply": None, "minutes": None}
     assert all("info" not in as_json_array(route["capabilities"]) for route in _routes(catalog).values())
     assert (
-        client.put("/api/ai/routes/assignments", json={"reply": None, "minutes": None, "info": "codex"}).status_code
+        client.put("/api/ai/routes/assignments", json={"reply": None, "minutes": None, "info": "openai"}).status_code
         == 422
     )
     assert client.post("/api/settings", json={"agents": {"info_enabled": True}}).status_code == 422
@@ -102,22 +100,6 @@ def test_catalog_exposes_unassigned_routes_and_non_selectable_managed_and_unread
         "selectable": False,
         "reason_code": "MANAGED_SERVICE_NOT_CONFIGURED",
     }
-    codex = routes["codex"]
-    assert (codex["availability"], codex["readiness"], codex["selectable"], codex["action"]) == (
-        "experimental",
-        "unknown",
-        False,
-        "login",
-    )
-    assert "minutes" in as_json_array(codex["capabilities"])
-    assert all("info" not in as_json_array(route["capabilities"]) for route in routes.values())
-    acp = routes["acp"]
-    assert (acp["availability"], acp["readiness"], acp["selectable"], acp["reason_code"]) == (
-        "experimental",
-        "setup_required",
-        False,
-        "ACP_COMMAND_NOT_CONFIGURED",
-    )
 
 
 @pytest.mark.parametrize(
@@ -155,144 +137,6 @@ def test_ollama_route_location_follows_the_configured_endpoint(
     assert _routes(response.json_object())["ollama"]["data_location"] == expected_location
 
 
-def test_runtime_probes_make_codex_and_acp_selectable_only_when_ready_and_report_ollama_readiness(
-    tmp_path: Path,
-) -> None:
-    """Runtime readiness, rather than provider kind, controls whether experimental routes can be selected."""
-
-    async def ready(requested_model: str) -> RouteProbeStatus:
-        _ = requested_model
-        return RouteProbeStatus(
-            readiness="ready",
-            reason_code="",
-            message="利用できます。",
-            service_tier="priority",
-        )
-
-    async def ollama_ready() -> RouteProbeStatus:
-        return RouteProbeStatus(readiness="ready", reason_code="", message="利用できます。")
-
-    client, _, _ = _make_client(
-        tmp_path,
-        config_text="""[ai]
-schema_version = 2
-
-[ai.routes.acp]
-command = ["acp-agent", "--stdio"]
-""",
-        codex_status=ready,
-        ollama_status=ollama_ready,
-    )
-
-    response = client.get("/api/ai/routes")
-
-    assert response.status_code == 200
-    routes = _routes(response.json_object())
-    assert (routes["codex"]["readiness"], routes["codex"]["selectable"]) == ("ready", True)
-    assert routes["codex"]["service_tier"] == "priority"
-    assert (routes["acp"]["readiness"], routes["acp"]["selectable"]) == ("ready", True)
-    assert (routes["ollama"]["readiness"], routes["ollama"]["selectable"]) == ("ready", True)
-
-
-def test_catalog_selects_codex_only_when_its_configured_luna_model_is_available(tmp_path: Path) -> None:
-    """A configured Luna route becomes selectable only after its own model availability probe succeeds."""
-
-    async def luna_available(requested_model: str) -> RouteProbeStatus:
-        if requested_model == "gpt-5.6-luna":
-            return RouteProbeStatus(readiness="ready", reason_code="", message="利用できます。")
-        return RouteProbeStatus(
-            readiness="setup_required",
-            reason_code="CODEX_MODEL_UNAVAILABLE",
-            message="設定したCodexモデルを利用できません。",
-            action="configure",
-        )
-
-    client, _, _ = _make_client(
-        tmp_path,
-        config_text="""[ai]
-schema_version = 2
-
-[ai.routes.codex]
-model = "gpt-5.6-luna"
-""",
-        codex_status=luna_available,
-    )
-
-    response = client.get("/api/ai/routes")
-
-    assert response.status_code == 200
-    codex = _routes(response.json_object())["codex"]
-    assert (codex["readiness"], codex["selectable"], codex["reason_code"]) == ("ready", True, None)
-
-
-def test_catalog_keeps_a_protocol_valid_newer_codex_selectable_and_exposes_its_warning(tmp_path: Path) -> None:
-    """A ready newer CLI remains selectable while clients receive its compatibility warning."""
-
-    async def newer_codex_ready(requested_model: str) -> RouteProbeStatus:
-        _ = requested_model
-        return RouteProbeStatus(
-            readiness="ready",
-            reason_code="untested_newer_version",
-            message="このCodex CLIバージョンは未検証です。",
-        )
-
-    client, _, _ = _make_client(
-        tmp_path,
-        config_text="""[ai]
-schema_version = 2
-
-[ai.routes.codex]
-model = "gpt-5.6-luna"
-""",
-        codex_status=newer_codex_ready,
-    )
-
-    response = client.get("/api/ai/routes")
-
-    assert response.status_code == 200
-    codex = _routes(response.json_object())["codex"]
-    assert (codex["readiness"], codex["selectable"], codex["reason_code"]) == (
-        "ready",
-        True,
-        "untested_newer_version",
-    )
-
-
-def test_catalog_does_not_substitute_an_available_legacy_model_when_luna_is_unavailable(tmp_path: Path) -> None:
-    """An unavailable configured Luna model blocks selection even if a legacy model would be accepted."""
-
-    async def luna_unavailable(requested_model: str) -> RouteProbeStatus:
-        if requested_model == "gpt-5.4-mini":
-            return RouteProbeStatus(readiness="ready", reason_code="", message="利用できます。")
-        return RouteProbeStatus(
-            readiness="setup_required",
-            reason_code="CODEX_MODEL_UNAVAILABLE",
-            message="設定したCodexモデルを利用できません。",
-            action="configure",
-        )
-
-    client, _, _ = _make_client(
-        tmp_path,
-        config_text="""[ai]
-schema_version = 2
-
-[ai.routes.codex]
-model = "gpt-5.6-luna"
-""",
-        codex_status=luna_unavailable,
-    )
-
-    response = client.get("/api/ai/routes")
-
-    assert response.status_code == 200
-    codex = _routes(response.json_object())["codex"]
-    assert (codex["readiness"], codex["selectable"], codex["reason_code"]) == (
-        "setup_required",
-        False,
-        "CODEX_MODEL_UNAVAILABLE",
-    )
-
-
 def test_saving_byok_secret_changes_route_readiness_without_returning_the_secret(tmp_path: Path) -> None:
     """BYOK credentials are write-only while their presence enables the corresponding route."""
     client, _, _ = _make_client(tmp_path)
@@ -309,56 +153,44 @@ def test_saving_byok_secret_changes_route_readiness_without_returning_the_secret
     assert after["selectable"] is True
 
 
-def test_assignment_update_persists_a_ready_codex_selection_across_reload(tmp_path: Path) -> None:
+def test_assignment_update_persists_an_openai_selection_across_reload(tmp_path: Path) -> None:
     """A full assignment replacement must survive reload and mark the selected route in its response."""
 
-    async def codex_ready(requested_model: str) -> RouteProbeStatus:
-        _ = requested_model
-        return RouteProbeStatus(readiness="ready", reason_code="", message="利用できます。")
+    client, store, events = _make_client(tmp_path)
 
-    client, store, events = _make_client(tmp_path, codex_status=codex_ready)
-
-    response = client.put("/api/ai/routes/assignments", json={"reply": "codex", "minutes": None})
+    response = client.put("/api/ai/routes/assignments", json={"reply": "openai", "minutes": None})
 
     assert response.status_code == 200
     data = response.json_object()
-    assert as_json_object(data["assignments"]) == {"reply": "codex", "minutes": None}
-    assert _routes(data)["codex"]["selected"] is True
+    assert as_json_object(data["assignments"]) == {"reply": "openai", "minutes": None}
+    assert _routes(data)["openai"]["selected"] is True
     assert events == ["ConfigChanged"]
     reloaded = ConfigLoader.from_settings_store(store)
-    assert reloaded.ai_assignments.reply == "codex"
+    assert reloaded.ai_assignments.reply == "openai"
     assert reloaded.ai_assignments.minutes is None
 
 
-def test_assignment_update_persists_a_ready_codex_minutes_selection_across_reload(tmp_path: Path) -> None:
-    """Minutes assignment selects Codex directly and must not depend on a reply assignment."""
+def test_assignment_update_persists_an_openai_minutes_selection_across_reload(tmp_path: Path) -> None:
+    """Minutes assignment selects OpenAI directly and must not depend on a reply assignment."""
 
-    async def codex_ready(requested_model: str) -> RouteProbeStatus:
-        _ = requested_model
-        return RouteProbeStatus(readiness="ready", reason_code="", message="利用できます。")
+    client, store, events = _make_client(tmp_path)
 
-    client, store, events = _make_client(tmp_path, codex_status=codex_ready)
-
-    response = client.put("/api/ai/routes/assignments", json={"reply": None, "minutes": "codex"})
+    response = client.put("/api/ai/routes/assignments", json={"reply": None, "minutes": "openai"})
 
     assert response.status_code == 200
     data = response.json_object()
-    assert as_json_object(data["assignments"]) == {"reply": None, "minutes": "codex"}
-    assert _routes(data)["codex"]["selected"] is True
+    assert as_json_object(data["assignments"]) == {"reply": None, "minutes": "openai"}
+    assert _routes(data)["openai"]["selected"] is True
     assert events == ["ConfigChanged"]
     reloaded = ConfigLoader.from_settings_store(store)
     assert reloaded.ai_assignments.reply is None
-    assert reloaded.ai_assignments.minutes == "codex"
+    assert reloaded.ai_assignments.minutes == "openai"
 
 
 def test_assignment_update_rejects_unknown_or_unsupported_or_not_offered_routes(tmp_path: Path) -> None:
     """Invalid route choices must be rejected before persisting an unusable assignment."""
 
-    async def codex_ready(requested_model: str) -> RouteProbeStatus:
-        _ = requested_model
-        return RouteProbeStatus(readiness="ready", reason_code="", message="利用できます。")
-
-    client, store, events = _make_client(tmp_path, codex_status=codex_ready)
+    client, store, events = _make_client(tmp_path)
     cases = (
         ("unknown route", {"reply": "missing", "minutes": None}, "AI_ROUTE_NOT_FOUND"),
         ("planned managed reply", {"reply": "managed", "minutes": None}, "AI_ROUTE_NOT_SELECTABLE"),
@@ -375,3 +207,23 @@ def test_assignment_update_rejects_unknown_or_unsupported_or_not_offered_routes(
     reloaded = ConfigLoader.from_settings_store(store)
     assert reloaded.ai_assignments.reply is None
     assert reloaded.ai_assignments.minutes is None
+
+
+@pytest.mark.parametrize("route_id", ["codex", "acp"])
+def test_retired_routes_are_ignored_on_load_and_rejected_on_save(tmp_path: Path, route_id: str) -> None:
+    client, store, events = _make_client(
+        tmp_path,
+        config_text=(
+            f'[ai]\nschema_version = 2\n[ai.assignments]\nreply = "{route_id}"\nminutes = "{route_id}"\n'
+            '[ai.routes.codex]\nruntime = "codex-app-server"\n'
+            '[ai.routes.acp]\ncommand = ["synthetic-agent"]\n'
+        ),
+    )
+    original = store.config_path.read_text(encoding="utf-8")
+    catalog = client.get("/api/ai/routes").json_object()
+    assert not {"codex", "acp"}.intersection(_routes(catalog))
+    assert as_json_object(catalog["assignments"]) == {"reply": None, "minutes": None}
+    assert "acp" not in client.get("/api/settings").json_object()
+    assert client.put("/api/ai/routes/assignments", json={"reply": route_id, "minutes": None}).status_code == 422
+    assert store.config_path.read_text(encoding="utf-8") == original
+    assert events == []

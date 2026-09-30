@@ -713,9 +713,8 @@ CARGO COMPONENTS (645)
 - zvariant_derive 5.11.0 | MIT | https://crates.io/api/v1/crates/zvariant_derive/5.11.0/download
 - zvariant_utils 3.3.1 | MIT | https://crates.io/api/v1/crates/zvariant_utils/3.3.1/download
 
-PYTHON COMPONENTS (134)
+PYTHON COMPONENTS (133)
 ----------------------
-- agent-client-protocol 0.11.0 | Apache-2.0 | https://files.pythonhosted.org/packages/6c/93/396d02c91b387b2678f23081869ca47bd495fc6c78789022c683180cf5f1/agent_client_protocol-0.11.0.tar.gz
 - aiofile 3.9.0 | Apache-2.0 | https://files.pythonhosted.org/packages/67/e2/d7cb819de8df6b5c1968a2756c3cb4122d4fa2b8fc768b53b7c9e5edb646/aiofile-3.9.0.tar.gz
 - annotated-doc 0.0.4 | MIT | https://files.pythonhosted.org/packages/57/ba/046ceea27344560984e26a590f90bc7f4a75b06701f653222458922b558c/annotated_doc-0.0.4.tar.gz
 - annotated-types 0.7.0 | MIT | https://files.pythonhosted.org/packages/ee/67/531ea369ba64dcff5ec9c3402f9f51bf748cec26dde048a2f973a4eea7f5/annotated_types-0.7.0.tar.gz
@@ -6089,7 +6088,6 @@ Used by:
   - cargo:zeroize@1.9.0 (LICENSE-APACHE)
   - cargo:zeroize_derive@1.5.0 (LICENSE-APACHE)
   - provisioned:uv@0.11.7 (LICENSE-APACHE)
-  - python:agent-client-protocol@0.11.0 (LICENSE)
   - python:fastmcp-slim@3.4.2 (LICENSE (https://github.com/PrefectHQ/fastmcp@3b8538e2422a1c43fdb69661c610de7985b785f2))
   - python:flatbuffers@25.12.19 (LICENSE (https://github.com/google/flatbuffers@7e163021e59cca4f8e1e35a7c828b5c6b7915953))
   - python:flatbuffers@25.12.19 (swift/LICENSE (https://github.com/google/flatbuffers@7e163021e59cca4f8e1e35a7c828b5c6b7915953))

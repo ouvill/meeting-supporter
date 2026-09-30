@@ -8,7 +8,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from app.agents.codex_app_server import CodexAppServer
 from app.core.state import AppState
 from app.meetings.lifecycle import MeetingLifecycleCoordinator
 from app.meetings.repository import MeetingHistoryRepository
@@ -23,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 def create_lifespan(
     *,
-    codex: CodexAppServer,
     stt_controller: SttController,
     config: ConfigLoader,
     state: AppState,
@@ -167,7 +165,6 @@ def create_lifespan(
         if history_repository is not None:
             await history_repository.close()
 
-        await codex.close()
         logger.info("シャットダウン完了")
 
     return lifespan

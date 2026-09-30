@@ -466,180 +466,6 @@
         }
       }
     },
-    "/api/ai-runtimes/codex/status": {
-      "get": {
-        "tags": [
-          "ai-runtimes"
-        ],
-        "summary": "Status",
-        "operationId": "status_api_ai_runtimes_codex_status_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CodexStatusResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-runtimes/codex/login": {
-      "post": {
-        "tags": [
-          "ai-runtimes"
-        ],
-        "summary": "Start Login",
-        "operationId": "start_login_api_ai_runtimes_codex_login_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-runtimes/codex/login/device-code": {
-      "post": {
-        "tags": [
-          "ai-runtimes"
-        ],
-        "summary": "Start Device Code Login",
-        "operationId": "start_device_code_login_api_ai_runtimes_codex_login_device_code_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeviceCodeLoginResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-runtimes/codex/login/cancel": {
-      "post": {
-        "tags": [
-          "ai-runtimes"
-        ],
-        "summary": "Cancel Login",
-        "operationId": "cancel_login_api_ai_runtimes_codex_login_cancel_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/LoginCancelRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoginCancelResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-runtimes/codex/logout": {
-      "post": {
-        "tags": [
-          "ai-runtimes"
-        ],
-        "summary": "Logout",
-        "operationId": "logout_api_ai_runtimes_codex_logout_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-runtimes/codex/rate-limits": {
-      "get": {
-        "tags": [
-          "ai-runtimes"
-        ],
-        "summary": "Rate Limits",
-        "operationId": "rate_limits_api_ai_runtimes_codex_rate_limits_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RateLimitsResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-runtimes/codex/cancel": {
-      "post": {
-        "tags": [
-          "ai-runtimes"
-        ],
-        "summary": "Cancel Active Turn",
-        "operationId": "cancel_active_turn_api_ai_runtimes_codex_cancel_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/meetings/{meeting_id}/minutes": {
       "post": {
         "tags": [
@@ -1054,62 +880,6 @@
   },
   "components": {
     "schemas": {
-      "AcpConfig": {
-        "properties": {
-          "command": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Command"
-          },
-          "runtime": {
-            "type": "string",
-            "const": "acp",
-            "title": "Runtime",
-            "default": "acp"
-          },
-          "capabilities": {
-            "items": {
-              "type": "string",
-              "const": "reply"
-            },
-            "type": "array",
-            "title": "Capabilities",
-            "default": [
-              "reply"
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "command"
-        ],
-        "title": "AcpConfig",
-        "description": "ACP runtime configuration safe for Advanced Settings."
-      },
-      "AcpConfigPayload": {
-        "properties": {
-          "command": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Command"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "title": "AcpConfigPayload",
-        "description": "ACP process command, represented as argv without shell evaluation."
-      },
       "AudioSettingsPatch": {
         "properties": {
           "sample_rate": {
@@ -1152,108 +922,6 @@
           "user",
           "none"
         ]
-      },
-      "CodexStatusResponse": {
-        "properties": {
-          "installed": {
-            "type": "boolean",
-            "title": "Installed"
-          },
-          "version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Version"
-          },
-          "compatible": {
-            "type": "boolean",
-            "title": "Compatible"
-          },
-          "process_state": {
-            "type": "string",
-            "title": "Process State"
-          },
-          "auth_state": {
-            "type": "string",
-            "title": "Auth State"
-          },
-          "turn_state": {
-            "type": "string",
-            "title": "Turn State"
-          },
-          "authenticated": {
-            "type": "boolean",
-            "title": "Authenticated"
-          },
-          "account_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Account Type"
-          },
-          "plan_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Plan Type"
-          },
-          "ready": {
-            "type": "boolean",
-            "title": "Ready"
-          },
-          "availability": {
-            "type": "string",
-            "const": "experimental",
-            "title": "Availability",
-            "default": "experimental"
-          },
-          "security_boundary_verified": {
-            "type": "boolean",
-            "const": false,
-            "title": "Security Boundary Verified",
-            "default": false
-          },
-          "reason_code": {
-            "type": "string",
-            "title": "Reason Code"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "installed",
-          "version",
-          "compatible",
-          "process_state",
-          "auth_state",
-          "turn_state",
-          "authenticated",
-          "account_type",
-          "plan_type",
-          "ready",
-          "reason_code",
-          "message"
-        ],
-        "title": "CodexStatusResponse"
       },
       "ConnectionProvider": {
         "type": "string",
@@ -1352,30 +1020,6 @@
         ],
         "title": "DeleteMeetingResponse"
       },
-      "DeviceCodeLoginResponse": {
-        "properties": {
-          "login_id": {
-            "type": "string",
-            "title": "Login Id"
-          },
-          "verification_url": {
-            "type": "string",
-            "title": "Verification Url"
-          },
-          "user_code": {
-            "type": "string",
-            "title": "User Code"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "login_id",
-          "verification_url",
-          "user_code"
-        ],
-        "title": "DeviceCodeLoginResponse"
-      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1388,63 +1032,6 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
-      },
-      "LoginCancelRequest": {
-        "properties": {
-          "login_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 256,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Login Id"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "title": "LoginCancelRequest"
-      },
-      "LoginCancelResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "canceled",
-              "notFound"
-            ],
-            "title": "Status"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "title": "LoginCancelResponse"
-      },
-      "LoginResponse": {
-        "properties": {
-          "login_id": {
-            "type": "string",
-            "title": "Login Id"
-          },
-          "auth_url": {
-            "type": "string",
-            "title": "Auth Url"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "login_id",
-          "auth_url"
-        ],
-        "title": "LoginResponse"
       },
       "MeetingDetail": {
         "properties": {
@@ -1731,20 +1318,6 @@
         "title": "OllamaModelsResponse",
         "description": "Response from GET /api/settings/ollama/models."
       },
-      "OperationResponse": {
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "title": "Ok"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "ok"
-        ],
-        "title": "OperationResponse"
-      },
       "ProviderKind": {
         "type": "string",
         "enum": [
@@ -1825,180 +1398,6 @@
         ],
         "title": "ProviderSummary",
         "description": "Provider metadata safe for Settings UI display."
-      },
-      "RateLimitBucketResponse": {
-        "properties": {
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Id"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "plan_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Plan Type"
-          },
-          "primary": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RateLimitWindowResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "secondary": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RateLimitWindowResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "has_credits": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Has Credits"
-          },
-          "unlimited": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unlimited"
-          },
-          "reached_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reached Reason"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "plan_type",
-          "primary",
-          "secondary",
-          "has_credits",
-          "unlimited",
-          "reached_reason"
-        ],
-        "title": "RateLimitBucketResponse"
-      },
-      "RateLimitWindowResponse": {
-        "properties": {
-          "used_percent": {
-            "type": "integer",
-            "title": "Used Percent"
-          },
-          "resets_at": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resets At"
-          },
-          "window_duration_mins": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Window Duration Mins"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "used_percent",
-          "resets_at",
-          "window_duration_mins"
-        ],
-        "title": "RateLimitWindowResponse"
-      },
-      "RateLimitsResponse": {
-        "properties": {
-          "default": {
-            "$ref": "#/components/schemas/RateLimitBucketResponse"
-          },
-          "buckets": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/RateLimitBucketResponse"
-            },
-            "type": "object",
-            "title": "Buckets"
-          },
-          "reset_credits_available": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reset Credits Available"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "default",
-          "buckets",
-          "reset_credits_available"
-        ],
-        "title": "RateLimitsResponse"
       },
       "RecordingAssetItem": {
         "properties": {
@@ -2840,9 +2239,6 @@
           "ollama": {
             "$ref": "#/components/schemas/OllamaConfig"
           },
-          "acp": {
-            "$ref": "#/components/schemas/AcpConfig"
-          },
           "stt": {
             "$ref": "#/components/schemas/TomlTable",
             "default": {}
@@ -2882,7 +2278,6 @@
         "type": "object",
         "required": [
           "ollama",
-          "acp",
           "reply",
           "secrets",
           "data_dir",
@@ -2900,16 +2295,6 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/OllamaConfigPayload"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "acp": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AcpConfigPayload"
               },
               {
                 "type": "null"

@@ -84,11 +84,11 @@ function createState(overrides: Partial<SocketState> = {}): SocketState {
   };
 }
 
-const readyCodexRoute: AiRouteReadModel = {
-  id: "codex",
-  kind: "subscription_app",
-  label: "Codex",
-  description: "ChatGPT subscription",
+const readyLocalRoute: AiRouteReadModel = {
+  id: "ollama",
+  kind: "local",
+  label: "Ollama",
+  description: "Local model",
   availability: "experimental",
   readiness: "ready",
   selectable: true,
@@ -103,9 +103,9 @@ const readyCodexRoute: AiRouteReadModel = {
 
 function routeCatalog(overrides: Record<string, unknown> = {}) {
   return {
-    routes: [readyCodexRoute],
-    assignments: { reply: "codex", minutes: null },
-    assignedRoutes: { reply: readyCodexRoute, minutes: null },
+    routes: [readyLocalRoute],
+    assignments: { reply: "ollama", minutes: null },
+    assignedRoutes: { reply: readyLocalRoute, minutes: null },
     replyStatus: { readiness: "ready", canGenerate: true, message: null },
 
     minutesRouteStatus: {
@@ -113,7 +113,7 @@ function routeCatalog(overrides: Record<string, unknown> = {}) {
       canGenerate: false,
       message: "議事録を利用する支援方法を設定してください。",
     },
-    draftAssignments: { reply: "codex", minutes: null },
+    draftAssignments: { reply: "ollama", minutes: null },
     assignmentDirty: false,
     setDraftAssignment: vi.fn(),
     resetDraftAssignments: vi.fn(),
@@ -147,7 +147,7 @@ describe("LiveReplySidePanel", () => {
   });
 
   it("does not generate when the active route is ready but not selectable", () => {
-    const nonSelectableRoute = { ...readyCodexRoute, selectable: false };
+    const nonSelectableRoute = { ...readyLocalRoute, selectable: false };
     useAiRoutesMock.mockReturnValue(
       routeCatalog({
         assignedRoutes: {

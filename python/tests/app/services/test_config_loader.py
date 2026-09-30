@@ -265,7 +265,7 @@ class AiRouteConfigurationTest(unittest.TestCase):
             agents={"info_enabled": True},
             ai={
                 "schema_version": 2,
-                "assignments": {"reply": "ollama", "info": "retired-route", "minutes": "codex"},
+                "assignments": {"reply": "ollama", "info": "retired-route", "minutes": "gemini"},
             },
             reply={"enabled": False, "auto_generate": True},
         )
@@ -273,10 +273,10 @@ class AiRouteConfigurationTest(unittest.TestCase):
         loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
 
         self.assertEqual("ollama", loader.ai_assignments.reply)
-        self.assertEqual("codex", loader.ai_assignments.minutes)
+        self.assertEqual("gemini", loader.ai_assignments.minutes)
         self.assertEqual({"reply_enabled": False, "reply_auto_generate": True}, loader.agent_settings)
 
-    def test_schema_v2_keeps_nullable_assignments_and_acp_runtime_config_separate(self) -> None:
+    def test_retired_runtime_settings_are_ignored_and_assignments_cleared(self) -> None:
         config = _toml_table(
             ai={
                 "schema_version": 2,
@@ -290,11 +290,9 @@ class AiRouteConfigurationTest(unittest.TestCase):
 
         loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
 
-        self.assertEqual("acp", loader.ai_assignments.reply)
+        self.assertIsNone(loader.ai_assignments.reply)
         self.assertEqual("openai", loader.ai_assignments.minutes)
-        acp = next(route for route in loader.routes if route.id == "acp")
-        self.assertEqual(["agent-command", "--stdio"], acp.command)
-        self.assertEqual({"ACP_TOKEN": "secret-ref"}, acp.env)
+        self.assertFalse(any(route.id in {"codex", "acp"} for route in loader.routes))
         openai = next(route for route in loader.routes if route.id == "openai")
         self.assertEqual("gpt-test", openai.model)
 
@@ -314,14 +312,6 @@ class AiRouteConfigurationTest(unittest.TestCase):
                 _ = ConfigLoader.from_settings_store(
                     _dummy_settings_store(config=_toml_table(ai={"schema_version": 2}))
                 )
-
-    def test_codex_route_can_be_explicitly_configured_for_minutes(self) -> None:
-        """Codex is a supported standalone minutes route, not a reply-only fallback."""
-        config = _toml_table(ai={"schema_version": 2, "assignments": {"minutes": "codex"}})
-
-        loader = ConfigLoader.from_settings_store(_dummy_settings_store(config=config))
-
-        self.assertEqual("codex", loader.ai_assignments.minutes)
 
     def test_runtime_command_under_a_provider_is_rejected(self) -> None:
         config = _toml_table(

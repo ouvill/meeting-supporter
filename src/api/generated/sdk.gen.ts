@@ -3,11 +3,6 @@
 import type { Client, Options as Options2, TDataShape } from "./client";
 import { client } from "./client.gen";
 import type {
-  CancelActiveTurnApiAiRuntimesCodexCancelPostData,
-  CancelActiveTurnApiAiRuntimesCodexCancelPostResponses,
-  CancelLoginApiAiRuntimesCodexLoginCancelPostData,
-  CancelLoginApiAiRuntimesCodexLoginCancelPostErrors,
-  CancelLoginApiAiRuntimesCodexLoginCancelPostResponses,
   CancelSpeechModelDownloadApiSttModelCancelPostData,
   CancelSpeechModelDownloadApiSttModelCancelPostErrors,
   CancelSpeechModelDownloadApiSttModelCancelPostResponses,
@@ -43,13 +38,9 @@ import type {
   ListRecordingsMeetingsMeetingIdRecordingsGetData,
   ListRecordingsMeetingsMeetingIdRecordingsGetErrors,
   ListRecordingsMeetingsMeetingIdRecordingsGetResponses,
-  LogoutApiAiRuntimesCodexLogoutPostData,
-  LogoutApiAiRuntimesCodexLogoutPostResponses,
   PreviewRecordingCleanupMeetingsRecordingsCleanupPreviewPostData,
   PreviewRecordingCleanupMeetingsRecordingsCleanupPreviewPostErrors,
   PreviewRecordingCleanupMeetingsRecordingsCleanupPreviewPostResponses,
-  RateLimitsApiAiRuntimesCodexRateLimitsGetData,
-  RateLimitsApiAiRuntimesCodexRateLimitsGetResponses,
   ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutData,
   ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutErrors,
   ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutResponses,
@@ -61,15 +52,9 @@ import type {
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetData,
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetErrors,
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetResponses,
-  StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostData,
-  StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostResponses,
-  StartLoginApiAiRuntimesCodexLoginPostData,
-  StartLoginApiAiRuntimesCodexLoginPostResponses,
   StartSpeechModelDownloadApiSttModelDownloadPostData,
   StartSpeechModelDownloadApiSttModelDownloadPostErrors,
   StartSpeechModelDownloadApiSttModelDownloadPostResponses,
-  StatusApiAiRuntimesCodexStatusGetData,
-  StatusApiAiRuntimesCodexStatusGetResponses,
   TestConnectionApiSettingsConnectionsTestPostData,
   TestConnectionApiSettingsConnectionsTestPostErrors,
   TestConnectionApiSettingsConnectionsTestPostResponses,
@@ -307,123 +292,6 @@ export const cancelSpeechModelDownloadApiSttModelCancelPost = <
     CancelSpeechModelDownloadApiSttModelCancelPostErrors,
     ThrowOnError
   >({ url: "/api/stt/model/cancel", ...options });
-
-/**
- * Status
- */
-export const statusApiAiRuntimesCodexStatusGet = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<StatusApiAiRuntimesCodexStatusGetData, ThrowOnError>,
-) =>
-  (options?.client ?? client).get<
-    StatusApiAiRuntimesCodexStatusGetResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/status", ...options });
-
-/**
- * Start Login
- */
-export const startLoginApiAiRuntimesCodexLoginPost = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<StartLoginApiAiRuntimesCodexLoginPostData, ThrowOnError>,
-) =>
-  (options?.client ?? client).post<
-    StartLoginApiAiRuntimesCodexLoginPostResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/login", ...options });
-
-/**
- * Start Device Code Login
- */
-export const startDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePost = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<
-    StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostData,
-    ThrowOnError
-  >,
-) =>
-  (options?.client ?? client).post<
-    StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/login/device-code", ...options });
-
-/**
- * Cancel Login
- */
-export const cancelLoginApiAiRuntimesCodexLoginCancelPost = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<
-    CancelLoginApiAiRuntimesCodexLoginCancelPostData,
-    ThrowOnError
-  >,
-) =>
-  (options?.client ?? client).post<
-    CancelLoginApiAiRuntimesCodexLoginCancelPostResponses,
-    CancelLoginApiAiRuntimesCodexLoginCancelPostErrors,
-    ThrowOnError
-  >({
-    url: "/api/ai-runtimes/codex/login/cancel",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-  });
-
-/**
- * Logout
- */
-export const logoutApiAiRuntimesCodexLogoutPost = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<LogoutApiAiRuntimesCodexLogoutPostData, ThrowOnError>,
-) =>
-  (options?.client ?? client).post<
-    LogoutApiAiRuntimesCodexLogoutPostResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/logout", ...options });
-
-/**
- * Rate Limits
- */
-export const rateLimitsApiAiRuntimesCodexRateLimitsGet = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<
-    RateLimitsApiAiRuntimesCodexRateLimitsGetData,
-    ThrowOnError
-  >,
-) =>
-  (options?.client ?? client).get<
-    RateLimitsApiAiRuntimesCodexRateLimitsGetResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/rate-limits", ...options });
-
-/**
- * Cancel Active Turn
- */
-export const cancelActiveTurnApiAiRuntimesCodexCancelPost = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<
-    CancelActiveTurnApiAiRuntimesCodexCancelPostData,
-    ThrowOnError
-  >,
-) =>
-  (options?.client ?? client).post<
-    CancelActiveTurnApiAiRuntimesCodexCancelPostResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/cancel", ...options });
 
 /**
  * Generate Minutes

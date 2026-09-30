@@ -6,9 +6,7 @@ import os
 from collections.abc import Callable, Coroutine
 from typing import final
 
-from app.agents.codex_app_server import CodexAppServer
-from app.agents.codex_runtime import CodexMinutesAgentRuntime, CodexReplyAgentRuntime
-from app.agents.factory import AgentBundle, AgentRouteError, build_agents
+from app.agents.factory import AgentBundle, build_agents
 from app.agents.managed_runtime import ManagedReplyAgentRuntime
 from app.agents.models import ReplyAgentDefinition
 from app.audio import AudioPipeline, SoundcardSource
@@ -47,7 +45,6 @@ class RuntimeCompositionCoordinator:
         secret_store: SecretStore,
         broadcast_manager: BroadcastManager,
         managed_session_store: ManagedSessionStore,
-        codex: CodexAppServer,
         usage_logger: UsageLogger,
         handle_speech: Callable[[str, str], Coroutine[object, object, None]],
     ) -> None:
@@ -56,7 +53,6 @@ class RuntimeCompositionCoordinator:
         self._secret_store = secret_store
         self._broadcast_manager = broadcast_manager
         self._managed_session_store = managed_session_store
-        self._codex = codex
         self._usage_logger = usage_logger
         self._handle_speech = handle_speech
         self._config_change_lock = asyncio.Lock()
@@ -144,14 +140,11 @@ class RuntimeCompositionCoordinator:
             routes=config.routes,
             assignments=config.ai_assignments,
             secret_store=self._secret_store,
-            context_dir=config.context_dir,
             usage_logger=self._usage_logger,
             reply_agent_definitions=config.reply_agent_definitions,
             external_reply_factories={
                 "managed": self._build_managed_reply_runtime,
-                "codex": self._build_codex_reply_runtime,
             },
-            external_minutes_factories={"codex": self._build_codex_minutes_runtime},
         )
 
     def _build_managed_reply_runtime(
@@ -163,25 +156,6 @@ class RuntimeCompositionCoordinator:
             session_store=self._managed_session_store,
             instruction=definition.instruction,
         )
-
-    def _build_codex_reply_runtime(
-        self,
-        route: RouteDefinition,
-        _definition: ReplyAgentDefinition,
-    ) -> CodexReplyAgentRuntime:
-        return CodexReplyAgentRuntime(peer=self._codex, model=self._required_codex_model(route))
-
-    def _build_codex_minutes_runtime(self, route: RouteDefinition) -> CodexMinutesAgentRuntime:
-        return CodexMinutesAgentRuntime(peer=self._codex, model=self._required_codex_model(route))
-
-    @staticmethod
-    def _required_codex_model(route: RouteDefinition) -> str:
-        if not route.model:
-            raise AgentRouteError(
-                code="CODEX_MODEL_NOT_CONFIGURED",
-                message="Codex経路のモデル設定が空です。設定を確認してください。",
-            )
-        return route.model
 
     @staticmethod
     def _agent_composition_changed(

@@ -3,18 +3,16 @@
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
 
 from app.agents.model_resolver import resolve_route_model
 from app.agents.models import MinutesAgentRuntime, ReplyAgentDefinition, ReplyAgentRuntime, ReplyAgentSpec
-from app.agents.runtime_factory import build_acp_reply_runtime, build_minutes_runtime, build_pydantic_reply_runtime
+from app.agents.runtime_factory import build_minutes_runtime, build_pydantic_reply_runtime
 from app.core.config import AiRouteAssignments, ProviderDefinition, RouteDefinition
 from app.core.protocols import SecretStore
 from app.core.state import AppState
 from app.services.usage_logger import UsageLogger
 
 ExternalReplyRuntimeFactory = Callable[[RouteDefinition, ReplyAgentDefinition], ReplyAgentRuntime]
-ExternalMinutesRuntimeFactory = Callable[[RouteDefinition], MinutesAgentRuntime]
 
 
 class AgentRouteError(RuntimeError):
@@ -62,7 +60,6 @@ def _build_reply_runtime(
     state: AppState,
     providers: list[ProviderDefinition],
     secret_store: SecretStore,
-    context_dir: Path,
     usage_logger: UsageLogger,
 ) -> ReplyAgentRuntime:
     if route.runtime == "pydantic-ai":
@@ -80,34 +77,12 @@ def _build_reply_runtime(
             instruction=definition.instruction,
             usage_logger=usage_logger,
         )
-    if route.runtime == "acp":
-        try:
-            return build_acp_reply_runtime(route, context_dir)
-        except ValueError as error:
-            raise AgentRouteError(
-                code="ACP_ROUTE_SETUP_REQUIRED",
-                message="ACP経路の設定が完了していません。",
-            ) from error
     if route.runtime == "managed":
         factory = external_reply_factories.get(route.id)
         if factory is None:
             raise AgentRouteError(
                 code="MANAGED_RUNTIME_NOT_CONNECTED",
                 message="Meeting Supporter AIへまだ接続できません。",
-                retryable=True,
-            )
-        return factory(route, definition)
-    if route.runtime == "codex-app-server":
-        if not route.model:
-            raise AgentRouteError(
-                code="CODEX_MODEL_NOT_CONFIGURED",
-                message="Codex経路のモデル設定が空です。設定を確認してください。",
-            )
-        factory = external_reply_factories.get(route.id)
-        if factory is None:
-            raise AgentRouteError(
-                code="CODEX_RUNTIME_NOT_CONNECTED",
-                message="Codex実行環境へまだ接続できません。",
                 retryable=True,
             )
         return factory(route, definition)
@@ -125,25 +100,10 @@ def _build_minutes_runtime(
     secret_store: SecretStore,
     state: AppState,
     usage_logger: UsageLogger,
-    external_minutes_factories: Mapping[str, ExternalMinutesRuntimeFactory],
 ) -> MinutesAgentRuntime | None:
     if route_id is None:
         return None
     route = _assigned_route(route_id, routes, use_case="議事録")
-    if route.runtime == "codex-app-server":
-        if not route.model:
-            raise AgentRouteError(
-                code="CODEX_MODEL_NOT_CONFIGURED",
-                message="Codex経路のモデル設定が空です。設定を確認してください。",
-            )
-        factory = external_minutes_factories.get(route.id)
-        if factory is None:
-            raise AgentRouteError(
-                code="CODEX_RUNTIME_NOT_CONNECTED",
-                message="Codex実行環境へまだ接続できません。",
-                retryable=True,
-            )
-        return factory(route)
     if route.runtime != "pydantic-ai":
         raise AgentRouteError(
             code="AI_ROUTE_CAPABILITY_MISMATCH",
@@ -166,17 +126,14 @@ def build_agents(
     routes: list[RouteDefinition],
     assignments: AiRouteAssignments,
     secret_store: SecretStore,
-    context_dir: Path,
     usage_logger: UsageLogger,
     reply_agent_definitions: list[ReplyAgentDefinition],
     external_reply_factories: Mapping[str, ExternalReplyRuntimeFactory] | None = None,
-    external_minutes_factories: Mapping[str, ExternalMinutesRuntimeFactory] | None = None,
 ) -> AgentBundle:
     """Build assigned runtimes without inventing a fallback route."""
 
     route_by_id = {route.id: route for route in routes}
     external_factories = external_reply_factories or {}
-    minutes_factories = external_minutes_factories or {}
     reply_agent_specs: list[ReplyAgentSpec] = []
     if assignments.reply is not None:
         reply_route = _assigned_route(assignments.reply, route_by_id, use_case="返答")
@@ -190,7 +147,6 @@ def build_agents(
                 state=state,
                 providers=providers,
                 secret_store=secret_store,
-                context_dir=context_dir,
                 usage_logger=usage_logger,
             )
             reply_agent_specs.append(
@@ -209,7 +165,6 @@ def build_agents(
         secret_store=secret_store,
         state=state,
         usage_logger=usage_logger,
-        external_minutes_factories=minutes_factories,
     )
 
     return AgentBundle(
@@ -222,6 +177,5 @@ __all__ = [
     "AgentBundle",
     "AgentRouteError",
     "ExternalReplyRuntimeFactory",
-    "ExternalMinutesRuntimeFactory",
     "build_agents",
 ]

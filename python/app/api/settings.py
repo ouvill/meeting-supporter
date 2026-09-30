@@ -9,7 +9,6 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.exceptions import RequestValidationError
 
 from app.agents.route_catalog import (
-    CodexStatusProvider,
     ManagedStatusProvider,
     OllamaStatusProvider,
     RouteCatalog,
@@ -97,7 +96,6 @@ def _route_catalog(
     state: "AppState",
     assignments: AiRouteAssignments | None = None,
     managed_status: ManagedStatusProvider | None = None,
-    codex_status: CodexStatusProvider | None = None,
     ollama_status: OllamaStatusProvider | None = None,
 ) -> RouteCatalog:
     return RouteCatalog(
@@ -106,7 +104,6 @@ def _route_catalog(
         assignments=assignments or state.config.ai_assignments,
         secret_store=state.secret_store,
         managed_status=managed_status,
-        codex_status=codex_status,
         ollama_status=ollama_status,
     )
 
@@ -127,7 +124,6 @@ def create_router(
     store: SettingsStore,
     event_bus: EventBus,
     managed_status: ManagedStatusProvider | None = None,
-    codex_status: CodexStatusProvider | None = None,
     ollama_status: OllamaStatusProvider | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api")
@@ -141,7 +137,6 @@ def create_router(
         return await _route_catalog(
             state=state,
             managed_status=managed_status,
-            codex_status=codex_status,
             ollama_status=ollama_status,
         ).read()
 
@@ -154,7 +149,6 @@ def create_router(
             state=state,
             managed_status=managed_status,
             assignments=candidate,
-            codex_status=codex_status,
             ollama_status=ollama_status,
         ).read()
         by_id = {route.id: route for route in current.routes}

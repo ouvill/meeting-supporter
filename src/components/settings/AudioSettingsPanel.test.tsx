@@ -15,7 +15,6 @@ const FORM: SettingsForm = {
   secretsStatus: {},
   secretInputs: {},
   ollamaBaseUrl: "http://localhost:11434/v1",
-  acpCommand: "",
   sttBackend: "whisper",
   sttWhisperModel: "large-v3-turbo",
   sttDevice: "auto",

@@ -39,7 +39,6 @@ export interface SettingsForm {
   secretsStatus: Record<string, boolean>;
   secretInputs: Record<string, string>;
   ollamaBaseUrl: string;
-  acpCommand: string;
   sttBackend: string;
   sttWhisperModel: string;
   sttDevice: string;

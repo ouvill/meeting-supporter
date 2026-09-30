@@ -41,7 +41,6 @@ pub struct Patch {
     pub audio: Option<Map<String, Value>>,
     pub reply: Option<Map<String, Value>>,
     pub ollama: Option<Map<String, Value>>,
-    pub acp: Option<Map<String, Value>>,
     pub context: Option<Map<String, Value>>,
     pub usage_budget: Option<Map<String, Value>>,
     pub recording_retention: Option<Map<String, Value>>,
@@ -100,6 +99,22 @@ impl Store {
             Ok(text) => merge(&mut document, &parse(&text)?),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
+        }
+        // Retired routes must not block startup or select a different agent implicitly.
+        if let Some(routes) = document
+            .get_mut("ai")
+            .and_then(|ai| ai.get_mut("routes"))
+            .and_then(Value::as_object_mut)
+        {
+            routes.remove("codex");
+            routes.remove("acp");
+        }
+        if let Some(assignments) = document
+            .get_mut("ai")
+            .and_then(|ai| ai.get_mut("assignments"))
+            .and_then(Value::as_object_mut)
+        {
+            assignments.retain(|_, value| !matches!(value.as_str(), Some("codex" | "acp")));
         }
         validate_document(&document)?;
         Ok(Self {
@@ -217,7 +232,6 @@ impl Store {
             .collect();
         Ok(json!({
             "stt":stt,"audio":{"sample_rate":document["audio"]["sample_rate"],"max_session_seconds":document["audio"]["max_session_seconds"]},"ollama":{"base_url":document["ollama"]["base_url"]},
-            "acp":{"command":document.pointer("/ai/routes/acp/command").cloned().unwrap_or(json!([])),"runtime":"acp","capabilities":["reply"]},
             "reply":{"enabled":document["reply"]["enabled"],"auto_generate":document["reply"]["auto_generate"],"default_style":document["reply"]["default_style"],"styles":styles},
             "secrets":secrets,"providers":[],"data_dir":self.directory,"context_dir":context,
             "usage":{"budget":{"meeting_limit_jpy":document["usage_budget"]["meeting_limit_jpy"],"monthly_limit_jpy":document["usage_budget"]["monthly_limit_jpy"]},"current_meeting":{"input_tokens":0,"output_tokens":0,"estimated_cost_jpy":0.0,"request_count":0},"current_month":crate::usage::month(&self.directory.join("usage.jsonl"))?,"billing_mode": match self.document.pointer("/ai/assignments/reply").and_then(Value::as_str) { Some(id) if id.starts_with("acp:")=>"unknown", Some("ollama")=>"local", Some("openai"|"gemini"|"anthropic")=>"byok", _=>"unassigned" }},
@@ -298,22 +312,6 @@ impl Store {
                     .any(|s| s["enabled"].as_bool().unwrap_or(true))
             {
                 return Err(invalid());
-            }
-        }
-        if let Some(acp) = &patch.acp {
-            for (key, value) in acp {
-                if key != "command" {
-                    return Err(invalid());
-                }
-                if value.is_null() {
-                    continue;
-                }
-                let args: Vec<String> =
-                    serde_json::from_value(value.clone()).map_err(|_| invalid())?;
-                if args.len() > 32 || args.iter().any(|s| s.trim().is_empty()) {
-                    return Err(invalid());
-                }
-                document["ai"]["routes"]["acp"]["command"] = json!(args);
             }
         }
         for key in patch
@@ -422,12 +420,6 @@ fn validate_document(document: &Value) -> Result<(), Error> {
             .any(|style| style.id.is_empty() || !ids.insert(&style.id))
     {
         return Err(invalid());
-    }
-    if let Some(command) = document.pointer("/ai/routes/acp/command") {
-        let args: Vec<String> = serde_json::from_value(command.clone()).map_err(|_| invalid())?;
-        if args.len() > 32 || args.iter().any(|s| s.trim().is_empty()) {
-            return Err(invalid());
-        }
     }
     Ok(())
 }

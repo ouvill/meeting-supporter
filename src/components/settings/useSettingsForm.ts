@@ -1,10 +1,6 @@
 import { useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import {
-  getOllamaModelsApiSettingsOllamaModelsGet,
-  startLoginApiAiRuntimesCodexLoginPost,
-} from "../../api/generated/sdk.gen";
+import { getOllamaModelsApiSettingsOllamaModelsGet } from "../../api/generated/sdk.gen";
 import type {
   AiRouteReadModel,
   AiRoutesController,
@@ -169,32 +165,6 @@ export function useSettingsForm({
     if (route.action === "retry") {
       await routes.reload();
       return;
-    }
-    if (route.action === "install") {
-      try {
-        await openUrl("https://developers.openai.com/codex/cli/");
-      } catch {
-        setSectionError({
-          category: "support",
-          message:
-            "ブラウザを開けませんでした。既定のブラウザ設定を確認してください。",
-        });
-      }
-      return;
-    }
-    if (route.action !== "login") return;
-    try {
-      const { data, error } = await startLoginApiAiRuntimesCodexLoginPost();
-      if (error || !data) throw new Error("login unavailable");
-      const authUrl = new URL(data.auth_url);
-      if (authUrl.protocol !== "https:") throw new Error("unsafe login URL");
-      await openUrl(authUrl.href);
-    } catch {
-      setSectionError({
-        category: "support",
-        message:
-          "ログインを開始できませんでした。状態を再確認してからもう一度お試しください。",
-      });
     }
   };
 

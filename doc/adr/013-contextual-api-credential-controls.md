@@ -1,6 +1,7 @@
 # ADR-013: API credential controlを利用箇所へ配置する
 
 - **Status**: Accepted
+- **Partially superseded by**: [ADR-017](./017-acp-registry-and-shared-rust-client.md)（外部エージェントの command 設定を廃止し Registry へ統一）
 - **Date**: 2026-07-16
 - **Partially supersedes**: ADR-011 §2のAPI key配置
 - **Builds on**: ADR-009、ADR-010、ADR-011

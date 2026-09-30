@@ -1153,48 +1153,6 @@ class TestSettingsApiPostReturnsSavedValues:
             assert settings["data_dir"] == str(state.config.user_data_dir)
             assert settings["context_dir"] == str(state.config.context_dir)
 
-    def test_acp_argv_round_trips_and_updates_route_readiness(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            client, state, store, event_bus, events = _make_client(
-                Path(td),
-                config_text=(
-                    "[ai]\nschema_version = 2\n\n"
-                    '[ai.assignments]\nreply = "codex"\n\n'
-                    '[ai.routes.codex]\nruntime = "codex-app-server"\n\n'
-                    '[ai.routes.acp]\nruntime = "acp"\ncommand = ["old-agent"]\n\n'
-                    '[ai.routes.acp.env]\nKEEP = "yes"\n'
-                ),
-            )
-            from app.services.config_loader import ConfigLoader
-
-            async def reload_runtime_config(event: ConfigChanged) -> None:
-                _ = event
-                state.config = ConfigLoader.from_settings_store(store)
-
-            event_bus.subscribe(ConfigChanged, reload_runtime_config)
-            command = ["python", "/opt/meeting supporter/acp_agent.py", "--stdio"]
-
-            saved = client.post("/api/settings", json={"acp": {"command": command}})
-
-            assert saved.status_code == 200
-            saved_acp = as_json_object(self._ok_settings(saved)["acp"])
-            assert saved_acp == {
-                "command": command,
-                "runtime": "acp",
-                "capabilities": ["reply"],
-            }
-            loaded_acp = as_json_object(client.get("/api/settings").json_object()["acp"])
-            assert loaded_acp["command"] == command
-            catalog = client.get("/api/ai/routes").json_object()
-            acp_route = next(route for route in as_object_array(catalog["routes"]) if route["id"] == "acp")
-            assert acp_route["readiness"] == "ready"
-            assert acp_route["selectable"] is True
-            stored_text = store.config_path.read_text(encoding="utf-8")
-            assert '[ai.routes.acp.env]\nKEEP = "yes"' in stored_text
-            assert "[ai.routes.codex]" in stored_text
-            assert 'reply = "codex"' in stored_text
-            assert "ConfigChanged" in events
-
     def test_post_returns_settings_with_reply_and_agent_patch(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             client, _, _, _, _ = _make_client(Path(td))
@@ -1462,13 +1420,13 @@ class TestPostSettingsPydanticValidation:
             )
             assert resp.status_code == 422
 
-    def test_rejects_blank_acp_argv_argument(self) -> None:
+    def test_rejects_retired_acp_command_settings(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             client, _, _, _, _ = _make_client(Path(td))
 
             response = client.post(
                 "/api/settings",
-                json={"acp": {"command": ["python", "  "]}},
+                json={"acp": {"command": ["synthetic-agent"]}},
             )
 
             assert response.status_code == 422

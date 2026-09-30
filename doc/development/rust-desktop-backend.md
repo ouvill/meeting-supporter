@@ -126,7 +126,9 @@ Ollama は接続と設定済みモデルの存在を確認します。モデル�
 
 公開 [ACP Registry](https://github.com/agentclientprotocol/registry) を一覧取得時と更新確認時に参照します。
 Codex、Claude Agent、Antigravity を含むエントリを表示し、現在の OS・CPU と配布形式に対応するものだけ追加できます。
-Rust の Codex 接続には Registry の `codex-acp` を使います。従来の Python の Codex App Server 直接経路とは設定を分けます。
+Codex 接続には Registry の `codex-acp` を使います。旧 App Server 直接経路と手動 command の ACP 経路は廃止しました。
+旧 `codex`・`acp` の割当は読み込み時に未選択として扱い、Registry で導入・接続したエージェントを選び直します。
+既存の `acp:<id>` の割当と導入済みエージェントは保持します。
 
 - npm 形式には GUI の PATH から実行できる Node.js と npm が必要です。Registry の version を上限に、npm の `min-release-age`・`before` 設定を満たす版をアプリ専用ディレクトリに導入し、install script は実行しません。実際の導入版を保存・表示するため、配布版より古い場合があります。更新確認は一時的な lockfile の解決だけで行い、導入可能な新版がなければ更新通知を出しません。
 - binary は zip、tar.gz / tgz、単体実行ファイルに対応します。uvx とその他の圧縮形式には未対応です。
@@ -239,8 +241,7 @@ GPU 判定は固定した whisper.cpp 版の初期化通知を利用するため
 
 ## 未移植の機能
 
-議事録、従来の Codex App Server 直接経路・手動 command 設定の ACP、クラウド STT
-は未接続です。話者分離は既存 Python でも実処理がなく、新規機能として別途検討します。
+議事録、クラウド STT は未接続です。話者分離は既存 Python でも実処理がなく、新規機能として別途検討します。
 議事録の既存割当は保持しますが、割当変更はまだできません。
 
 情報 AI（会議中のメモ自動更新・調査）は機能から削除し、移植対象に含めません。

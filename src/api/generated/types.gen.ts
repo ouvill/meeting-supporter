@@ -5,38 +5,6 @@ export type ClientOptions = {
 };
 
 /**
- * AcpConfig
- *
- * ACP runtime configuration safe for Advanced Settings.
- */
-export type AcpConfig = {
-  /**
-   * Command
-   */
-  command: Array<string>;
-  /**
-   * Runtime
-   */
-  runtime?: "acp";
-  /**
-   * Capabilities
-   */
-  capabilities?: Array<"reply">;
-};
-
-/**
- * AcpConfigPayload
- *
- * ACP process command, represented as argv without shell evaluation.
- */
-export type AcpConfigPayload = {
-  /**
-   * Command
-   */
-  command?: Array<string> | null;
-};
-
-/**
  * AudioSettingsPatch
  *
  * Typed patch surface for persisted ``[audio]`` settings.
@@ -53,68 +21,6 @@ export type AudioSettingsPatch = {
 };
 
 export type BillingOwner = "app" | "external_subscription" | "user" | "none";
-
-/**
- * CodexStatusResponse
- */
-export type CodexStatusResponse = {
-  /**
-   * Installed
-   */
-  installed: boolean;
-  /**
-   * Version
-   */
-  version: string | null;
-  /**
-   * Compatible
-   */
-  compatible: boolean;
-  /**
-   * Process State
-   */
-  process_state: string;
-  /**
-   * Auth State
-   */
-  auth_state: string;
-  /**
-   * Turn State
-   */
-  turn_state: string;
-  /**
-   * Authenticated
-   */
-  authenticated: boolean;
-  /**
-   * Account Type
-   */
-  account_type: string | null;
-  /**
-   * Plan Type
-   */
-  plan_type: string | null;
-  /**
-   * Ready
-   */
-  ready: boolean;
-  /**
-   * Availability
-   */
-  availability?: "experimental";
-  /**
-   * Security Boundary Verified
-   */
-  security_boundary_verified?: false;
-  /**
-   * Reason Code
-   */
-  reason_code: string;
-  /**
-   * Message
-   */
-  message: string;
-};
 
 export type ConnectionProvider =
   | "openai"
@@ -173,24 +79,6 @@ export type DeleteMeetingResponse = {
 };
 
 /**
- * DeviceCodeLoginResponse
- */
-export type DeviceCodeLoginResponse = {
-  /**
-   * Login Id
-   */
-  login_id: string;
-  /**
-   * Verification Url
-   */
-  verification_url: string;
-  /**
-   * User Code
-   */
-  user_code: string;
-};
-
-/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -198,40 +86,6 @@ export type HttpValidationError = {
    * Detail
    */
   detail?: Array<ValidationError>;
-};
-
-/**
- * LoginCancelRequest
- */
-export type LoginCancelRequest = {
-  /**
-   * Login Id
-   */
-  login_id?: string | null;
-};
-
-/**
- * LoginCancelResponse
- */
-export type LoginCancelResponse = {
-  /**
-   * Status
-   */
-  status: "canceled" | "notFound";
-};
-
-/**
- * LoginResponse
- */
-export type LoginResponse = {
-  /**
-   * Login Id
-   */
-  login_id: string;
-  /**
-   * Auth Url
-   */
-  auth_url: string;
 };
 
 /**
@@ -404,16 +258,6 @@ export type OllamaModelsResponse = {
   message?: string | null;
 };
 
-/**
- * OperationResponse
- */
-export type OperationResponse = {
-  /**
-   * Ok
-   */
-  ok: boolean;
-};
-
 export type ProviderKind =
   | "google-gla"
   | "google-vertex"
@@ -456,73 +300,6 @@ export type ProviderSummary = {
    * Api Key Configured
    */
   api_key_configured?: boolean | null;
-};
-
-/**
- * RateLimitBucketResponse
- */
-export type RateLimitBucketResponse = {
-  /**
-   * Id
-   */
-  id: string | null;
-  /**
-   * Name
-   */
-  name: string | null;
-  /**
-   * Plan Type
-   */
-  plan_type: string | null;
-  primary: RateLimitWindowResponse | null;
-  secondary: RateLimitWindowResponse | null;
-  /**
-   * Has Credits
-   */
-  has_credits: boolean | null;
-  /**
-   * Unlimited
-   */
-  unlimited: boolean | null;
-  /**
-   * Reached Reason
-   */
-  reached_reason: string | null;
-};
-
-/**
- * RateLimitWindowResponse
- */
-export type RateLimitWindowResponse = {
-  /**
-   * Used Percent
-   */
-  used_percent: number;
-  /**
-   * Resets At
-   */
-  resets_at: number | null;
-  /**
-   * Window Duration Mins
-   */
-  window_duration_mins: number | null;
-};
-
-/**
- * RateLimitsResponse
- */
-export type RateLimitsResponse = {
-  default: RateLimitBucketResponse;
-  /**
-   * Buckets
-   */
-  buckets: {
-    [key: string]: RateLimitBucketResponse;
-  };
-  /**
-   * Reset Credits Available
-   */
-  reset_credits_available: number | null;
 };
 
 /**
@@ -1025,7 +802,6 @@ export type SettingsConflictResponse = {
  */
 export type SettingsResponse = {
   ollama: OllamaConfig;
-  acp: AcpConfig;
   stt?: TomlTable;
   audio?: TomlTable;
   reply: ReplySettings;
@@ -1055,7 +831,6 @@ export type SettingsResponse = {
  */
 export type SettingsSaveRequest = {
   ollama?: OllamaConfigPayload | null;
-  acp?: AcpConfigPayload | null;
   reply?: ReplySettingsPayload | null;
   secrets?: SecretsPayload | null;
   stt?: SttSettingsPatch | null;
@@ -1751,139 +1526,6 @@ export type CancelSpeechModelDownloadApiSttModelCancelPostResponses = {
 
 export type CancelSpeechModelDownloadApiSttModelCancelPostResponse =
   CancelSpeechModelDownloadApiSttModelCancelPostResponses[keyof CancelSpeechModelDownloadApiSttModelCancelPostResponses];
-
-export type StatusApiAiRuntimesCodexStatusGetData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/ai-runtimes/codex/status";
-};
-
-export type StatusApiAiRuntimesCodexStatusGetResponses = {
-  /**
-   * Successful Response
-   */
-  200: CodexStatusResponse;
-};
-
-export type StatusApiAiRuntimesCodexStatusGetResponse =
-  StatusApiAiRuntimesCodexStatusGetResponses[keyof StatusApiAiRuntimesCodexStatusGetResponses];
-
-export type StartLoginApiAiRuntimesCodexLoginPostData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/ai-runtimes/codex/login";
-};
-
-export type StartLoginApiAiRuntimesCodexLoginPostResponses = {
-  /**
-   * Successful Response
-   */
-  200: LoginResponse;
-};
-
-export type StartLoginApiAiRuntimesCodexLoginPostResponse =
-  StartLoginApiAiRuntimesCodexLoginPostResponses[keyof StartLoginApiAiRuntimesCodexLoginPostResponses];
-
-export type StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/ai-runtimes/codex/login/device-code";
-};
-
-export type StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostResponses =
-  {
-    /**
-     * Successful Response
-     */
-    200: DeviceCodeLoginResponse;
-  };
-
-export type StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostResponse =
-  StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostResponses[keyof StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostResponses];
-
-export type CancelLoginApiAiRuntimesCodexLoginCancelPostData = {
-  /**
-   * Body
-   */
-  body?: LoginCancelRequest | null;
-  path?: never;
-  query?: never;
-  url: "/api/ai-runtimes/codex/login/cancel";
-};
-
-export type CancelLoginApiAiRuntimesCodexLoginCancelPostErrors = {
-  /**
-   * Validation Error
-   */
-  422: HttpValidationError;
-};
-
-export type CancelLoginApiAiRuntimesCodexLoginCancelPostError =
-  CancelLoginApiAiRuntimesCodexLoginCancelPostErrors[keyof CancelLoginApiAiRuntimesCodexLoginCancelPostErrors];
-
-export type CancelLoginApiAiRuntimesCodexLoginCancelPostResponses = {
-  /**
-   * Successful Response
-   */
-  200: LoginCancelResponse;
-};
-
-export type CancelLoginApiAiRuntimesCodexLoginCancelPostResponse =
-  CancelLoginApiAiRuntimesCodexLoginCancelPostResponses[keyof CancelLoginApiAiRuntimesCodexLoginCancelPostResponses];
-
-export type LogoutApiAiRuntimesCodexLogoutPostData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/ai-runtimes/codex/logout";
-};
-
-export type LogoutApiAiRuntimesCodexLogoutPostResponses = {
-  /**
-   * Successful Response
-   */
-  200: OperationResponse;
-};
-
-export type LogoutApiAiRuntimesCodexLogoutPostResponse =
-  LogoutApiAiRuntimesCodexLogoutPostResponses[keyof LogoutApiAiRuntimesCodexLogoutPostResponses];
-
-export type RateLimitsApiAiRuntimesCodexRateLimitsGetData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/ai-runtimes/codex/rate-limits";
-};
-
-export type RateLimitsApiAiRuntimesCodexRateLimitsGetResponses = {
-  /**
-   * Successful Response
-   */
-  200: RateLimitsResponse;
-};
-
-export type RateLimitsApiAiRuntimesCodexRateLimitsGetResponse =
-  RateLimitsApiAiRuntimesCodexRateLimitsGetResponses[keyof RateLimitsApiAiRuntimesCodexRateLimitsGetResponses];
-
-export type CancelActiveTurnApiAiRuntimesCodexCancelPostData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/ai-runtimes/codex/cancel";
-};
-
-export type CancelActiveTurnApiAiRuntimesCodexCancelPostResponses = {
-  /**
-   * Successful Response
-   */
-  200: OperationResponse;
-};
-
-export type CancelActiveTurnApiAiRuntimesCodexCancelPostResponse =
-  CancelActiveTurnApiAiRuntimesCodexCancelPostResponses[keyof CancelActiveTurnApiAiRuntimesCodexCancelPostResponses];
 
 export type GenerateMinutesMeetingsMeetingIdMinutesPostData = {
   body?: never;

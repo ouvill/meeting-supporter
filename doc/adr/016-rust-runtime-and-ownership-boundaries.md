@@ -517,5 +517,5 @@ Rust が生成 ID・対象発言・会議 ID、キャンセル、利用量記録
 rig の型を会議ドメインや画面との契約へ持ち込まず、失敗は本文・認証情報を含まないエラーへ変換する。
 
 OpenAI・Gemini・Anthropic・Ollama の返答経路を先行して接続する。
-Codex app-server と ACP のプロセス実行は別 adapter とし、モデル API として代用しない。
+外部エージェントのプロセス実行は [ADR-017](./017-acp-registry-and-shared-rust-client.md) に従い ACP へ統一し、モデル API として代用しない。
 議事録は既存の責務を保って後続で移植する。情報 AI は機能から削除する。

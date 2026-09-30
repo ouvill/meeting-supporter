@@ -353,8 +353,6 @@ mod tests {
             uv: PathBuf::from("uv"),
             python_dir: PathBuf::from("python"),
             venv_dir: PathBuf::from(".venv"),
-            codex_binary: None,
-            codex_work_root: PathBuf::from("codex-work"),
         };
 
         let command = uv_sync_command(&paths);

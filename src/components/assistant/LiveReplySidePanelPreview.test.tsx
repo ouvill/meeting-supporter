@@ -85,14 +85,14 @@ describe("LiveReplySidePanelPreview", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the actionable Codex failure in the failed scenario", () => {
+  it("shows the actionable AI failure in the failed scenario", () => {
     render(<LiveReplySidePanelPreview />);
 
     fireEvent.click(screen.getByRole("button", { name: /^生成失敗/ }));
 
     expect(
       screen.getByText(
-        "Codex との通信が途中で切れました。接続を確認してもう一度お試しください。",
+        "AI との通信が途中で切れました。接続を確認してもう一度お試しください。",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "再試行" })).toBeEnabled();

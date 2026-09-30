@@ -44,7 +44,6 @@ export const INITIAL_SETTINGS_FORM: SettingsForm = {
   secretsStatus: {},
   secretInputs: {},
   ollamaBaseUrl: "http://localhost:11434/v1",
-  acpCommand: "",
   sttBackend: "reazonspeech",
   sttWhisperModel: "large-v3-turbo",
   sttDevice: "auto",
@@ -113,7 +112,6 @@ export function mapSettingsResponseToForm(
     ),
     secretInputs: {},
     ollamaBaseUrl: settings.ollama?.base_url ?? "http://localhost:11434/v1",
-    acpCommand: settings.acp?.command.join("\n") ?? "",
     sttBackend,
     sttDevice: getTomlString(settings.stt, "device") ?? "auto",
     sttWhisperModel:
@@ -174,11 +172,6 @@ export function mapSettingsFormToPayload(
       })),
     },
     ollama: { base_url: form.ollamaBaseUrl },
-    acp: {
-      command: form.acpCommand
-        .split(/\r?\n/)
-        .filter((argument) => argument.trim()),
-    },
     ...(savedBaseline === null ||
     STT_FORM_FIELDS.some((field) => form[field] !== savedBaseline[field])
       ? {

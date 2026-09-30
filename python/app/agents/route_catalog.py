@@ -1,8 +1,8 @@
 """Public AI route catalog and readiness evaluation.
 
 A route chooses a runtime.  A provider only describes a model API.  Keeping
-those concepts separate prevents process-backed agents (Codex and ACP) from
-leaking into model provider resolution.
+those concepts separate keeps runtime configuration out of model provider
+resolution.
 """
 
 import asyncio
@@ -31,7 +31,7 @@ from app.core.config import (
 )
 from app.core.protocols import SecretStore
 
-BUILT_IN_ROUTE_IDS = ("managed", "codex", "acp", "ollama", "gemini", "openai", "anthropic")
+BUILT_IN_ROUTE_IDS = ("managed", "ollama", "gemini", "openai", "anthropic")
 type AssignableUseCase = Literal["reply", "minutes"]
 
 
@@ -50,12 +50,6 @@ class ManagedStatusProvider(Protocol):
     """Callable injection boundary for managed entitlement readiness."""
 
     async def __call__(self) -> RouteProbeStatus: ...
-
-
-class CodexStatusProvider(Protocol):
-    """Callable injection boundary for a configured Codex model readiness probe."""
-
-    async def __call__(self, requested_model: str) -> RouteProbeStatus: ...
 
 
 class OllamaStatusProvider(Protocol):
@@ -202,26 +196,6 @@ _METADATA: dict[str, _RouteMetadata] = {
         billing_owner="app",
         capabilities=("reply", "stream", "cancel"),
     ),
-    "codex": _RouteMetadata(
-        kind="subscription_app",
-        label="Codex",
-        description="ChatGPTでログインした公式Codexを利用します",
-        availability="experimental",
-        selectable=True,
-        data_location="external",
-        billing_owner="external_subscription",
-        capabilities=("reply", "minutes", "stream", "cancel"),
-    ),
-    "acp": _RouteMetadata(
-        kind="subscription_app",
-        label="ACP agent",
-        description="設定したACP互換エージェントを利用します",
-        availability="experimental",
-        selectable=True,
-        data_location="unknown",
-        billing_owner="external_subscription",
-        capabilities=("reply", "stream", "cancel"),
-    ),
     "ollama": _RouteMetadata(
         kind="local",
         label="Ollama",
@@ -291,7 +265,6 @@ class RouteCatalog:
         assignments: AiRouteAssignments,
         secret_store: SecretStore,
         managed_status: ManagedStatusProvider | None = None,
-        codex_status: CodexStatusProvider | None = None,
         ollama_status: OllamaStatusProvider | None = None,
     ) -> None:
         self._providers: dict[str, ProviderDefinition] = {provider.id: provider for provider in providers}
@@ -299,7 +272,6 @@ class RouteCatalog:
         self._assignments: AiRouteAssignments = assignments
         self._secret_store: SecretStore = secret_store
         self._managed_status: ManagedStatusProvider | None = managed_status
-        self._codex_status: CodexStatusProvider | None = codex_status
         ollama_provider = self._providers.get("ollama")
         ollama_route = self._routes.get("ollama")
         self._ollama_status: OllamaStatusProvider | None = (
@@ -349,7 +321,7 @@ class RouteCatalog:
                 ollama_data_location(provider.base_url) if provider is not None and provider.base_url else "unknown"
             )
         selectable = metadata.selectable
-        if route_id in ("managed", "codex", "acp"):
+        if route_id == "managed":
             selectable = status.readiness == "ready"
         selected = selected and selectable
         return RouteReadModel(
@@ -380,38 +352,6 @@ class RouteCatalog:
                     action="none",
                 )
             return await self._managed_status()
-        if route_id == "codex":
-            route = self._routes.get("codex")
-            requested_model = route.model if route is not None else None
-            if not requested_model:
-                return RouteProbeStatus(
-                    readiness="setup_required",
-                    reason_code="CODEX_MODEL_NOT_CONFIGURED",
-                    message="Codexで利用するモデルを設定してください。",
-                    action="configure",
-                )
-            status_provider = self._codex_status
-            if status_provider is None:
-                return RouteProbeStatus(
-                    readiness="unknown",
-                    reason_code="CODEX_STATUS_CONTROLLER_NOT_CONNECTED",
-                    message="Codexの利用状態をまだ確認できません。",
-                    action="login",
-                )
-            return await self._safe_probe(
-                lambda: status_provider(requested_model),
-                "CODEX_STATUS_CHECK_FAILED",
-            )
-        if route_id == "acp":
-            route = self._routes.get("acp")
-            if route is None or not route.command:
-                return RouteProbeStatus(
-                    readiness="setup_required",
-                    reason_code="ACP_COMMAND_NOT_CONFIGURED",
-                    message="ACPエージェントのコマンドを設定してください。",
-                    action="configure",
-                )
-            return RouteProbeStatus(readiness="ready", reason_code="", message="利用できます。")
         if route_id == "ollama":
             if "ollama" not in self._providers:
                 return RouteProbeStatus(
@@ -481,7 +421,6 @@ def route_supports(route: RouteReadModel, use_case: RouteCapability) -> bool:
 
 __all__ = [
     "BUILT_IN_ROUTE_IDS",
-    "CodexStatusProvider",
     "ManagedStatusProvider",
     "OllamaStatusProvider",
     "OllamaHttpStatusProvider",

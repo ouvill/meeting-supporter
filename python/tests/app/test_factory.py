@@ -10,7 +10,6 @@ from typing import cast, override
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
-from app.agents.codex_app_server import CodexAppServer
 from app.agents.models import MinutesAgentRuntime, MinutesPrompt
 from app.core.config import AgentSettings, AiRouteAssignments, RouteDefinition, SttConfig
 from app.core.event_bus import EventBus
@@ -223,8 +222,6 @@ def _make_dummy_state() -> AppState:
         providers=[],
         routes=[
             RouteDefinition(id="managed", runtime="managed"),
-            RouteDefinition(id="codex", runtime="codex-app-server"),
-            RouteDefinition(id="acp", runtime="acp"),
         ],
         ai_assignments=AiRouteAssignments(),
     )
@@ -240,7 +237,6 @@ def _make_http_dependencies() -> HttpRouterDependencies:
         state=_make_dummy_state(),
         settings_store=_make_dummy_settings_store(),
         settings_event_bus=EventBus(),
-        codex=CodexAppServer(),
         history_service=_make_dummy_history_service(),
         user_data_dir=Path("/tmp"),
         get_minutes_runtime=lambda: minutes_runtime,
@@ -284,13 +280,6 @@ def test_create_openapi_app_has_exact_canonical_http_paths() -> None:
         "/api/stt/model/cancel",
         "/api/ai/routes",
         "/api/ai/routes/assignments",
-        "/api/ai-runtimes/codex/status",
-        "/api/ai-runtimes/codex/login",
-        "/api/ai-runtimes/codex/login/device-code",
-        "/api/ai-runtimes/codex/login/cancel",
-        "/api/ai-runtimes/codex/logout",
-        "/api/ai-runtimes/codex/rate-limits",
-        "/api/ai-runtimes/codex/cancel",
         "/meetings/recordings/cleanup",
         "/meetings/recordings/cleanup/preview",
         "/meetings",

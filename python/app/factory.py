@@ -37,10 +37,9 @@ from fastapi import APIRouter, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from app.agents.codex_app_server import CodexAppServer
 from app.agents.models import MinutesAgentRuntime, MinutesPrompt
-from app.agents.route_catalog import CodexStatusProvider, ManagedStatusProvider, OllamaStatusProvider
-from app.api import ai_runtimes, managed_session, meeting, meeting_history, settings, stt_models, system
+from app.agents.route_catalog import ManagedStatusProvider, OllamaStatusProvider
+from app.api import managed_session, meeting, meeting_history, settings, stt_models, system
 from app.core.config import AgentSettings, AiRouteAssignments, RouteDefinition, SttConfig
 from app.core.event_bus import EventBus
 from app.core.local_auth import get_backend_auth_token, is_bearer_token_authorized, is_origin_allowed
@@ -116,12 +115,10 @@ class HttpRouterDependencies:
     state: AppState
     settings_store: SettingsStore
     settings_event_bus: EventBus
-    codex: CodexAppServer
     history_service: MeetingHistoryService
     user_data_dir: Path
     get_minutes_runtime: Callable[[], MinutesAgentRuntime | None]
     managed_status: ManagedStatusProvider | None = None
-    codex_status: CodexStatusProvider | None = None
     ollama_status: OllamaStatusProvider | None = None
     whisper_model_manager: WhisperModelManager | None = None
     reazonspeech_model_manager: ReazonSpeechModelManager | None = None
@@ -147,14 +144,12 @@ def create_http_routers(dependencies: HttpRouterDependencies) -> tuple[APIRouter
             managed_status=dependencies.managed_status,
             store=dependencies.settings_store,
             event_bus=dependencies.settings_event_bus,
-            codex_status=dependencies.codex_status,
             ollama_status=dependencies.ollama_status,
         ),
         stt_models.create_router(
             whisper_model_manager=whisper_model_manager,
             reazonspeech_model_manager=reazonspeech_model_manager,
         ),
-        ai_runtimes.create_router(codex=dependencies.codex),
         managed_session.create_router(managed_session_store),
         meeting.create_router(
             history_service=dependencies.history_service,
@@ -263,8 +258,6 @@ def create_openapi_app() -> FastAPI:
         providers=[],
         routes=[
             RouteDefinition(id="managed", runtime="managed"),
-            RouteDefinition(id="codex", runtime="codex-app-server", model="gpt-5.6-luna"),
-            RouteDefinition(id="acp", runtime="acp"),
             RouteDefinition(id="ollama", runtime="pydantic-ai", provider_id="ollama", model="qwen3"),
             RouteDefinition(id="gemini", runtime="pydantic-ai", provider_id="gemini", model="gemini-3.1-flash-lite"),
             RouteDefinition(id="openai", runtime="pydantic-ai", provider_id="openai", model="gpt-5.4-mini"),
@@ -281,7 +274,6 @@ def create_openapi_app() -> FastAPI:
     dummy_whisper_model_manager = WhisperModelManager()
     dummy_secret_store = FileSecretStore(path=Path(_NONEXISTENT) / "secrets.toml")
     dummy_state = AppState(config=dummy_config, secret_store=dummy_secret_store)
-    dummy_codex = CodexAppServer()
     dummy_minutes_runtime: MinutesAgentRuntime = _DummyMinutesRuntime()
     dummy_history_repo: MeetingHistoryRepository = _DummyMeetingHistoryRepository()
     dummy_history_service = MeetingHistoryService(repository=dummy_history_repo)
@@ -292,7 +284,6 @@ def create_openapi_app() -> FastAPI:
             state=dummy_state,
             settings_store=dummy_store,
             settings_event_bus=dummy_event_bus,
-            codex=dummy_codex,
             history_service=dummy_history_service,
             user_data_dir=Path("/tmp"),
             get_minutes_runtime=lambda: dummy_minutes_runtime,

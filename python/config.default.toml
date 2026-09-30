@@ -6,13 +6,9 @@ schema_version = 2
 
 [ai.assignments]
 # 初期状態では全use caseを未割当にします。利用者が確認後にroute idを選択します。
-# reply = "codex"
+# reply = "gemini"
 # 議事録も利用する場合だけroute idを追加してください。
 # minutes = "gemini"
-
-[ai.routes.codex]
-# 公式 Codex app-server の既定モデル。返答経路へ codex を選ぶ場合に使用します。
-model = "gpt-5.6-luna"
 
 [reply]
 # 返答提案AI 全体の ON/OFF

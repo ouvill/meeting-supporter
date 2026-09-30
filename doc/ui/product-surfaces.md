@@ -210,27 +210,8 @@ mainのnative closeはアプリを終了する。minimize、maximize、restore�
 公開後待機設定で導入できない版は更新対象に含めない。更新に失敗した場合は旧版を保持し、対象ごとの結果を設定内で示す。
 導入は明示操作で行い、接続済みのエージェントを返答案に割り当てて保存する。
 未対応の配布形式や未認証の状態を利用可能と表示しない。画面に command や protocol payload を出さない。
-既存の Codex direct と手動 command の ACP は Python 構成で維持する。
+旧 Codex direct と「外部エージェント連携」のカード、手動 command 入力は表示しない。
 境界は [ADR-017](../adr/017-acp-registry-and-shared-rust-client.md) を参照する。
-
-#### Codex direct（Python 構成）
-
-- Label: `このPCのChatGPTログイン`
-- Badge: `試験提供`
-- Ready: `ChatGPTへのログインを確認しました`
-- Missing binary: `Codex CLIがインストールされていないか、見つけられません` / `Codex CLIの入手方法を見る`
-- Logged out: `ChatGPTへのログインが必要です` / `ログイン方法を見る`
-- Constraint: `会議前に接続を確認してください。動作が不安定な場合があります。`
-
-version番号やApp Serverという語は診断詳細/Advancedにのみ表示する。アプリ内ではCodex CLIのインストールを実行せず、公式の案内ページを開く。インストール・更新後はアプリの再起動を案内する。
-
-#### Generic ACP（Python 構成）
-
-- 一般向けの`AIの使い方`にACPのroute card、試験提供badge、readinessを表示してよい。
-- command、capability、接続診断は`上級者向け設定`でのみ表示・編集する。
-- Advancedのcommandはshell文字列ではなくargvとして1行につき1引数で編集し、shell展開しない。
-- `ready`はcommand設定済みを表すだけで、agentへの接続成功を装わない。編集中は保存済み設定のreadinessと区別する。
-- Codex cardとreadinessや説明を共有せず、Codex App ServerをACPとして扱わない。
 
 #### BYOK/local
 
@@ -242,21 +223,19 @@ version番号やApp Serverという語は診断詳細/Advancedにのみ表示す
 
 Meeting Supporterが運営するhosted serviceのserver実装・運用文書は、このOSSリポジトリに含まれない。通常のOSS buildではhosted serviceは未設定で利用できず、`not_offered`かつ`selectable = false`として表示する。login、checkout、hosted route選択を開始できる操作は置かない。
 
-local STT、利用者自身のAPI credential、Ollama、Codex、ACPはhosted accountなしで利用できる。public clientに残る認証境界とschema validationは外部応答を信頼せず、未設定または不正な状態をfail closedで扱う。
+local STT、利用者自身のAPI credential、Ollama、ACPエージェントはhosted accountなしで利用できる。public clientに残る認証境界とschema validationは外部応答を信頼せず、未設定または不正な状態をfail closedで扱う。
 
 
 ## 5. Advanced AI Settings
 
 ### Purpose
 
-provider固有model、local service、外部agent runtimeを理解している利用者が、API credential以外の構成値と診断を管理する。
+provider固有model、local serviceを理解している利用者が、API credential以外の構成値と診断を管理する。
 
 ### Content
 
 - cloud provider固有のmodel識別子
 - Ollama/OpenAI-compatible endpointとmodel
-- generic ACP commandと接続状態
-- Codex診断情報（検出version、login readiness）
 - data locationとbilling owner
 
 ### Rules
@@ -308,7 +287,7 @@ provider固有model、local service、外部agent runtimeを理解している�
 | error             | APIのsafe message                                      | もう一度作成              |
 | completed         | 保存済みの要約・議事録全文                             | `要約・議事録を作り直す`  |
 
-cancelは当該HTTP streamをabortするだけで、別use-caseのCodex turnへglobal cancelを送らない。完了全文だけを対象会議へ保存し、再表示する。
+cancelは当該HTTP streamをabortするだけで、別の生成処理を中断しない。完了全文だけを対象会議へ保存し、再表示する。
 
 ## Error and Privacy Copy Contract
 

@@ -22,7 +22,6 @@ export const config: Options.Testrunner = {
       "./test/tauri/reply-controls.wdio.ts",
     ],
   ],
-  exclude: ["./test/tauri/live-codex.wdio.ts"],
   maxInstances: 1,
   capabilities: [
     {

@@ -15,10 +15,10 @@ vi.mock("./AgentRegistryPanel", () => ({ AgentRegistryPanel: () => null }));
 
 function route(overrides: Partial<AiRouteReadModel>): AiRouteReadModel {
   return {
-    id: "codex",
-    kind: "subscription_app",
-    label: "Codex",
-    description: "ChatGPT subscription",
+    id: "ollama",
+    kind: "local",
+    label: "Ollama",
+    description: "Local model",
     availability: "experimental",
     readiness: "ready",
     selectable: true,
@@ -126,12 +126,6 @@ describe("SupportMethodPanel", () => {
           selectable: false,
         }),
         route({
-          id: "codex",
-          kind: "subscription_app",
-          label: "Codex",
-          description: "subscription",
-        }),
-        route({
           id: "gemini",
           kind: "byok",
           label: "Gemini API",
@@ -145,23 +139,16 @@ describe("SupportMethodPanel", () => {
           description: "local",
           readiness: "setup_required",
         }),
-        route({
-          id: "acp",
-          kind: "local",
-          label: "ACP",
-          description: "agent",
-          readiness: "setup_required",
-        }),
       ],
       { reply: "gemini" },
     );
     expect(screen.getByRole("heading", { name: "一般" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "要設定" })).toBeInTheDocument();
     expect(screen.getByText("アプリにおまかせ")).toBeInTheDocument();
-    expect(screen.getByText("ChatGPT の契約を使う")).toBeInTheDocument();
+    expect(screen.queryByText("ChatGPT の契約を使う")).not.toBeInTheDocument();
     expect(screen.getByText("Gemini API")).toBeInTheDocument();
     expect(screen.getByText("Ollama")).toBeInTheDocument();
-    expect(screen.getByText("ACP")).toBeInTheDocument();
+    expect(screen.queryByText("外部エージェント連携")).not.toBeInTheDocument();
     expect(
       screen
         .getAllByRole("button", { name: "返答案" })
@@ -176,7 +163,7 @@ describe("SupportMethodPanel", () => {
           capabilities: ["reply", "minutes", "stream", "cancel"],
         }),
       ],
-      { reply: "codex", minutes: null },
+      { reply: "ollama", minutes: null },
     );
 
     const reply = screen.getByRole("button", { name: "返答案" });
@@ -192,7 +179,7 @@ describe("SupportMethodPanel", () => {
     expect(
       screen.queryByRole("button", { name: "cancel" }),
     ).not.toBeInTheDocument();
-    expect(document.querySelectorAll('[data-route-id="codex"]')).toHaveLength(
+    expect(document.querySelectorAll('[data-route-id="ollama"]')).toHaveLength(
       1,
     );
     expect(screen.getAllByText("処理場所")).toHaveLength(1);
@@ -201,7 +188,7 @@ describe("SupportMethodPanel", () => {
     fireEvent.click(minutes);
 
     expect(onAssignmentChange).toHaveBeenNthCalledWith(1, "reply", null);
-    expect(onAssignmentChange).toHaveBeenNthCalledWith(2, "minutes", "codex");
+    expect(onAssignmentChange).toHaveBeenNthCalledWith(2, "minutes", "ollama");
   });
 
   it("displays processing location and billing responsibility on each route card", () => {
@@ -211,21 +198,6 @@ describe("SupportMethodPanel", () => {
     expect(screen.getByText("このPC")).toBeInTheDocument();
     expect(screen.getByText("費用負担")).toBeInTheDocument();
     expect(screen.getByText("外部サービス料金なし")).toBeInTheDocument();
-  });
-
-  it("names Codex CLI explicitly when the runtime must be installed", () => {
-    renderPanel([
-      route({
-        readiness: "unavailable",
-        selectable: false,
-        message: "Codex CLI がインストールされていません。",
-        action: "install",
-      }),
-    ]);
-
-    expect(
-      screen.getByRole("button", { name: "Codex CLIの入手方法を見る" }),
-    ).toBeInTheDocument();
   });
 
   it.each([
@@ -263,10 +235,10 @@ describe("SupportMethodPanel", () => {
   );
 
   it("keeps an unrelated provider action available while managed route actions are locked", () => {
-    const codexRoute = route({
-      id: "codex",
-      kind: "subscription_app",
-      action: "login",
+    const providerRoute = route({
+      id: "ollama",
+      kind: "local",
+      action: "retry",
     });
     const { onRouteAction } = renderPanel(
       [
@@ -279,7 +251,7 @@ describe("SupportMethodPanel", () => {
           selectable: false,
           action: "subscribe",
         }),
-        codexRoute,
+        providerRoute,
       ],
       {},
       { managedRouteActionsLocked: true },
@@ -288,12 +260,12 @@ describe("SupportMethodPanel", () => {
     expect(
       screen.getByRole("button", { name: "月額プランを申し込む" }),
     ).toBeDisabled();
-    const providerAction = screen.getByRole("button", { name: "ログイン" });
+    const providerAction = screen.getByRole("button", { name: "もう一度確認" });
     expect(providerAction).toBeEnabled();
 
     fireEvent.click(providerAction);
     expect(onRouteAction).toHaveBeenCalledOnce();
-    expect(onRouteAction).toHaveBeenCalledWith(codexRoute);
+    expect(onRouteAction).toHaveBeenCalledWith(providerRoute);
   });
 
   it("renders provider-specific API controls in known BYOK route cards", () => {

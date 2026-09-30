@@ -27,9 +27,8 @@ setup_logging(_log_dir, debug=bool(os.getenv("DEBUG")))
 logger = logging.getLogger(__name__)
 
 # ── アプリ依存のインポート ─────────────────────────────────────────────────────
-from app.agents.codex_app_server import CodexAppServer
 from app.agents.managed_runtime import probe_managed_route_status
-from app.api import ai_runtimes, websocket
+from app.api import websocket
 from app.audio import SoundcardSource
 from app.core.event_bus import EventBus
 from app.core.events import ConfigChanged
@@ -87,14 +86,9 @@ usage_logger = UsageLogger(
     get_meeting_id=lambda: state.current_session.id if state.current_session is not None else None,
 )
 
-# The Codex peer is process-scoped for the lifetime of this application. It is
-# deliberately lazy: status and reply calls start the official app-server only
-# when the user selects or inspects the experimental route.
-codex = CodexAppServer()
 managed_route_status = (
     partial(probe_managed_route_status, managed_session_store) if os.getenv("MANAGED_API_BASE_URL") else None
 )
-codex_route_status = partial(ai_runtimes.probe_codex_route_status, codex)
 
 
 async def _handle_speech(role: str, text: str) -> None:
@@ -107,7 +101,6 @@ runtime_composition = RuntimeCompositionCoordinator(
     secret_store=secret_store,
     broadcast_manager=broadcast_manager,
     managed_session_store=managed_session_store,
-    codex=codex,
     usage_logger=usage_logger,
     handle_speech=_handle_speech,
 )
@@ -219,13 +212,11 @@ app = create_app(
         managed_status=managed_route_status,
         settings_store=store,
         settings_event_bus=event_bus,
-        codex=codex,
         history_service=history_service,
         user_data_dir=_user_data_dir,
         get_minutes_runtime=lambda: runtime_composition.bundle.minutes_runtime,
         whisper_model_manager=whisper_model_manager,
         reazonspeech_model_manager=reazonspeech_model_manager,
-        codex_status=codex_route_status,
         managed_session_store=managed_session_store,
     ),
     websocket_router=websocket.create_router(
@@ -239,7 +230,6 @@ app = create_app(
         meeting_lifecycle=meeting_lifecycle,
     ),
     lifespan=create_lifespan(
-        codex=codex,
         stt_controller=stt_controller,
         config=runtime_composition.config,
         state=state,

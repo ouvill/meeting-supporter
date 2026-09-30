@@ -27,25 +27,6 @@ class OllamaConfigPayload(BaseModel):
     base_url: str | None = None
 
 
-class AcpConfigPayload(BaseModel):
-    """ACP process command, represented as argv without shell evaluation."""
-
-    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    command: list[str] | None = None
-
-    @field_validator("command")
-    @classmethod
-    def validate_command(cls, command: list[str] | None) -> list[str] | None:
-        if command is None:
-            return None
-        if len(command) > 32:
-            raise ValueError("ACP command must contain at most 32 arguments")
-        if any(not argument.strip() for argument in command):
-            raise ValueError("ACP command arguments must not be empty")
-        return command
-
-
 class ReplyStyleEnabledPatch(BaseModel):
     """One entry in a ``reply.styles`` patch array."""
 
@@ -209,7 +190,6 @@ class SettingsSaveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
 
     ollama: OllamaConfigPayload | None = None
-    acp: AcpConfigPayload | None = None
     reply: ReplySettingsPayload | None = None
     secrets: SecretsPayload | None = None
     stt: SttSettingsPatch | None = None
@@ -289,19 +269,10 @@ class OllamaConfig(BaseModel):
     base_url: str
 
 
-class AcpConfig(BaseModel):
-    """ACP runtime configuration safe for Advanced Settings."""
-
-    command: list[str]
-    runtime: Literal["acp"] = "acp"
-    capabilities: list[Literal["reply"]] = ["reply"]
-
-
 class SettingsResponse(BaseModel):
     """Full settings object returned to the frontend."""
 
     ollama: OllamaConfig
-    acp: AcpConfig
     stt: TomlTable = {}
     audio: TomlTable = {}
     reply: ReplySettings

@@ -246,28 +246,10 @@ def build_settings_response_data(
     )
     current_month_summary = usage_logger.summarize(month=datetime.now(UTC))
     reply_route = state.config.ai_assignments.reply
-    billing_mode = (
-        "unassigned"
-        if reply_route is None
-        else "external_subscription"
-        if reply_route in ("codex", "acp")
-        else "local"
-        if reply_route == "ollama"
-        else "byok"
-    )
-
-    ai_section = toml_table(cfg.get("ai"))
-    route_section = toml_table(ai_section.get("routes")) if ai_section is not None else None
-    acp_section = toml_table(route_section.get("acp")) if route_section is not None else None
-    raw_acp_command = acp_section.get("command") if acp_section is not None else None
-    acp_command = _toml_string_list(raw_acp_command)
-    if acp_command is None:
-        acp_route = next((route for route in state.config.routes if route.id == "acp"), None)
-        acp_command = list(acp_route.command or ()) if acp_route is not None else []
+    billing_mode = "unassigned" if reply_route is None else "local" if reply_route == "ollama" else "byok"
 
     return {
         "ollama": {"base_url": ollama_base_url},
-        "acp": {"command": acp_command},
         "stt": canonical_stt_section(stt_section),
         "audio": audio_section if audio_section is not None else {},
         "reply": {
@@ -382,7 +364,7 @@ def _merge_agent_settings(
 def _config_sections(
     body: TomlTable,
     reply_section: TomlTable | None,
-) -> tuple[TomlTable, list[str] | None]:
+) -> TomlTable:
     sections: TomlTable = {}
     for section in ("stt", "audio", "ollama"):
         values = _request_table(body.get(section))
@@ -397,34 +379,16 @@ def _config_sections(
         sections["recording_retention"] = _request_table(body.get("recording_retention")) or {}
     if reply_section is not None:
         sections["reply"] = reply_section
-
-    acp = _request_table(body.get("acp"))
-    raw_command = acp.get("command") if acp is not None else None
-    acp_command = _toml_string_list(raw_command)
-    if acp_command is not None:
-        sections["ai"] = {}
-    return sections, acp_command
+    return sections
 
 
 def _write_config_sections(
     *,
     store: SettingsStore,
     sections: TomlTable,
-    acp_command: list[str] | None,
 ) -> None:
     with store.locked():
         existing_cfg = store.load_config()
-        if acp_command is not None:
-            ai = toml_table(existing_cfg.get("ai")) or {}
-            routes = toml_table(ai.get("routes")) or {}
-            acp = toml_table(routes.get("acp")) or {}
-            acp_command_values: list[TomlValue] = [argument for argument in acp_command]
-            acp["runtime"] = "acp"
-            acp["command"] = acp_command_values
-            routes["acp"] = acp
-            ai["routes"] = routes
-            existing_cfg["ai"] = ai
-
         for section, values in sections.items():
             if section == "ai":
                 continue
@@ -482,7 +446,7 @@ async def save_settings(
         {key for key in raw_deleted_secrets if _is_secret_key(key)} if isinstance(raw_deleted_secrets, list) else set()
     )
 
-    sections, acp_command = _config_sections(body, reply_section)
+    sections = _config_sections(body, reply_section)
     has_mutations = bool(updates or deleted_secrets or sections)
     effective_audio_stt_changed = False
 
@@ -508,7 +472,7 @@ async def save_settings(
             for key in deleted_secrets:
                 secret_store.delete(key)
             if sections:
-                _write_config_sections(store=store, sections=sections, acp_command=acp_command)
+                _write_config_sections(store=store, sections=sections)
         except Exception as original_error:
             if secret_snapshot is not None:
                 try:

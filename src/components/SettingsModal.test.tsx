@@ -1,5 +1,11 @@
 import { useRef, useState } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   saveSettingsApiSettingsPost,
@@ -47,7 +53,6 @@ const request = new Request("http://localhost/api/settings");
 function settings(overrides: Partial<SettingsResponse> = {}): SettingsResponse {
   return {
     ollama: { base_url: "http://127.0.0.1:11434/v1" },
-    acp: { command: [], runtime: "acp", capabilities: ["reply"] },
     stt: { backend: "whisper", language: "ja" },
     reply: {
       enabled: true,
@@ -89,10 +94,10 @@ function speechStatus(): SpeechModelStatusResponse {
 }
 function route(overrides: Partial<AiRouteReadModel> = {}): AiRouteReadModel {
   return {
-    id: "codex",
-    kind: "subscription_app",
-    label: "Codex",
-    description: "ChatGPT subscription",
+    id: "ollama",
+    kind: "local",
+    label: "Ollama",
+    description: "Local model",
     availability: "experimental",
     readiness: "ready",
     selectable: true,
@@ -111,7 +116,7 @@ function routeCatalog(
 ): AiRoutesController {
   return {
     routes: [route()],
-    assignments: { reply: "codex", minutes: null },
+    assignments: { reply: "ollama", minutes: null },
     assignedRoutes: { reply: route(), minutes: null },
     replyStatus: { readiness: "ready", canGenerate: true, message: null },
 
@@ -120,7 +125,7 @@ function routeCatalog(
       canGenerate: false,
       message: "議事録を利用する支援方法を設定してください。",
     },
-    draftAssignments: { reply: "codex", minutes: null },
+    draftAssignments: { reply: "ollama", minutes: null },
     assignmentDirty: false,
     loading: false,
     saving: false,
@@ -496,13 +501,6 @@ describe("SettingsModal connection UX", () => {
             description: "local",
             readiness: "setup_required",
           }),
-          route({
-            id: "acp",
-            kind: "local",
-            label: "ACP",
-            description: "agent",
-            readiness: "setup_required",
-          }),
         ],
         draftAssignments: { reply: "openai", minutes: null },
       }),
@@ -516,7 +514,7 @@ describe("SettingsModal connection UX", () => {
         .some((button) => button.getAttribute("aria-pressed") === "true"),
     ).toBe(true);
     expect(screen.getByText("Ollama")).toBeInTheDocument();
-    expect(screen.getByText("ACP")).toBeInTheDocument();
+    expect(screen.queryByText("外部エージェント連携")).not.toBeInTheDocument();
   });
 
   it("closes unchanged incomplete settings without showing a warning", async () => {
@@ -783,84 +781,18 @@ describe("SettingsModal connection UX", () => {
       screen.getByRole("dialog", { name: "変更を破棄しますか？" }),
     ).toBeInTheDocument();
   });
-  it("edits ACP argv in Advanced and refreshes readiness after save", async () => {
-    const reload = vi.fn().mockResolvedValue(undefined);
-    const saveAssignments = vi.fn().mockResolvedValue(true);
-    const savedCommand = [
-      "python",
-      "/opt/meeting supporter/acp_agent.py",
-      "--stdio",
-    ];
-    sdkMocks.saveSettings.mockResolvedValueOnce({
-      data: {
-        ok: true,
-        settings: settings({
-          acp: {
-            command: savedCommand,
-            runtime: "acp",
-            capabilities: ["reply"],
-          },
-        }),
-      },
-      error: undefined,
-      request,
-      response,
+  it("keeps legacy agent commands out of Advanced settings", async () => {
+    await renderModal();
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "詳細設定 外部・ローカル連携" }),
+      );
     });
-    await renderModal(
-      settings({
-        acp: {
-          command: ["old-agent"],
-          runtime: "acp",
-          capabilities: ["reply"],
-        },
-      }),
-      routeCatalog({
-        routes: [
-          route(),
-          route({
-            id: "acp",
-            kind: "local",
-            label: "ACP",
-            readiness: "ready",
-            message: "ACP command is configured",
-          }),
-        ],
-        reload,
-        saveAssignments,
-      }),
-    );
-
-    const advanced = screen.getByRole("button", {
-      name: "詳細設定 外部・ローカル連携",
-    });
-    fireEvent.click(advanced);
-    await waitFor(() =>
-      expect(advanced).toHaveAttribute("aria-current", "page"),
-    );
-    const command = screen.getByRole("textbox", { name: "起動command" });
-    expect(command).toHaveValue("old-agent");
-    expect(screen.getByText("ACP / stdio")).toBeInTheDocument();
-    expect(screen.getByText("返答案生成")).toBeInTheDocument();
     expect(
-      screen.getByText("起動command設定済み（前回保存時）"),
-    ).toBeInTheDocument();
-
-    fireEvent.change(command, { target: { value: savedCommand.join("\n") } });
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
-
-    await waitFor(() => expect(sdkMocks.saveSettings).toHaveBeenCalledOnce());
-    expect(sdkMocks.saveSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: expect.objectContaining({
-          acp: { command: savedCommand },
-        }),
-      }),
-    );
-    expect(reload).toHaveBeenCalledOnce();
-    expect(saveAssignments).toHaveBeenCalledOnce();
-    expect(reload.mock.invocationCallOrder[0]).toBeLessThan(
-      saveAssignments.mock.invocationCallOrder[0]!,
-    );
+      screen.queryByRole("textbox", { name: "起動command" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("ACP（実験的機能）")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("OllamaベースURL")).toBeInTheDocument();
   });
 
   it("locks a managed billing route while managed STT is active without locking another route", async () => {
@@ -874,13 +806,13 @@ describe("SettingsModal connection UX", () => {
       selected: false,
       action: "manage_billing",
     });
-    const codexRoute = route({
+    const providerRoute = route({
       readiness: "setup_required",
       action: "retry",
     });
     const reload = vi.fn();
     const routes = routeCatalog({
-      routes: [managedRoute, codexRoute],
+      routes: [managedRoute, providerRoute],
       reload,
     });
 

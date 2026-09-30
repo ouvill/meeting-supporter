@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import cast, override
 
-from app.agents.codex_models import CodexSafeError
 from app.agents.models import MinutesPrompt, ReplyAgentSpec, ReplyPrompt
 from app.core.messages import OutgoingMessage
 from app.core.protocols import TurnLike
@@ -85,11 +84,7 @@ class FailsOnceReplyRuntime:
 class SafeFailureReplyRuntime:
     def run_stream(self, prompt: ReplyPrompt) -> RecordingStream:
         _ = prompt
-        raise CodexSafeError(
-            "service_unavailable",
-            "Codex を一時的に利用できません。",
-            retryable=True,
-        )
+        raise RuntimeError("synthetic-private-provider-detail")
 
 
 class ControlledReplyStream(RecordingStream):
@@ -183,7 +178,7 @@ class Phase2UseCaseBoundaryTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual([True], runtime.streams[0].delta_flags)
 
-    async def test_reply_pipeline_surfaces_provider_safe_error(self) -> None:
+    async def test_reply_pipeline_hides_provider_error_details(self) -> None:
         session = MeetingSession(
             id="reply-session",
             started_at=datetime.now(UTC),
@@ -209,7 +204,7 @@ class Phase2UseCaseBoundaryTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(
             any(
-                message.get("type") == "suggestion_error" and message.get("text") == "Codex を一時的に利用できません。"
+                message.get("type") == "suggestion_error" and message.get("text") == "返答案を作れませんでした"
                 for message in self.messages
             )
         )

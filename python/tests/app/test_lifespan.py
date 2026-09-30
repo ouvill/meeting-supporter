@@ -53,14 +53,6 @@ class _RecordingMeetingLifecycle:
         pass
 
 
-class _RecordingCodex:
-    def __init__(self) -> None:
-        self.close_called: bool = False
-
-    async def close(self) -> None:
-        self.close_called = True
-
-
 class _DummyConfig:
     """Minimal config stub for create_lifespan."""
 
@@ -133,9 +125,7 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
         events: list[str] = []
         stt = _RecordingSttController(events)
         lifecycle = _RecordingMeetingLifecycle()
-        codex = _RecordingCodex()
         lifespan_fn = create_lifespan(
-            codex=codex,  # pyright: ignore[reportArgumentType]
             stt_controller=stt,  # pyright: ignore[reportArgumentType]
             config=_DummyConfig(),  # pyright: ignore[reportArgumentType]
             state=_DummyState(),  # pyright: ignore[reportArgumentType]
@@ -155,7 +145,6 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
         # stt_controller.shutdown_stt and stop_level_monitors are still called
         self.assertTrue(stt.shutdown_stt_called)
         self.assertTrue(stt.stop_level_monitors_called)
-        self.assertTrue(codex.close_called)
 
     async def test_shutdown_falls_back_to_stt_controller(self) -> None:
         """When meeting_lifecycle is NOT given, stt_controller.stop_meeting is
@@ -164,9 +153,7 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
         stt = _RecordingSttController(events)
 
         # All stubs below satisfy the expected protocol structurally.
-        codex = _RecordingCodex()
         lifespan_fn = create_lifespan(
-            codex=codex,  # pyright: ignore[reportArgumentType]
             stt_controller=stt,  # pyright: ignore[reportArgumentType]
             config=_DummyConfig(),  # pyright: ignore[reportArgumentType]
             state=_DummyState(),  # pyright: ignore[reportArgumentType]
@@ -184,9 +171,7 @@ class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
         """Shutdown cleans the manager before STT teardown and then drains history."""
         events: list[str] = []
         stt = _RecordingSttController(events)
-        codex = _RecordingCodex()
         lifespan_fn = create_lifespan(
-            codex=codex,  # pyright: ignore[reportArgumentType]
             stt_controller=stt,  # pyright: ignore[reportArgumentType]
             config=_DummyConfig(),  # pyright: ignore[reportArgumentType]
             state=_DummyState(),  # pyright: ignore[reportArgumentType]

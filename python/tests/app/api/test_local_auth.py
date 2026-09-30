@@ -13,7 +13,6 @@ from httpx import Response
 from starlette.testclient import WebSocketTestSession
 from starlette.websockets import WebSocketDisconnect
 
-from app.agents.codex_app_server import CodexAppServer
 from app.api import websocket as websocket_api
 from app.core.event_bus import EventBus
 from app.core.types import InputDevice
@@ -60,7 +59,6 @@ def _make_http_app() -> FastAPI:
             state=state,
             settings_store=state.config.settings_store,
             settings_event_bus=EventBus(),
-            codex=CodexAppServer(),
             history_service=MeetingHistoryService(repository=SqliteMeetingHistoryRepository(":memory:")),
             user_data_dir=Path("/tmp"),
             get_minutes_runtime=lambda: None,

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import unittest
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Iterable
 from pathlib import Path
 from typing import cast, override
 
 from app.agents.factory import AgentBundle, AgentRouteError, build_agents
-from app.agents.models import MinutesAgentRuntime, ReplyAgentDefinition
+from app.agents.models import ReplyAgentDefinition
 from app.core.config import AiRouteAssignments, RouteDefinition
 from app.core.protocols import SecretStore
 from app.core.state import AppState
@@ -49,7 +49,6 @@ class BuildAgentsRouteContractTest(unittest.TestCase):
         *,
         assignments: AiRouteAssignments,
         routes: list[RouteDefinition],
-        external_minutes_factories: Mapping[str, Callable[[RouteDefinition], MinutesAgentRuntime]] | None = None,
     ) -> AgentBundle:
 
         return build_agents(
@@ -58,7 +57,6 @@ class BuildAgentsRouteContractTest(unittest.TestCase):
             routes=routes,
             assignments=assignments,
             secret_store=_SecretStore(),
-            context_dir=Path("/tmp"),
             usage_logger=UsageLogger(Path("/tmp/route-contract-usage.jsonl")),
             reply_agent_definitions=[
                 ReplyAgentDefinition(
@@ -69,7 +67,6 @@ class BuildAgentsRouteContractTest(unittest.TestCase):
                     instruction="短く答えてください。",
                 )
             ],
-            external_minutes_factories=external_minutes_factories,
         )
 
     def test_unassigned_routes_leave_all_ai_runtimes_optional(self) -> None:
@@ -88,39 +85,6 @@ class BuildAgentsRouteContractTest(unittest.TestCase):
             )
 
         self.assertEqual("MANAGED_RUNTIME_NOT_CONNECTED", raised.exception.code)
-
-    def test_codex_reply_assignment_rejects_a_route_without_a_model_instead_of_falling_back(self) -> None:
-        """A selected Codex runtime cannot silently choose a model when the route configuration is incomplete."""
-        with self.assertRaises(AgentRouteError) as raised:
-            _ = self._build(
-                assignments=AiRouteAssignments(reply="codex"),
-                routes=[RouteDefinition(id="codex", runtime="codex-app-server")],
-            )
-
-        self.assertEqual("CODEX_MODEL_NOT_CONFIGURED", raised.exception.code)
-
-    def test_codex_minutes_assignment_builds_its_explicit_minutes_runtime(self) -> None:
-        """Codex minutes uses its dedicated runtime injection rather than reply or Pydantic AI fallback paths."""
-        minutes_runtime = cast(MinutesAgentRuntime, object())
-
-        bundle = self._build(
-            assignments=AiRouteAssignments(minutes="codex"),
-            routes=[RouteDefinition(id="codex", runtime="codex-app-server", model="gpt-5.6-luna")],
-            external_minutes_factories={"codex": lambda _route: minutes_runtime},
-        )
-
-        self.assertIs(minutes_runtime, bundle.minutes_runtime)
-        self.assertEqual([], bundle.reply_agent_specs)
-
-    def test_codex_minutes_assignment_without_its_runtime_fails_closed(self) -> None:
-        """A selected Codex minutes route cannot borrow a reply runtime when its own peer is unavailable."""
-        with self.assertRaises(AgentRouteError) as raised:
-            _ = self._build(
-                assignments=AiRouteAssignments(minutes="codex"),
-                routes=[RouteDefinition(id="codex", runtime="codex-app-server", model="gpt-5.6-luna")],
-            )
-
-        self.assertEqual("CODEX_RUNTIME_NOT_CONNECTED", raised.exception.code)
 
 
 if __name__ == "__main__":

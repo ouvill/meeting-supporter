@@ -288,26 +288,15 @@ pub fn start_backend(app: &AppHandle) -> Result<BackendProcess, AppError> {
         let managed_session_capability = generate_backend_auth_token();
         println!("[backend] selected port: {port} (attempt {attempt}/{MAX_RETRIES})");
 
-        // CODEX_HOME is intentionally neither set nor removed during the development proof.
-        // Codex inherits its existing official CLI login without copying auth.json or passing
-        // any token/key through this boundary.
         let mut wrap = CommandWrap::with_new(&paths.uv, |cmd| {
             cmd.env("UV_PROJECT_ENVIRONMENT", &paths.venv_dir)
                 .env_remove("VIRTUAL_ENV");
             configure_python_runtime(cmd);
-            cmd
-                // Ignore an untrusted parent override. Only the canonical result from the
-                // platform-aware trusted installer/PATH discovery may cross this boundary.
-                .env_remove("CODEX_BINARY")
-                .env_remove("MANAGED_API_BASE_URL")
+            cmd.env_remove("MANAGED_API_BASE_URL")
                 .env("APP_DATA_DIR", &app_data_dir)
                 .env("BACKEND_AUTH_TOKEN", &auth_token)
-                .env("MANAGED_SESSION_CAPABILITY", &managed_session_capability)
-                .env("MEETING_SUPPORTER_CODEX_WORK_ROOT", &paths.codex_work_root);
+                .env("MANAGED_SESSION_CAPABILITY", &managed_session_capability);
 
-            if let Some(codex_binary) = &paths.codex_binary {
-                cmd.env("CODEX_BINARY", codex_binary);
-            }
             if let Some(managed_api_base_url) = &managed_api_base_url {
                 cmd.env("MANAGED_API_BASE_URL", managed_api_base_url);
             }

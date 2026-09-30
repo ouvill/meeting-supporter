@@ -216,20 +216,14 @@ pub(crate) async fn catalog(store: Store, agents: &crate::agents::Manager) -> Re
             "reason_code": code, "message": message, "action": action,
         }));
     }
-    for (id, label) in [
-        ("codex", "Codex"),
-        ("acp", "外部エージェント連携"),
-        ("managed", "Meeting Supporter AI"),
-    ] {
-        rows.push(json!({
-            "id": id, "kind": if id == "managed" { "managed" } else { "subscription_app" },
-            "label": label, "description": "", "availability": "planned",
-            "readiness": if id == "managed" { "not_offered" } else { "unavailable" },
-            "selectable": false, "selected": false, "data_location": "unknown",
-            "billing_owner": "none", "capabilities": [], "reason_code": "RUST_ROUTE_UNSUPPORTED",
-            "message": "この経路はRust構成ではまだ利用できません。", "action": "none",
-        }));
-    }
+    rows.push(json!({
+        "id": "managed", "kind": "managed",
+        "label": "Meeting Supporter AI", "description": "", "availability": "planned",
+        "readiness": "not_offered",
+        "selectable": false, "selected": false, "data_location": "unknown",
+        "billing_owner": "none", "capabilities": [], "reason_code": "RUST_ROUTE_UNSUPPORTED",
+        "message": "この経路はRust構成ではまだ利用できません。", "action": "none",
+    }));
     rows.extend(agents.routes(assigned.reply.as_deref()).await);
     Ok(json!({"routes":rows,"assignments":assigned}))
 }

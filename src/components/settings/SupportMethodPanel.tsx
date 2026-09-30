@@ -5,7 +5,6 @@ import {
   KeyRound,
   Laptop,
   LoaderCircle,
-  Network,
   RefreshCw,
   Sparkles,
 } from "lucide-react";
@@ -87,8 +86,7 @@ function stateLabel(route: AiRouteReadModel) {
 }
 
 function routeActionLabel(action: AiRouteReadModel["action"]): string | null {
-  if (action === "install") return "Codex CLIの入手方法を見る";
-  if (action === "login" || action === "sign_in") return "ログイン";
+  if (action === "sign_in") return "ログイン";
   if (action === "subscribe") return "月額プランを申し込む";
   if (action === "manage_billing") return "支払いを確認";
   if (action === "view_usage") return "利用枠を確認";
@@ -106,7 +104,6 @@ const LOCKED_MANAGED_ROUTE_ACTIONS: Partial<
 
 function routeIcon(route: AiRouteReadModel) {
   if (route.id === "managed") return Sparkles;
-  if (route.id === "acp") return Network;
   if (route.kind === "local") return Laptop;
   if (route.kind === "byok") return KeyRound;
   return KeyRound;
@@ -159,8 +156,7 @@ function RouteCard({
     route.selectable &&
     (route.readiness === "ready" ||
       route.kind === "byok" ||
-      route.kind === "local" ||
-      route.id === "acp");
+      route.kind === "local");
   const offeredUseCases = USE_CASE_OPTIONS.filter(({ useCase }) =>
     route.capabilities.includes(useCase),
   );
@@ -187,11 +183,7 @@ function RouteCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h5 className="font-display text-sm font-bold text-ink">
-              {route.id === "managed"
-                ? "アプリにおまかせ"
-                : route.id === "codex"
-                  ? "ChatGPT の契約を使う"
-                  : route.label}
+              {route.id === "managed" ? "アプリにおまかせ" : route.label}
             </h5>
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-semibold ${route.readiness === "ready" ? "bg-positive-soft text-positive" : "bg-warning-soft text-warning"}`}

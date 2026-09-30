@@ -134,18 +134,6 @@ def _coerce_str_list(value: object) -> list[str] | None:
     return None
 
 
-def _coerce_str_dict(value: object) -> dict[str, str] | None:
-    if value is None:
-        return None
-    if isinstance(value, dict):
-        result: dict[str, str] = {}
-        for k, v in value.items():  # pyright: ignore[reportUnknownVariableType]
-            if k is not None and v is not None:
-                result[str(k)] = str(v)  # pyright: ignore[reportUnknownArgumentType]
-        return result
-    return None
-
-
 def _coerce_optional_str(value: object) -> str | None:
     if value is None:
         return None
@@ -205,7 +193,6 @@ def _parse_providers(cfg: TomlTable) -> list[ProviderDefinition]:
 
 
 _DEFAULT_ROUTE_MODELS: dict[str, str] = {
-    "codex": "gpt-5.6-luna",
     "ollama": "qwen3",
     "gemini": "gemini-3.1-flash-lite",
     "openai": "gpt-5.4-mini",
@@ -214,8 +201,6 @@ _DEFAULT_ROUTE_MODELS: dict[str, str] = {
 
 _ROUTE_RUNTIMES: dict[str, RouteRuntime] = {
     "managed": "managed",
-    "codex": "codex-app-server",
-    "acp": "acp",
     "ollama": "pydantic-ai",
     "gemini": "pydantic-ai",
     "openai": "pydantic-ai",
@@ -253,7 +238,7 @@ def _parse_ai_config(cfg: TomlTable) -> tuple[AiRouteAssignments, list[RouteDefi
             return None
         if not isinstance(value, str) or not value:
             raise UnsupportedAiConfigError(f"ai.assignments.{key} はroute idまたは省略で指定してください")
-        return value
+        return None if value in {"codex", "acp"} else value
 
     assignments = AiRouteAssignments(
         reply=optional_route("reply"),
@@ -264,7 +249,7 @@ def _parse_ai_config(cfg: TomlTable) -> tuple[AiRouteAssignments, list[RouteDefi
     if unknown_assignments:
         raise UnsupportedAiConfigError(f"未知のAI route idです: {', '.join(unknown_assignments)}")
     for use_case, route_id in (("minutes", assignments.minutes),):
-        unsupported = ("managed", "acp")
+        unsupported = ("managed",)
         if route_id in unsupported:
             raise UnsupportedAiConfigError(f"route '{route_id}' は{use_case}をサポートしません")
 
@@ -272,7 +257,7 @@ def _parse_ai_config(cfg: TomlTable) -> tuple[AiRouteAssignments, list[RouteDefi
     if raw_routes is not None and not isinstance(raw_routes, dict):
         raise UnsupportedAiConfigError("[ai.routes] はTOMLテーブルで指定してください")
     route_tables = cast(dict[str, object], raw_routes) if isinstance(raw_routes, dict) else {}
-    unknown_routes = sorted(set(route_tables) - set(BUILT_IN_ROUTE_IDS))
+    unknown_routes = sorted(set(route_tables) - set(BUILT_IN_ROUTE_IDS) - {"codex", "acp"})
     if unknown_routes:
         raise UnsupportedAiConfigError(f"未知のAI route設定です: {', '.join(unknown_routes)}")
 
@@ -289,16 +274,12 @@ def _parse_ai_config(cfg: TomlTable) -> tuple[AiRouteAssignments, list[RouteDefi
         provider_id = route_id if runtime == "pydantic-ai" else None
         model_value = table.get("model", _DEFAULT_ROUTE_MODELS.get(route_id))
         model = model_value if isinstance(model_value, str) and model_value else None
-        command = _coerce_str_list(table.get("command"))
-        env = _coerce_str_dict(table.get("env"))
         routes.append(
             RouteDefinition(
                 id=route_id,
                 runtime=runtime,
                 provider_id=provider_id,
                 model=model,
-                command=command,
-                env=env,
             )
         )
     return assignments, routes

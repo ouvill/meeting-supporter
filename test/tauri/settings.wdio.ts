@@ -148,14 +148,6 @@ describe("Contextual settings credentials", () => {
   it("shows and toggles reply and minutes independently", async () => {
     await openSettings(waitOptions);
 
-    const codexCard = await $('[data-route-id="codex"]');
-    await codexCard.waitForDisplayed(waitOptions);
-    for (const label of ["返答案", "要約・議事録"]) {
-      await expect(
-        codexCard.$(`.//button[normalize-space()="${label}"]`),
-      ).toBeDisplayed();
-    }
-
     const geminiCard = await $('[data-route-id="gemini"]');
     const reply = await geminiCard.$('.//button[normalize-space()="返答案"]');
     const minutes = await geminiCard.$(

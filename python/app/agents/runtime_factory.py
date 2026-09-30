@@ -1,12 +1,9 @@
 # pyright: reportUnusedFunction=false
 """Runtime construction helpers for agent use cases."""
 
-from pathlib import Path
-
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 
-from app.agents.acp_runtime import ACPReplyAgentRuntime
 from app.agents.models import (
     MinutesAgentRuntime,
     PydanticAIMinutesAgentRuntime,
@@ -14,19 +11,10 @@ from app.agents.models import (
     ReplyAgentRuntime,
 )
 from app.agents.prompts import MINUTES_INSTRUCTION, build_system
-from app.core.config import RouteDefinition
 from app.core.state import AppState
 from app.services.usage_logger import UsageLogger, make_logging_hooks
 
 ModelValue = OpenAIChatModel | str
-
-
-def build_acp_reply_runtime(route: RouteDefinition, context_dir: Path) -> ReplyAgentRuntime:
-    """Build a reply runtime backed by an external ACP process route."""
-
-    if route.runtime != "acp" or not route.command:
-        raise ValueError(f"ACP route '{route.id}' にはcommandが必要です")
-    return ACPReplyAgentRuntime(command=route.command, cwd=context_dir, env=route.env)
 
 
 def build_pydantic_reply_runtime(
@@ -71,7 +59,6 @@ def build_minutes_runtime(
 
 __all__ = [
     "ModelValue",
-    "build_acp_reply_runtime",
     "build_minutes_runtime",
     "build_pydantic_reply_runtime",
 ]

@@ -35,9 +35,6 @@ export function validateSettingsForm(
     errors.support =
       "この支援方法を利用するには、利用可能なAPIキーが必要です。";
   }
-  if (routes.some((route) => route.id === "acp") && !form.acpCommand.trim()) {
-    errors.advanced = "ACPを利用するには、起動commandを入力してください。";
-  }
   const sttProvider = CONNECTION_PROVIDER_BY_STT[form.sttBackend];
   if (sttProvider && !isConnectionUsable(connectionStates[sttProvider])) {
     errors.audio =

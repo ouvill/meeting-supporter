@@ -1,7 +1,7 @@
 # ADR-011: 一般設定にAI route cardを表示し構成値をAdvancedへ限定する
 
 - **Status**: Accepted
-- **Partially superseded by**: [ADR-017](./017-acp-registry-and-shared-rust-client.md)（Rust 構成の外部エージェント接続・導入）
+- **Partially superseded by**: [ADR-017](./017-acp-registry-and-shared-rust-client.md)（外部エージェント接続・導入、旧専用経路の廃止）
 - **Date**: 2026-07-15
 - **Builds on**: ADR-009、ADR-010
 - **Partially supersedes**: ADR-010 §3、§4の表示場所
