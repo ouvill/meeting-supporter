@@ -88,9 +88,19 @@ export async function prepareRuntime() {
   const staging = await mkdtemp(join(cache, "extract-"));
   const directory = join(cache, runtime.directory);
   try {
+    // Use Windows' built-in libarchive implementation. Git's GNU tar can hang
+    // in its external bzip2 process when launched from Node on the CI runner.
+    const tar =
+      process.platform === "win32"
+        ? join(
+            process.env.SystemRoot ?? process.env.WINDIR ?? "C:\\Windows",
+            "System32",
+            "tar.exe",
+          )
+        : "tar";
     // A relative archive name also works with GNU tar on Windows, which can
     // interpret the drive letter in an absolute filename as a remote host.
-    await run("tar", ["-xjf", basename(archive), "-C", staging], {
+    await run(tar, ["-xjf", basename(archive), "-C", staging], {
       cwd: cache,
       timeout: 120_000,
     });
