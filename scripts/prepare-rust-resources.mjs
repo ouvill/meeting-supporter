@@ -39,7 +39,12 @@ for (const [name, directory, features] of [
     ["--features", "reazonspeech"],
   ],
 ]) {
-  const build = join(root, "target/rust-bundle", name);
+  // Leave room for CMake/MSBuild's nested scratch paths on Windows.
+  const build = join(
+    root,
+    "target/bundle",
+    name === "meeting-audio-runtime" ? "audio" : "speech",
+  );
   if (!development)
     await run(
       "cargo",
