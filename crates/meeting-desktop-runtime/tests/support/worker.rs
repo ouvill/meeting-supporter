@@ -12,6 +12,16 @@ fn packet(value: Value, pcm: &[u8]) {
     out.flush().unwrap();
 }
 fn main() {
+    if std::env::current_exe()
+        .ok()
+        .and_then(|p| p.file_stem().map(|s| s.to_string_lossy().into_owned()))
+        .is_some_and(|s| matches!(s.as_str(), "python" | "python3" | "uv"))
+    {
+        if let Some(marker) = std::env::var_os("MEETING_E2E_PYTHON_MARKER") {
+            std::fs::write(marker, "invoked").unwrap();
+        }
+        std::process::exit(97);
+    }
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).is_some_and(|s| s == "--capabilities") {
         let executable = std::env::current_exe().unwrap();

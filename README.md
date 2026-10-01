@@ -67,9 +67,13 @@ Meeting Supporterが運営するhosted serviceのserver実装・運用文書は�
 ### 前提条件
 
 - Node.js 20+
-- Python 3.12–3.14（`.python-version`は検証済み最新の3.14を指定）
+- Python 3.12–3.14（旧 Python バックエンドを開発する場合）
 - Rust toolchain（Tauri desktop開発時）
-- `uv`（ローカル開発時。配布版は初回起動時に公式配布物を取得）
+- `uv`（DOCX worker のビルド、または旧 Python バックエンドの開発時）
+
+Linux / Windows の標準構成は Rust を使用します。配布版には必要な worker を同梱し、利用者環境の Python / uv は使いません。
+ビルド環境と CI の検証範囲は [Rust のインストーラー](doc/development/rust-desktop-backend.md#linux--windows-のインストーラー)を参照してください。
+macOS は引き続き旧 Python 構成です。
 
 返答生成のcloud AI経路には各サービスのcredentialが必要です。ローカル音声認識には対応モデル、ローカルAIにはサービスの準備が必要です。
 

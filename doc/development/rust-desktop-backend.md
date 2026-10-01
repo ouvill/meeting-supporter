@@ -1,6 +1,7 @@
 # Rust バックエンドの直接接続
 
-既存アプリの通常画面を使い、会議管理・音声制御・SQLite 保存を Tauri 内の Rust ライブラリで実行する開発用経路です。
+既存アプリの通常画面を使い、会議管理・音声制御・SQLite 保存を Tauri 内の Rust ライブラリで実行します。
+Linux x64 と Windows x64 の標準 Tauri 構成はこの経路を使います。
 通常起動では Python・uv を起動しません。DOCX の取り込み時だけ共通 Python worker を呼び出します。
 会議管理・保存・音声中継の CLI worker は介在しません。
 
@@ -60,7 +61,7 @@ Whisper は準備時にウォームアップまで済ませ、会議を停止し
 ## 起動
 
 取得・録音には CPAL を使います。Linux は PulseAudio / PipeWire、Windows は WASAPI に接続します。
-Windows の実デバイス・アプリ全体の動作検証と一般配布は未完了です。
+Windows の実マイク・ループバック取得と署名済み配布物の検証は別途必要です。
 リポジトリのルートで実行します。
 
 ```bash
@@ -105,7 +106,10 @@ Silero threshold と無音時間は既存の設定画面で変更できます。
 
 `dev:rust` は `rust-backend` feature と `tauri.rust.conf.json` を使い、Python resource の準備をスキップします。
 起動ログに `Rust in-process backend is ready (Python worker starts only on demand).` と表示します。
-`npm run tauri -- dev` は引き続き既存 Python 経路、`dev:native` は独立した音声検証画面です。
+`npm run tauri -- dev` は Linux / Windows では Rust を使い、固定版の native library と DOCX worker も準備します。
+ビルドには uv が必要ですが、アプリは利用者環境の Python / uv を起動しません。
+`dev:rust` は音声 worker のみを更新する開発用経路、`dev:native` は独立した音声検証画面です。
+macOS の標準構成は音声取得の移植が完了するまで既存 Python 経路を使います。
 
 保存先は既存アプリと同じ app-data directory です。履歴スキーマを維持しているため、既存履歴も参照できます。
 開発テストは一時 DB と合成音声で行い、実ユーザーの履歴をテストに使用しません。
@@ -326,11 +330,37 @@ GPU 判定は固定した whisper.cpp 版の初期化通知を利用するため
 返答のモデル経路は OpenAI、Gemini、Anthropic、Ollama の設定だけを受け付けます。
 未設定の hosted service は `not_offered` のままです。
 
-汎用 provider plan、Windows の実機検証、macOS の取得、配布用 worker と共有ライブラリの同梱も後続の作業です。
-`tauri.rust.conf.json` では bundle を無効にしており、一般配布が完成した状態ではありません。
+汎用 provider plan、Windows の実機検証、macOS の取得は後続の作業です。
+開発専用の `tauri.rust.conf.json` は bundle を無効にします。インストーラーは次の標準構成から生成します。
 
 Python が必要な AI 機能は、後続の移植で共通 PyInstaller worker のサブコマンドとして追加します。
 この直接接続の経路に Python の仲介を戻す必要はありません。
+
+## Linux / Windows のインストーラー
+
+ビルド環境には Node.js、Rust、C/C++ toolchain、CMake、Clang、uv が必要です。
+Windows は x64 MSVC と Windows SDK、Linux は Tauri の依存に加えて `libpulse-dev` と `libasound2-dev` を準備します。
+
+```bash
+npm ci
+npm run tauri -- build --ci
+```
+
+OS 別の Tauri 設定が `rust-backend` を選択し、`prepare:rust-resources` を実行します。
+音声取得・推論 worker と共有ライブラリは `native/`、凍結した DOCX worker は `python-worker/` に同梱します。
+旧 FastAPI バックエンドは同梱しません。Windows は NSIS インストーラーを生成します。
+Linux は標準の Tauri パッケージを生成します。
+
+配布用 worker は開発用の GPU 設定・外部 worker 指定から独立した CPU 版です。
+Whisper と ReazonSpeech を含め、モデル本体はアプリの設定画面から取得します。
+sherpa-onnx / ONNX Runtime は [固定した配布物](../../test/rust-native-backend/assets.json) の
+アーカイブと展開後ファイルの SHA-256 を確認して使います。native library の通知も `THIRD-PARTY-NOTICES.txt` に含めます。
+Windows の worker は静的 CRT を使い、利用者に C++ 開発環境を要求しません。
+
+`Rust installers` CI は Windows / Linux のインストーラー候補を Actions artifact として保存します。
+再配置した worker を空の PATH で実行し、Silero、ReazonSpeech、Whisper tiny の準備と合成無音の処理、
+凍結 DOCX worker の変換を検証します。これは実会議の認識品質や実デバイスの検証ではありません。
+候補の署名と、Windows のマイク権限・音声入出力・デバイス切断は実機で確認してください。
 
 ## 検証
 
@@ -350,10 +380,11 @@ Registry の展開では path traversal とリンクの拒否を検証します�
 実モデルや外部サービスが必要な ignored テストは通常 CI に含めません。
 Linux では隔離した PulseAudio サーバーで CPAL の合成音取得・録音も確認します。
 Windows では取得 worker と native worker の CPAL・変換・録音をデバイス不要のテストで確認します。
-Windows CI の native worker は `--no-default-features` を使い、Whisper のビルド・実モデル推論は対象に含めません。
+軽量な Windows worker テストに加え、`Rust installers` CI では Whisper / ReazonSpeech を含む配布構成と Windows の画面操作も検証します。
 
 Linux のデスクトップ E2E は次のコマンドで実行できます。
 GTK / WebKit の開発ライブラリに加え、Xvfb、xauth、Openbox、D-Bus が必要です。
+Windows では `npm run test:tauri:rust` を直接実行します。
 
 ```bash
 npm run test:tauri:types

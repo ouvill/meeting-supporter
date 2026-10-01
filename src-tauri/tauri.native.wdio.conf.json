@@ -1,7 +1,8 @@
 {
   "identifier": "net.ouvill.meeting-supporter.native-test",
   "build": {
-    "beforeBuildCommand": "npm run build:wdio"
+    "beforeBuildCommand": "npm run build:wdio",
+    "features": []
   },
   "bundle": {
     "active": false,

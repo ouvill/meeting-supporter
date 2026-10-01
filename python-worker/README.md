@@ -24,8 +24,9 @@ DOCX の変換に失敗した場合は失敗状態を保存し、変換できた
 PyInstaller 6.22.3 の onedir 形式で、Python・native library・package data をまとめます。
 各 OS・CPU 向けの環境でビルドし、ディレクトリ全体を配布してください。
 release 配置は Tauri resource 内の `python-worker/` を想定しています。
-Rust アプリ全体のインストーラーは音声 worker 等の同梱が未完了で、まだ bundle を無効にしています。
-今回検証したのは Linux の共通 worker です。Windows/macOS の配布検証は別途必要です。
+Linux / Windows の標準 Tauri ビルドでは、このディレクトリ全体を音声 worker とともに同梱します。
+手順と検証範囲は [Rust のインストーラー](../doc/development/rust-desktop-backend.md#linux--windows-のインストーラー)を参照してください。
+macOS の配布検証は別途必要です。
 
 利用者の Python・uv は呼ばず、起動時に package の取得・同期もしません。
 DOCX 変換の一回の操作につき一プロセスを起動し、複数資料をまとめて処理して終了します。

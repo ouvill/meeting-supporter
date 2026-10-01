@@ -14,6 +14,10 @@ jobs:
     name: Verify Rust backend
     uses: ./.github/workflows/rust-backend-ci.yml
 
+  rust-installers:
+    name: Verify Rust installers
+    uses: ./.github/workflows/rust-bundle-ci.yml
+
   verify:
     name: Verify release inputs
     runs-on: ubuntu-24.04
@@ -78,6 +82,8 @@ jobs:
         run: npm run prepare:python-resource
 
       - name: Run Rust tests
+        env:
+          TAURI_CONFIG: '{"bundle":{"resources":null}}'
         working-directory: src-tauri
         run: cargo test --locked
 
@@ -157,7 +163,7 @@ jobs:
   build:
     name: Build ${{ matrix.label }}
     if: github.ref_type == 'tag'
-    needs: [verify, native-e2e, rust-backend]
+    needs: [verify, native-e2e, rust-backend, rust-installers]
     permissions:
       contents: write
     strategy:
@@ -192,6 +198,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
             libasound2-dev \
+            libpulse-dev \
+            build-essential clang cmake pkg-config libssl-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libwebkit2gtk-4.1-dev \
@@ -217,6 +225,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Set up uv for frozen DOCX worker
+        if: runner.os != 'macOS'
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          cache-dependency-glob: python-worker/uv.lock
+
       - name: Build installers and update the draft release
         uses: tauri-apps/tauri-action@944946e3e4cac6603d1fe8f514171e9ecd3c78aa # v1
         env:
@@ -239,7 +253,7 @@ jobs:
   build-windows-draft:
     name: Build Windows x64 draft
     if: github.event_name == 'workflow_dispatch'
-    needs: [verify, rust-backend]
+    needs: [verify, rust-backend, rust-installers]
     runs-on: windows-latest
     permissions:
       contents: write
@@ -263,6 +277,11 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Set up uv for frozen DOCX worker
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          cache-dependency-glob: python-worker/uv.lock
 
       - name: Build Windows installers and update the draft release
         uses: tauri-apps/tauri-action@944946e3e4cac6603d1fe8f514171e9ecd3c78aa # v1

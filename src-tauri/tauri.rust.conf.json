@@ -1,7 +1,8 @@
 {
   "build": {
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "npm run build",
+    "features": ["rust-backend"]
   },
   "bundle": {
     "active": false,

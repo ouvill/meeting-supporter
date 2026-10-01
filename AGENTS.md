@@ -8,8 +8,8 @@ Meeting Supporter is a Japanese desktop AI meeting assistant. Keep changes withi
 | --- | --- |
 | `src/` | React 19 + Vite 7 + TypeScript frontend. Consumes `src/api/generated`. |
 | `crates/` | Rust desktop domain and runtime libraries. |
-| `src-tauri/` | Tauri 2 Rust shell and Python sidecar lifecycle. |
-| `python/` | Main FastAPI/WebSocket/Pydantic AI backend bundled with the desktop app. |
+| `src-tauri/` | Tauri 2 shell; standard Rust backend on Linux/Windows, legacy Python lifecycle on macOS. |
+| `python/` | Legacy FastAPI/WebSocket/Pydantic AI backend; retained for macOS and comparison tests. |
 | `python-server/` | Optional remote Google Cloud STT relay. |
 | `python-worker/` | Shared on-demand Python executable for Rust-owned operations; MarkItDown document conversion. |
 | `doc/` | Public product, UI, and architecture authorities. |

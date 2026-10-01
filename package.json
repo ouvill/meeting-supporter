@@ -48,7 +48,9 @@
     "test:rust-workers-build": "node --test scripts/test-rust-workers-build.mjs",
     "dev:native": "tauri dev --features native-speech --config src-tauri/tauri.native.conf.json",
     "build:python-worker": "node scripts/build-python-worker.mjs",
-    "test:python-worker": "uv run --locked --project python-worker pytest python-worker/tests"
+    "test:python-worker": "uv run --locked --project python-worker pytest python-worker/tests",
+    "prepare:rust-resources": "node scripts/prepare-rust-resources.mjs",
+    "test:rust-bundle": "node scripts/test-rust-bundle.mjs"
   },
   "dependencies": {
     "@radix-ui/react-scroll-area": "^1.2.13",

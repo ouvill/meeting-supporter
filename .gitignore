@@ -261,6 +261,8 @@ metrics/out/
 
 # Shared frozen Python worker (generated per target platform)
 generated/python-worker/
+generated/native-runtime/
+generated/rust-resources/
 
 # Machine-specific native worker build selection
 /.rust-workers.local.json

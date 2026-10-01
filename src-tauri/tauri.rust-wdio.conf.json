@@ -1,6 +1,7 @@
 {
   "identifier": "net.ouvill.meeting-supporter.rust-wdio",
   "build": {
+    "features": ["rust-backend"],
     "beforeBuildCommand": "npm run build:wdio"
   },
   "bundle": {

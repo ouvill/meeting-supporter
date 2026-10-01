@@ -35,6 +35,10 @@ pub fn start(app: AppHandle) {
                 .path()
                 .app_data_dir()
                 .map_err(|_| "アプリの保存先を取得できません。".to_string())?;
+            #[cfg(all(debug_assertions, feature = "webdriver"))]
+            let data_dir = std::env::var_os("MEETING_E2E_DATA_DIR")
+                .map(PathBuf::from)
+                .unwrap_or(data_dir);
             let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
             let resources = app
                 .path()

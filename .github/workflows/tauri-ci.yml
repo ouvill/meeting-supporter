@@ -90,6 +90,8 @@ jobs:
           workspaces: "src-tauri -> target"
 
       - name: Run Rust unit tests
+        env:
+          TAURI_CONFIG: '{"bundle":{"resources":null}}'
         working-directory: src-tauri
         shell: bash
         run: |
