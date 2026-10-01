@@ -21,7 +21,7 @@ try {
     { recursive: true },
   );
   const executable = join(native, "meeting-native-backend" + suffix);
-  function worker(args) {
+  function worker(args, input) {
     const result = spawnSync(executable, args, {
       cwd: temporary,
       env,
@@ -29,6 +29,7 @@ try {
       timeout: 180_000,
       maxBuffer: 1024 * 1024,
       windowsHide: true,
+      input,
     });
     assert.ifError(result.error);
     // Output contains only synthetic input and local model diagnostics.
@@ -59,7 +60,23 @@ try {
   wav.writeUInt32LE(32000, 40);
   const input = join(temporary, "合成 silence.wav");
   await writeFile(input, wav);
-  worker(["--wav", input]);
+  const requests =
+    [
+      { op: "prepare" },
+      { op: "audio", role: "self", pcm: Array(480).fill(0) },
+      { op: "finish", role: "self" },
+      { op: "shutdown" },
+    ]
+      .map((command, id) => JSON.stringify({ id, command }))
+      .join("\n") + "\n";
+  const replies = worker([], requests)
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  assert.deepEqual(
+    replies.map((reply) => reply.type),
+    ["ready", "prepared", "audio", "finished", "stopped"],
+  );
   if (process.argv.includes("--models")) {
     const { model, whisper_smoke: whisper } = JSON.parse(
       await readFile(
