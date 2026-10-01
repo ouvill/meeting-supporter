@@ -56,6 +56,9 @@ jobs:
           key: cpu-installer
       - run: npm ci
       - run: node --test scripts/test-native-runtime.mjs
+      - name: Prepare the verified native runtime
+        timeout-minutes: 5
+        run: node --input-type=module -e "import { prepareRuntime } from './scripts/native-runtime.mjs'; await prepareRuntime();"
       - name: Build the standard Rust installer with native and DOCX workers
         # The platform config owns the feature and resource preparation.
         run: npm run tauri -- build --ci

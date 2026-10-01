@@ -8,7 +8,7 @@ import {
   mkdtemp,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -23,8 +23,10 @@ export function run(command, args, options = {}) {
       ...options,
     });
     child.once("error", reject);
-    child.once("exit", (code) =>
-      code === 0 ? resolve() : reject(new Error(`${command} failed (${code})`)),
+    child.once("exit", (code, signal) =>
+      code === 0
+        ? resolve()
+        : reject(new Error(`${basename(command)} failed (${signal ?? code})`)),
     );
   });
 }
@@ -79,12 +81,19 @@ export async function prepareRuntime() {
     ];
   const cache = join(root, "generated/native-runtime");
   const archive = join(cache, `${runtime.directory}.tar.bz2`);
+  console.info("Preparing verified native speech libraries...");
   await download(runtime.url, archive, runtime.sha256);
+  console.info("Native runtime archive verified; extracting...");
   // Always unpack the verified archive, so an altered cache cannot reach a build.
   const staging = await mkdtemp(join(cache, "extract-"));
   const directory = join(cache, runtime.directory);
   try {
-    await run("tar", ["-xjf", archive, "-C", staging]);
+    // A relative archive name also works with GNU tar on Windows, which can
+    // interpret the drive letter in an absolute filename as a remote host.
+    await run("tar", ["-xjf", basename(archive), "-C", staging], {
+      cwd: cache,
+      timeout: 120_000,
+    });
     for (const [name, digest] of Object.entries(runtime.files)) {
       if (
         !(await matches(join(staging, runtime.directory, "lib", name), digest))
@@ -97,5 +106,6 @@ export async function prepareRuntime() {
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
+  console.info("Native speech libraries verified and ready.");
   return join(directory, "lib");
 }
