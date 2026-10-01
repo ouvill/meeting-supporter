@@ -70,7 +70,7 @@ jobs:
           if [ "$RUNNER_OS" = Windows ]; then suffix=.exe; else suffix=; fi
           export MEETING_TEST_PYTHON_WORKER="$GITHUB_WORKSPACE/generated/python-worker/dist/meeting-python-worker/meeting-python-worker$suffix"
           npm run test:python-worker
-      - name: Install the Windows candidate and verify its bundled workers
+      - name: Install the Windows candidate and verify startup and workers
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -81,6 +81,25 @@ jobs:
           if ($installation.ExitCode -ne 0) { throw 'NSIS installation failed' }
           if (-not (Test-Path (Join-Path $destination 'meeting-supporter.exe'))) { throw 'Installed application is missing' }
           if (Test-Path (Join-Path $destination 'python')) { throw 'Legacy backend was bundled' }
+          $previousLocalAppData = $env:LOCALAPPDATA
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'installed-app-profile'
+          New-Item -ItemType Directory -Force $env:LOCALAPPDATA | Out-Null
+          $application = $null
+          try {
+            $application = Start-Process -FilePath (Join-Path $destination 'meeting-supporter.exe') -PassThru
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              Start-Sleep -Seconds 1
+              $application.Refresh()
+              if ($application.HasExited) { throw 'Installed application exited during startup' }
+              if ($application.MainWindowHandle -ne [IntPtr]::Zero) { break }
+            }
+            if ($application.MainWindowHandle -eq [IntPtr]::Zero) { throw 'Installed application did not open a window' }
+          } finally {
+            if ($application -and -not $application.HasExited) {
+              Stop-Process -Id $application.Id -Force -ErrorAction SilentlyContinue
+            }
+            $env:LOCALAPPDATA = $previousLocalAppData
+          }
           $env:MEETING_TEST_NATIVE_BUNDLE = Join-Path $destination 'native'
           npm run test:rust-bundle -- --models
           if ($LASTEXITCODE -ne 0) { throw 'Installed speech worker failed' }
