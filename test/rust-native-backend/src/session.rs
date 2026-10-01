@@ -266,6 +266,60 @@ impl SpeechSession<Prepared> {
 #[cfg(all(test, feature = "whisper"))]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "requires predownloaded Whisper model and ORT"]
+    fn whisper_preparation_keeps_both_sources_empty() {
+        let model = std::env::var_os("MEETING_TEST_WHISPER_MODEL").expect("model");
+        let runtime = std::env::var_os("MEETING_TEST_ORT_LIBRARY").expect("ORT");
+        let mut session = SpeechSession::new(SessionConfig {
+            runtime_library: runtime.into(),
+            plan: SpeechPlan::SileroWhisper {
+                model: model.into(),
+                device: crate::whisper::Device::Cpu,
+                language: crate::whisper::Language::Ja,
+            },
+        })
+        .prepare()
+        .unwrap();
+        // Warmup must not create an utterance, consume samples or prevent the
+        // caller from configuring the freshly prepared session.
+        assert!(matches!(
+            session.execute(Command::Configure {
+                vad_threshold: 0.5,
+                silence_seconds: 0.4,
+                min_voiced_ms: 240,
+                min_voiced_ratio: 0.35,
+                min_rms_dbfs: -45.0,
+            }),
+            Ok(Reply::Configured)
+        ));
+        for role in [Role::User, Role::Other] {
+            assert_eq!(session.state.sources[role.index()].samples, 0);
+            assert_eq!(session.state.sources[role.index()].generation, 0);
+            assert!(matches!(
+                session.finish(role).unwrap(),
+                Reply::Finished { segment: None }
+            ));
+            session.execute(Command::Reset { role }).unwrap();
+            assert_eq!(session.state.sources[role.index()].generation, 1);
+            for _ in 0..40 {
+                assert!(matches!(
+                    session.audio(role, &[0; FRAME_SAMPLES]).unwrap(),
+                    Reply::Audio {
+                        speech: false,
+                        segment: None,
+                        ..
+                    }
+                ));
+            }
+            assert!(matches!(
+                session.finish(role).unwrap(),
+                Reply::Finished { segment: None }
+            ));
+        }
+    }
+
     #[test]
     #[ignore = "requires predownloaded Whisper model, ORT and synthetic WAV"]
     fn whisper_recognizes_synthetic_audio_and_reuses_prepared_state() {

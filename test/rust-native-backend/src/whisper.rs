@@ -94,11 +94,19 @@ mod implementation {
             if device == Device::Gpu && !actual_gpu {
                 return Err(SpeechError::GpuUnavailable);
             }
-            Ok(Self {
+            let mut model = Self {
                 state,
                 language,
                 device: if actual_gpu { "gpu" } else { "cpu" },
-            })
+            };
+            // Loading weights does not execute the inference graphs. In particular,
+            // Vulkan compiles needed shaders lazily on the first graph execution.
+            // Exercise the same encoder/decoder path before reporting Prepared, while
+            // capture is not yet queued for recognition. Keep this state for reuse.
+            // Bypass VAD (silence would be rejected) and discard any generated text;
+            // no_context and whisper_full's result reset isolate the next utterance.
+            let _ = model.transcribe(&[0.0; 16_000])?;
+            Ok(model)
         }
         pub fn device(&self) -> &'static str {
             self.device
