@@ -27,4 +27,4 @@ ringbuf = "0.4.8"
 ctrlc = "3.4"
 sherpa-onnx = { version = "=1.13.8", default-features = false, features = ["shared"], optional = true }
 
-whisper-rs = { version = "=0.16.0", default-features = false, optional = true }
+whisper-rs = { version = "=0.16.0", default-features = false, features = ["raw-api"], optional = true }

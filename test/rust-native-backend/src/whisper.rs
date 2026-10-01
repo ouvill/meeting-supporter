@@ -41,7 +41,11 @@ mod implementation {
 
     // Pinned whisper.cpp 1.8.3 reports GPU selection and initialization failure
     // here. Keep the adapter conservative: unrecognized diagnostics mean CPU.
-    unsafe extern "C" fn log(_: u32, text: *const c_char, _: *mut c_void) {
+    unsafe extern "C" fn log(
+        _: whisper_rs::whisper_rs_sys::ggml_log_level,
+        text: *const c_char,
+        _: *mut c_void,
+    ) {
         if text.is_null() {
             return;
         }
