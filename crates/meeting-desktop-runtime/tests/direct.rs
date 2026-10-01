@@ -532,11 +532,61 @@ async fn meters_run_before_model_preparation_after_device_changes_and_after_stop
 }
 
 #[tokio::test]
-async fn settings_preserve_existing_sections_survive_restart_and_reconfigure_speech() {
+async fn unavailable_os_credentials_do_not_block_local_settings() {
+    struct OfflineSecrets;
+    impl meeting_desktop_runtime::settings::Secrets for OfflineSecrets {
+        fn get(&self, _: &str) -> Result<Option<String>, meeting_desktop_runtime::Error> {
+            Err(meeting_desktop_runtime::Error::Secrets)
+        }
+        fn set(&self, _: &str, _: Option<&str>) -> Result<(), meeting_desktop_runtime::Error> {
+            Err(meeting_desktop_runtime::Error::Secrets)
+        }
+    }
+    let temp = tempfile::tempdir().unwrap();
+    let settings = config(&temp, "model");
+    let server = Server::start_with_secrets(settings.clone(), std::sync::Arc::new(OfflineSecrets))
+        .await
+        .unwrap();
+    assert_eq!(http(&server, "GET", "/api/settings", "").await.0, 200);
+    assert_eq!(
+        post_settings(&server, json!({"stt":{"silence_duration":0.8}}))
+            .await
+            .0,
+        200
+    );
+    let path = settings.data_dir.join("settings.toml");
+    let saved = std::fs::read(&path).unwrap();
+    let (_, body) = http(&server, "GET", "/api/ai/routes", "").await;
+    let catalog: Value = serde_json::from_slice(&body).unwrap();
+    for route in catalog["routes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|route| route["kind"] == "byok")
+    {
+        assert_eq!(route["readiness"], "error");
+        assert_eq!(route["reason_code"], "CREDENTIAL_STORE_UNAVAILABLE");
+    }
+    assert_eq!(
+        post_settings(
+            &server,
+            json!({"secrets":{"OPENAI_API_KEY":"synthetic-new"}})
+        )
+        .await
+        .0,
+        500
+    );
+    assert_eq!(std::fs::read(path).unwrap(), saved);
+    assert!(!settings.data_dir.join("secrets.toml").exists());
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn settings_survive_restart_and_reconfigure_speech() {
     let temp = tempfile::tempdir().unwrap();
     let settings = config(&temp, "model");
     std::fs::create_dir_all(&settings.data_dir).unwrap();
-    std::fs::write(settings.data_dir.join("config.toml"),"[ai.assignments]\nreply = 'gemini'\n[custom]\nretain = 'synthetic'\n[stt]\nvad_sensitivity = 0.6\n").unwrap();
+    std::fs::write(settings.data_dir.join("settings.toml"),"schema_version = 1\n[ai.assignments]\nreply = 'gemini'\n[ai.routes.gemini]\nmodel = 'synthetic-model'\n[stt]\nvad_sensitivity = 0.6\n").unwrap();
     let server = Server::start(settings.clone()).await.unwrap();
     let (_, body) = http(&server, "GET", "/api/settings", "").await;
     let body: Value = serde_json::from_slice(&body).unwrap();
@@ -579,13 +629,17 @@ async fn settings_preserve_existing_sections_survive_restart_and_reconfigure_spe
         && (v["vad_threshold"].as_f64().unwrap() - 0.7).abs() < 0.0001));
     drop(ws);
     server.shutdown().await.unwrap();
-    let text = std::fs::read_to_string(settings.data_dir.join("config.toml")).unwrap();
+    let text = std::fs::read_to_string(settings.data_dir.join("settings.toml")).unwrap();
     let persisted: toml::Value = toml::from_str(&text).unwrap();
     assert_eq!(
         persisted["ai"]["assignments"]["reply"].as_str(),
         Some("gemini")
     );
-    assert_eq!(persisted["custom"]["retain"].as_str(), Some("synthetic"));
+    assert_eq!(persisted["schema_version"].as_integer(), Some(1));
+    assert_eq!(
+        persisted["ai"]["routes"]["gemini"]["model"].as_str(),
+        Some("synthetic-model")
+    );
     let server = Server::start(settings).await.unwrap();
     let (_, body) = http(&server, "GET", "/api/settings", "").await;
     let body: Value = serde_json::from_slice(&body).unwrap();
@@ -603,6 +657,8 @@ async fn invalid_or_unsupported_settings_do_not_change_file_or_prepared_state() 
         json!({"stt":{"vad_sensitivity":9}}),
         json!({"stt":{"min_voiced_ms":true}}),
         json!({"stt":{"unknown":1}}),
+        json!({"stt":{"no_speech_threshold":0.6}}),
+        json!({"secrets":{"DEEPGRAM_API_KEY":"synthetic-unused"}}),
         json!({"stt":{"backend":"openai"}}),
         json!({"stt":{"backend":"whisper","device":"cuda"}}),
         json!({"stt":{"backend":"whisper","whisper_model":"unknown"}}),
@@ -611,55 +667,73 @@ async fn invalid_or_unsupported_settings_do_not_change_file_or_prepared_state() 
     ] {
         assert_eq!(post_settings(&server, patch).await.0, 422);
     }
-    assert!(!settings.data_dir.join("config.toml").exists());
+    assert!(!settings.data_dir.join("settings.toml").exists());
     server.shutdown().await.unwrap();
 }
 
 #[tokio::test]
-async fn legacy_cloud_speech_keeps_history_accessible_and_requires_explicit_local_selection() {
-    for backend in ["deepgram", "openai", "xai", "remote", "managed"] {
-        let temp = tempfile::tempdir().unwrap();
-        let settings = config(&temp, "model");
-        std::fs::create_dir_all(&settings.data_dir).unwrap();
-        let path = settings.data_dir.join("config.toml");
-        let original = format!("[stt]\nbackend = '{backend}'\n");
-        std::fs::write(&path, &original).unwrap();
-        let server = Server::start(settings.clone()).await.unwrap();
-        let (status, body) = http(&server, "GET", "/api/settings", "").await;
-        assert_eq!(status, 200);
-        let saved: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(saved["stt"]["backend"], backend);
-        assert_eq!(http(&server, "GET", "/meetings", "").await.0, 200);
-        assert_eq!(
-            post_settings(&server, json!({"stt":{"backend":backend}}))
-                .await
-                .0,
-            422
-        );
-        let mut ws = connect(&server).await;
-        until(&mut ws, |v| v["type"] == "devices_list").await;
-        send(&mut ws, json!({"type":"init_stt"})).await;
-        let error = until(&mut ws, |v| v["type"] == "error").await;
-        assert_eq!(
-            error["text"],
-            "以前の音声認識設定は利用できません。端末内の方式を選び直してください。"
-        );
-        assert!(!settings.model.unwrap().join("preparing").exists());
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
-        assert_eq!(
-            post_settings(&server, json!({"stt":{"backend":"reazonspeech"}}))
-                .await
-                .0,
-            200
-        );
-        send(&mut ws, json!({"type":"init_stt"})).await;
-        until(&mut ws, |v| {
-            v["type"] == "stt_state" && v["initialized"] == true
-        })
-        .await;
-        drop(ws);
-        server.shutdown().await.unwrap();
-    }
+async fn old_settings_are_ignored_without_changing_saved_meetings_or_recordings() {
+    use meeting_storage::{models as db, Repository};
+    let temp = tempfile::tempdir().unwrap();
+    let settings = config(&temp, "model");
+    std::fs::create_dir_all(&settings.data_dir).unwrap();
+    let old_settings = settings.data_dir.join("config.toml");
+    let old_secrets = settings.data_dir.join("secrets.toml");
+    let original =
+        "[stt]\nbackend = 'deepgram'\n[ai.assignments]\nreply='codex'\nminutes='retired-route'\n";
+    std::fs::write(&old_settings, original).unwrap();
+    std::fs::write(&old_secrets, "OPENAI_API_KEY = 'synthetic-unused'\n").unwrap();
+    seed_retention(
+        &settings,
+        "saved",
+        db::Status::Completed,
+        Some("2025-01-01T01:00:00Z"),
+        128,
+    )
+    .await;
+    let repo = Repository::open(&settings.data_dir.join("meeting_history.sqlite3"))
+        .await
+        .unwrap();
+    repo.execute(db::Command::UpdateMeetingMinutes {
+        meeting_id: "saved".into(),
+        minutes: "synthetic saved minutes".into(),
+    })
+    .await
+    .unwrap();
+    repo.close().await;
+    let recording = settings.data_dir.join("recordings/saved/other.wav");
+    let recording_before = std::fs::read(&recording).unwrap();
+    let server = Server::start(settings.clone()).await.unwrap();
+    let (_, body) = http(&server, "GET", "/api/settings", "").await;
+    let current: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(current["stt"]["backend"], "reazonspeech");
+    assert_eq!(current["secrets"]["OPENAI_API_KEY"], false);
+    let (_, body) = http(&server, "GET", "/api/ai/routes", "").await;
+    let catalog: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(catalog["assignments"], json!({"reply":null}));
+    let (status, body) = http(&server, "GET", "/meetings/saved", "").await;
+    assert_eq!(status, 200);
+    let detail: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(detail["minutes"], "synthetic saved minutes");
+    assert_eq!(
+        post_settings(&server, json!({"stt":{"silence_duration":0.8}}))
+            .await
+            .0,
+        200
+    );
+    assert!(settings.data_dir.join("settings.toml").is_file());
+    assert_eq!(std::fs::read_to_string(old_settings).unwrap(), original);
+    assert_eq!(
+        std::fs::read_to_string(old_secrets).unwrap(),
+        "OPENAI_API_KEY = 'synthetic-unused'\n"
+    );
+    assert_eq!(std::fs::read(recording).unwrap(), recording_before);
+    server.shutdown().await.unwrap();
+    let server = Server::start(settings).await.unwrap();
+    let (_, body) = http(&server, "GET", "/api/settings", "").await;
+    let current: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(current["stt"]["silence_duration"], 0.8);
+    server.shutdown().await.unwrap();
 }
 
 #[tokio::test]
@@ -722,7 +796,7 @@ async fn settings_reads_remain_responsive_and_writes_conflict_during_preparation
             .0,
         409
     );
-    assert!(!settings.data_dir.join("config.toml").exists());
+    assert!(!settings.data_dir.join("settings.toml").exists());
     drop(ws);
     server.shutdown().await.unwrap();
 }
@@ -778,7 +852,7 @@ async fn mock_ai(delay_ms: u64, finish: bool) -> MockAi {
 fn ai_config(temp: &tempfile::TempDir, ai: &MockAi, auto: bool) -> Config {
     let config = config(temp, "model");
     std::fs::create_dir_all(&config.data_dir).unwrap();
-    std::fs::write(config.data_dir.join("config.toml"),format!("[ai.assignments]\nreply='ollama'\n[ai.routes.ollama]\nmodel='synthetic-model'\n[ollama]\nbase_url='{}'\n[reply]\nauto_generate={auto}\n",ai.url)).unwrap();
+    std::fs::write(config.data_dir.join("settings.toml"),format!("schema_version = 1\n[ai.assignments]\nreply='ollama'\n[ai.routes.ollama]\nmodel='synthetic-model'\nbase_url='{}'\n[reply]\nauto_generate={auto}\n",ai.url)).unwrap();
     config
 }
 async fn manual_target(ws: &mut Socket) -> String {
@@ -950,12 +1024,12 @@ async fn rig_automatic_reply_is_opt_in() {
 }
 
 #[tokio::test]
-async fn retired_info_and_minutes_settings_are_ignored_and_cannot_be_reenabled() {
+async fn retired_info_and_minutes_cannot_be_reenabled() {
     let temp = tempfile::tempdir().unwrap();
     let settings = config(&temp, "model");
     std::fs::create_dir_all(&settings.data_dir).unwrap();
-    let path = settings.data_dir.join("config.toml");
-    let original = "[ai]\nschema_version = 2\n[ai.assignments]\ninfo = \"retired-route\"\nminutes = \"retired-route\"\n[agents]\ninfo_enabled = true\n";
+    let path = settings.data_dir.join("settings.toml");
+    let original = "schema_version = 1\n";
     std::fs::write(&path, original).unwrap();
     let server = Server::start(settings).await.unwrap();
 
@@ -1056,9 +1130,9 @@ async fn multiple_reply_styles_finish_and_stop_meeting_cancels_pending_generatio
     use std::io::Write;
     let mut file = std::fs::OpenOptions::new()
         .append(true)
-        .open(config.data_dir.join("config.toml"))
+        .open(config.data_dir.join("settings.toml"))
         .unwrap();
-    file.write_all(b"[[reply.styles]]\nid='standard'\n[[reply.styles]]\nid='second'\ninstruction='synthetic second style'\n").unwrap();
+    file.write_all(b"[[reply.styles]]\nid='standard'\nlabel='Standard'\nenabled=true\npriority=10\n[[reply.styles]]\nid='second'\nlabel='Second'\nenabled=true\npriority=20\ninstruction='synthetic second style'\n").unwrap();
     let server = Server::start(config).await.unwrap();
     let mut ws = connect(&server).await;
     start(&mut ws).await;
@@ -1757,68 +1831,37 @@ fn acp_config(temp: &tempfile::TempDir) -> (Config, std::path::PathBuf) {
     let marker = temp.path().join("process-events");
     let entry = json!({"id":"synthetic","name":"Synthetic Agent","version":"1.0.0","description":"Synthetic fixture","authors":[],"license":"MIT","distribution":{"binary":{},"npx":null,"uvx":null}});
     std::fs::write(root.join("installed.json"), json!({"synthetic":{"entry":entry,"directory":"synthetic-1","executable":"agent","args":[marker],"env":{},"node":false}}).to_string()).unwrap();
-    std::fs::write(config.data_dir.join("config.toml"), "[reply]\nenabled = true\nauto_generate = false\n[[reply.styles]]\nid = 'standard'\nlabel = '標準'\nenabled = true\npriority = 1\ninstruction = '合成テスト'\n").unwrap();
+    std::fs::write(config.data_dir.join("settings.toml"), "schema_version = 1\n[reply]\nenabled = true\nauto_generate = false\n[[reply.styles]]\nid = 'standard'\nlabel = '標準'\nenabled = true\npriority = 1\ninstruction = '合成テスト'\n").unwrap();
     (config, marker)
 }
 
 #[tokio::test]
-async fn retired_agent_routes_are_cleared_without_changing_registry_agents() {
-    for (reply, expected) in [
-        ("codex", Value::Null),
-        ("acp", Value::Null),
-        ("acp:synthetic", json!("acp:synthetic")),
-    ] {
-        let temp = tempfile::tempdir().unwrap();
-        let (config, _) = acp_config(&temp);
-        let manifest = config.data_dir.join("agents/installed.json");
-        let installed = std::fs::read(&manifest).unwrap();
-        let path = config.data_dir.join("config.toml");
-        let original = format!("[ai.assignments]\nreply = '{reply}'\nminutes = 'codex'\n[ai.routes.codex]\nruntime = 'codex-app-server'\n[ai.routes.acp]\ncommand = 123\n");
-        std::fs::write(&path, &original).unwrap();
-        let server = Server::start(config.clone()).await.unwrap();
-        let (status, body) = http(&server, "GET", "/api/ai/routes", "").await;
-        assert_eq!(status, 200);
-        let catalog: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(catalog["assignments"], json!({"reply":expected}));
-        let rows = catalog["routes"].as_array().unwrap();
-        assert!(rows.iter().all(|r| r["id"] != "codex" && r["id"] != "acp"));
-        assert!(rows.iter().any(|r| r["id"] == "acp:synthetic"));
-        let (_, body) = http(&server, "GET", "/api/settings", "").await;
-        let settings: Value = serde_json::from_slice(&body).unwrap();
-        assert!(settings.get("acp").is_none());
-        assert_eq!(
-            http(&server, "GET", "/api/ai-runtimes/codex/status", "")
-                .await
-                .0,
-            501
-        );
-        let removed_patch = json!({"acp":{"command":["synthetic-agent"]}}).to_string();
-        let request = format!(
-            "Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-            removed_patch.len(),
-            removed_patch
-        );
-        assert_eq!(
-            http(&server, "POST", "/api/settings", &request).await.0,
-            422
-        );
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
-        assert_eq!(
-            post_settings(&server, json!({"reply":{"auto_generate":false}}))
-                .await
-                .0,
-            200
-        );
-        let saved = std::fs::read_to_string(&path).unwrap();
-        assert!(!saved.contains("[ai.routes.codex]") && !saved.contains("[ai.routes.acp]"));
-        assert_eq!(std::fs::read(&manifest).unwrap(), installed);
-        server.shutdown().await.unwrap();
-        let server = Server::start(config).await.unwrap();
-        let (_, body) = http(&server, "GET", "/api/ai/routes", "").await;
-        let catalog: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(catalog["assignments"]["reply"], expected);
-        server.shutdown().await.unwrap();
-    }
+async fn old_agent_settings_do_not_change_installed_registry_agents() {
+    let temp = tempfile::tempdir().unwrap();
+    let (config, _) = acp_config(&temp);
+    let manifest = config.data_dir.join("agents/installed.json");
+    let installed = std::fs::read(&manifest).unwrap();
+    let old = config.data_dir.join("config.toml");
+    let original = "[ai.assignments]\nreply='codex'\n[ai.routes.acp]\ncommand=123\n";
+    std::fs::write(&old, original).unwrap();
+    let server = Server::start(config).await.unwrap();
+    let (_, body) = http(&server, "GET", "/api/ai/routes", "").await;
+    let catalog: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(catalog["assignments"], json!({"reply":null}));
+    let rows = catalog["routes"].as_array().unwrap();
+    assert!(rows
+        .iter()
+        .all(|route| route["id"] != "codex" && route["id"] != "acp"));
+    assert!(rows.iter().any(|route| route["id"] == "acp:synthetic"));
+    assert_eq!(
+        post_settings(&server, json!({"reply":{"auto_generate":false}}))
+            .await
+            .0,
+        200
+    );
+    assert_eq!(std::fs::read_to_string(old).unwrap(), original);
+    assert_eq!(std::fs::read(manifest).unwrap(), installed);
+    server.shutdown().await.unwrap();
 }
 
 #[tokio::test]

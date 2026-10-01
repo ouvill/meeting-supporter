@@ -9,7 +9,7 @@ ADRは、architecture boundary、protocol、永続schema、security/privacy/dist
 | [ADR-001](./001-python-server-directory-structure.md) | Accepted | Python server directory structure |
 | [ADR-002](./002-stt-pipeline-architecture.md) | Accepted | STT pipeline architecture |
 | [ADR-003](./003-meeting-recording-history-architecture.md) | Accepted | meeting recording/history architecture |
-| [ADR-009](./009-live-reply-llm-usecase-runtime-provider-architecture.md) | Accepted（議事録生成は ADR-019 で部分置換） | use-case / runtime / provider-model / config-secret boundary |
+| [ADR-009](./009-live-reply-llm-usecase-runtime-provider-architecture.md) | Accepted（議事録生成は ADR-019、Rust 設定は ADR-020 で部分置換） | use-case / runtime / provider-model / config-secret boundary |
 | [ADR-010](./010-ai-route-strategy.md) | Accepted（外部接続は ADR-017、議事録生成は ADR-019 で部分置換） | route strategy、Codex direct、generic ACP、hosted fail-closed、distribution gate |
 | [ADR-011](./011-general-route-card-visibility.md) | Accepted（Registry 導入は ADR-017 で部分置換） | general route-card visibilityとAdvanced configuration boundary |
 | [ADR-012](./012-native-window-chrome-and-pin-preference.md) | Accepted | native window chrome、close policy、always-on-top preference |
@@ -17,7 +17,8 @@ ADRは、architecture boundary、protocol、永続schema、security/privacy/dist
 | [ADR-015](./015-localized-ui-message-contract.md) | Accepted | frontend-owned localizationとlocale-neutral `UiMessage` protocol |
 | [ADR-017](./017-acp-registry-and-shared-rust-client.md) | Accepted | Rust の共通 ACP client、Registry 導入・認証、実行と費用の境界 |
 | [ADR-018](./018-interrupted-meeting-history.md) | Accepted | Rust 直接接続の中断会議、起動時の整理、保存失敗と停止失敗の分離 |
-| [ADR-019](./019-local-speech-and-saved-history.md) | Accepted | ローカル音声認識と保存済み履歴への整理 |
+| [ADR-019](./019-local-speech-and-saved-history.md) | Accepted（Rust の旧設定の扱いは ADR-020 で部分置換） | ローカル音声認識と保存済み履歴への整理 |
+| [ADR-020](./020-versioned-rust-settings.md) | Accepted | Rust のバージョン付き設定形式、検証、旧設定の廃止 |
 
 ## Proposed decisions
 

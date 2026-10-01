@@ -28,6 +28,7 @@ const REQUIRED_AUTHORITIES = [
   "doc/adr/017-acp-registry-and-shared-rust-client.md",
   "doc/adr/018-interrupted-meeting-history.md",
   "doc/adr/019-local-speech-and-saved-history.md",
+  "doc/adr/020-versioned-rust-settings.md",
 ];
 
 const REQUIRED_LINKS = [

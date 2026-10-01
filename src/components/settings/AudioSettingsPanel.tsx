@@ -71,7 +71,11 @@ export function AudioSettingsPanel({
             >
               <select
                 aria-label="音声認識方式"
-                value={form.sttBackend}
+                value={
+                  usesLocalSpeechModel || form.sttBackend === "dummy"
+                    ? form.sttBackend
+                    : ""
+                }
                 disabled={speechModelControlsDisabled}
                 onChange={(event) => update("sttBackend", event.target.value)}
                 className="field"
@@ -84,15 +88,15 @@ export function AudioSettingsPanel({
                   <option value="dummy">テスト用</option>
                 )}
                 {!usesLocalSpeechModel && form.sttBackend !== "dummy" && (
-                  <option value={form.sttBackend} disabled>
-                    以前の設定（利用不可）
+                  <option value="" disabled>
+                    選択してください
                   </option>
                 )}
               </select>
             </FieldRow>
             {!usesLocalSpeechModel && form.sttBackend !== "dummy" && (
               <InlineNotice tone="warning">
-                以前の音声認識設定は利用できません。端末内の方式を選び直してください。
+                音声認識方式を選択してください。
               </InlineNotice>
             )}
             {form.sttBackend === "reazonspeech" && (

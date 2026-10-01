@@ -30,8 +30,7 @@ export function validateSettingsForm(
       "この支援方法を利用するには、利用可能なAPIキーが必要です。";
   }
   if (!["whisper", "reazonspeech", "dummy"].includes(form.sttBackend)) {
-    errors.audio =
-      "以前の音声認識設定は利用できません。端末内の方式を選び直してください。";
+    errors.audio = "音声認識方式を選択してください。";
   }
   return errors;
 }

@@ -4,6 +4,8 @@
 - **Date**: 2026-10-01
 - **Partially supersedes**: ADR-009、ADR-010、ADR-013、ADR-016 の議事録生成と音声認識の提供範囲
 
+- **Partially superseded by**: [ADR-020](./020-versioned-rust-settings.md)（Rust の設定形式・旧設定と認証情報の扱い）
+
 ## Context
 
 会議中の聞き取りと返答支援を中心に、音声認識の選択肢と会議後の機能を整理する。

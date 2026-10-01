@@ -7,6 +7,7 @@ import type {
   AiRouteReadModel,
   AiRoutesController,
 } from "../../hooks/useAiRoutes";
+import { useRustBackend } from "../../platform/runtimeContext";
 import { useMeetingStore } from "../../store/meetingStore";
 import type {
   ConnectionProvider,
@@ -66,6 +67,7 @@ export function useSettingsPersistence({
   routes: AiRoutesController;
   audioSettingsLocked: boolean;
 }) {
+  const rustBackend = useRustBackend();
   const [form, setForm] = useState<SettingsForm>(INITIAL_SETTINGS_FORM);
   const [savedBaseline, setSavedBaseline] = useState<SettingsForm | null>(null);
   const [activeCategory, setActiveCategory] =
@@ -182,6 +184,7 @@ export function useSettingsPersistence({
       form,
       savedBaseline,
       pendingDeleteSecrets,
+      rustBackend,
     );
     const errors = validateSettingsForm(form, selectedRoutes, connectionStates);
     setFieldErrors(errors);

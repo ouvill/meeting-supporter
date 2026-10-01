@@ -62,18 +62,8 @@ pub fn start(app: AppHandle) {
                     path.is_dir().then_some(path)
                 }
             };
-            let legacy = meeting_desktop_runtime::settings::FileSecrets {
-                path: data_dir.join("secrets.toml"),
-            };
             let secrets: std::sync::Arc<dyn meeting_desktop_runtime::settings::Secrets> =
-                if std::env::var("SECRET_STORE_BACKEND").is_ok_and(|v| v == "file") {
-                    std::sync::Arc::new(legacy)
-                } else {
-                    std::sync::Arc::new(meeting_desktop_runtime::settings::MigratingSecrets {
-                        primary: std::sync::Arc::new(crate::desktop_secrets::OsSecrets),
-                        legacy,
-                    })
-                };
+                std::sync::Arc::new(crate::desktop_secrets::OsSecrets);
             Server::start_with_secrets(
                 Config {
                     agent_updates: true,

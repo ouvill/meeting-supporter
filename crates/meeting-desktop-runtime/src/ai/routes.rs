@@ -3,7 +3,7 @@ use crate::{settings::Store, Error};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum Provider {
     Openai,
@@ -12,7 +12,7 @@ pub(crate) enum Provider {
     Ollama,
 }
 impl Provider {
-    fn defaults(self) -> (&'static str, &'static str, &'static str, &'static str) {
+    pub(crate) fn defaults(self) -> (&'static str, &'static str, &'static str, &'static str) {
         match self {
             Self::Openai => (
                 "openai",
@@ -48,15 +48,6 @@ pub(crate) struct Route {
 pub(crate) struct Assignments {
     pub reply: Option<String>,
 }
-pub(crate) fn assignments(store: &Store) -> Result<Assignments, Error> {
-    // Ignore the retired info/minutes assignments in saved settings, but reject it in API requests.
-    let mut saved = store.document["ai"]["assignments"].clone();
-    if let Some(values) = saved.as_object_mut() {
-        values.remove("info");
-        values.remove("minutes");
-    }
-    serde_json::from_value(saved).map_err(|_| AiError::Configuration.into())
-}
 fn provider(id: &str) -> Result<Provider, AiError> {
     match id {
         "openai" => Ok(Provider::Openai),
@@ -68,48 +59,9 @@ fn provider(id: &str) -> Result<Provider, AiError> {
 }
 pub(crate) fn resolve(store: &Store, id: &str) -> Result<Route, Error> {
     let provider = provider(id)?;
-    let (_, default_model, default_url, key_name) = provider.defaults();
-    let document = &store.document;
-    let config = &document["ai"]["routes"][id];
-    if config.get("runtime").is_some_and(|v| v != "pydantic-ai") {
-        return Err(AiError::Unsupported.into());
-    }
-    let model = config
-        .get("model")
-        .map(|v| v.as_str().ok_or(AiError::Configuration))
-        .transpose()?
-        .unwrap_or(default_model);
-    if model.trim().is_empty() || model.len() > 256 {
-        return Err(AiError::Configuration.into());
-    }
-    let custom = &document["providers"][id];
-    // Do not silently send credentials to a different protocol or custom key reference.
-    if custom
-        .get("kind")
-        .is_some_and(|v| v != id && !(id == "gemini" && v == "google-gla"))
-        || custom.get("key_ref").is_some_and(|v| v != key_name)
-    {
-        return Err(AiError::Unsupported.into());
-    }
-    let url_value = if provider == Provider::Ollama {
-        document["ollama"].get("base_url")
-    } else {
-        custom.get("base_url")
-    };
-    let base_url = url_value
-        .map(|v| v.as_str().ok_or(AiError::Configuration))
-        .transpose()?
-        .unwrap_or(default_url);
-    let url = reqwest::Url::parse(base_url).map_err(|_| AiError::Configuration)?;
-    if !matches!(url.scheme(), "http" | "https")
-        || url.host_str().is_none()
-        || !url.username().is_empty()
-        || url.password().is_some()
-        || url.query().is_some()
-        || url.fragment().is_some()
-    {
-        return Err(AiError::Configuration.into());
-    }
+    let key_name = provider.defaults().3;
+    let model = store.route_model(provider);
+    let base_url = store.route_url(provider);
     let key = if key_name.is_empty() {
         None
     } else {
@@ -137,7 +89,7 @@ fn local_url(url: &str) -> bool {
         })
 }
 pub(crate) async fn catalog(store: Store, agents: &crate::agents::Manager) -> Result<Value, Error> {
-    let assigned = assignments(&store)?;
+    let assigned = store.document.ai.assignments.clone();
     let resolved = tokio::task::spawn_blocking(move || {
         [
             Provider::Openai,
@@ -173,10 +125,10 @@ pub(crate) async fn catalog(store: Store, agents: &crate::agents::Manager) -> Re
                 ),
             },
             Ok(_) => ("ready", "", "認証情報が設定されています。", "none"),
-            Err(Error::Ai(AiError::Unsupported)) => (
-                "unavailable",
-                "RUST_ROUTE_UNSUPPORTED",
-                "この接続設定はRustへの移植中です。",
+            Err(Error::Secrets) => (
+                "error",
+                "CREDENTIAL_STORE_UNAVAILABLE",
+                "OS の認証情報ストアを利用できません。",
                 "configure",
             ),
             Err(_) => (
@@ -186,8 +138,7 @@ pub(crate) async fn catalog(store: Store, agents: &crate::agents::Manager) -> Re
                 "configure",
             ),
         };
-        let selectable = code != "RUST_ROUTE_UNSUPPORTED";
-        let selected = selectable && assigned.reply.as_deref() == Some(id);
+        let selected = assigned.reply.as_deref() == Some(id);
         let label = match p {
             Provider::Openai => "OpenAI",
             Provider::Gemini => "Google Gemini",
@@ -207,7 +158,7 @@ pub(crate) async fn catalog(store: Store, agents: &crate::agents::Manager) -> Re
             "id": id, "kind": if p == Provider::Ollama { "local" } else { "byok" },
             "label": label, "description": "設定したモデルで返答案を生成します。",
             "availability": "experimental", "readiness": ready,
-            "selectable": selectable, "selected": selected,
+            "selectable": true, "selected": selected,
             "data_location": location, "billing_owner": "user",
             "capabilities": ["reply", "stream", "cancel"],
             "reason_code": code, "message": message, "action": action,

@@ -132,8 +132,8 @@ fn estimate(record: &Record) -> f64 {
 }
 static JOURNAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-pub async fn begin(
-    document: &serde_json::Value,
+pub(crate) async fn begin(
+    budget: &crate::settings::UsageBudget,
     directory: &Path,
     meeting_id: &str,
     request_id: &str,
@@ -145,12 +145,12 @@ pub async fn begin(
     let meeting_id = meeting_id.to_owned();
     let request_id = request_id.to_owned();
     let model = model.to_owned();
-    let budget = document["usage_budget"].clone();
+    let budget = budget.clone();
     tokio::task::spawn_blocking(move || {
         if !local {
             for (limit, current) in [
-                (budget["meeting_limit_jpy"].as_f64().unwrap_or(0.0), meeting(&path, &meeting_id)?),
-                (budget["monthly_limit_jpy"].as_f64().unwrap_or(0.0), month(&path)?),
+                (budget.meeting_limit_jpy, meeting(&path, &meeting_id)?),
+                (budget.monthly_limit_jpy, month(&path)?),
             ] {
                 if limit > 0.0 && (current.incomplete_requests > 0 || current.estimated_cost_jpy >= limit || !known_price(&model)) {
                     return Err(crate::ai::AiError::Budget.into());
@@ -217,8 +217,10 @@ mod tests {
     async fn request_journal_preserves_unknown_usage_and_enforces_budgets() {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("usage.jsonl");
-        let budget =
-            serde_json::json!({"usage_budget":{"monthly_limit_jpy":100.0,"meeting_limit_jpy":1.0}});
+        let budget = crate::settings::UsageBudget {
+            monthly_limit_jpy: 100.0,
+            meeting_limit_jpy: 1.0,
+        };
         begin(
             &budget,
             temp.path(),

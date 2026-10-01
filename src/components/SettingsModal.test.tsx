@@ -802,16 +802,14 @@ describe("SettingsModal connection UX", () => {
       "uv 0.11.7",
     );
   });
-  it.each(["deepgram", "openai", "xai", "remote", "managed"])(
-    "keeps an old %s speech setting visible as unavailable without credentials or automatic replacement",
+  it.each(["unknown"])(
+    "requires selection for an unsupported %s speech value from the API",
     async (backend) => {
       await renderModal(settings({ stt: { backend, language: "ja" } }));
       fireEvent.click(screen.getByRole("button", { name: /音声/ }));
-      expect(screen.getByLabelText("音声認識方式")).toHaveValue(backend);
+      expect(screen.getByLabelText("音声認識方式")).toHaveValue("");
       expect(
-        screen.getByText(
-          "以前の音声認識設定は利用できません。端末内の方式を選び直してください。",
-        ),
+        screen.getByText("音声認識方式を選択してください。"),
       ).toBeInTheDocument();
       expect(
         screen.queryByRole("textbox", { name: /APIキー/ }),

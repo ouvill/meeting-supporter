@@ -152,9 +152,11 @@ workflowは公開を自動化しません。draftを公開する前に対象OS�
 
 ## 設定とcredential
 
-既定値は`python/config.default.toml`を参照してください。利用者設定はAppData配下の`config.toml`へ保存されます。
+Rust 構成は AppData 配下の `settings.toml` を使用し、ファイル全体に `schema_version = 1` を持たせます。旧設定からは自動移行しません。設定の例と再設定手順は [Rust の設定手順](doc/development/rust-desktop-backend.md#設定の保存と反映)を参照してください。
 
-アプリ設定から保存したcredentialはPython `keyring`経由のOS credential storeを優先します。開発・CIでfile backendを明示する場合は`SECRET_STORE_BACKEND=file`を使用できます。credentialをissue、log、screenshot、文書へ記録しないでください。
+Python 構成は `python/config.default.toml` の既定値と AppData 配下の `config.toml` を使用します。
+
+Rust 構成の API キーは OS の認証情報ストアへ保存します。Python 構成は Python `keyring` を使用し、開発・CI では `SECRET_STORE_BACKEND=file` を指定できます。credential を issue、log、screenshot、文書へ記録しないでください。
 
 「端末内・高精度」のWhisper modelは、アプリの音声設定からダウンロードできます。進捗表示と失敗時の再試行に対応し、保存先にはHugging Faceの標準共有cacheを使用するため、アプリ専用フォルダへmodelを重複保存しません。Pythonバックエンドでは途中キャンセルできません。Rustバックエンドでは取得のキャンセルにも対応します。
 

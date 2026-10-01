@@ -5,6 +5,8 @@
 - **Date**: 2026-07-08
 - **Updated**: 2026-09-30（情報 AI を機能・移植対象から削除）
 
+- **Partially superseded by**: [ADR-020](./020-versioned-rust-settings.md)（Rust の設定形式・旧設定と認証情報の扱い）
+
 ## Context
 
 会議支援AIの主価値は、汎用議事録や汎用チャットではなく、会議中に相手の発言へすぐ使える「次の一言」を提案する Live Reply にある。

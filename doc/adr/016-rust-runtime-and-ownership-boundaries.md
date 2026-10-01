@@ -6,6 +6,8 @@
 - **Builds on**: ADR-002、ADR-003、ADR-009、ADR-010、ADR-015
 - **Supersession**: Rust 直接接続の中断会議の扱いは [ADR-018](./018-interrupted-meeting-history.md) で部分置換する。その他は提案のままとする。
 
+- **Partially superseded by**: [ADR-020](./020-versioned-rust-settings.md)（Rust の設定形式・旧設定と認証情報の扱い）
+
 ## Context
 
 Rust 移行の目的は、通常起動から Python 環境の準備を除去し、会議中の応答性と障害時の扱いを改善することである。音声系はモデルに適した native engine を選び、ONNX への統一は要求しない。Silero / ReazonSpeech は ONNX、Whisper は専用 engine を第一候補とし、ローカル LLM のモデル実行基盤は後で検討する。React UI、利用者が判断して使う Live Reply、音声の送信先を選べる製品方針は維持する。

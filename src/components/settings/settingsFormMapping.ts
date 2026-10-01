@@ -36,8 +36,6 @@ const SECRET_KEYS = [
   "GEMINI_API_KEY",
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
-  "DEEPGRAM_API_KEY",
-  "XAI_API_KEY",
 ] as const;
 
 export const INITIAL_SETTINGS_FORM: SettingsForm = {
@@ -82,9 +80,7 @@ function getTomlNumber(
 export function mapSettingsResponseToForm(
   settings: SettingsResponseWithRetention,
 ): SettingsForm {
-  const secretsStatus = settings.secrets as typeof settings.secrets & {
-    XAI_API_KEY?: boolean;
-  };
+  const secretsStatus = settings.secrets;
   const replyStyles = (
     settings.reply?.styles?.length
       ? settings.reply.styles
@@ -137,10 +133,11 @@ export function mapSettingsFormToPayload(
   form: SettingsForm,
   savedBaseline: SettingsForm | null,
   pendingDeleteSecrets: ConnectionSecretKey[],
+  rustBackend = false,
 ): SettingsSaveRequestWithRetention {
   const secrets = Object.fromEntries(
     Object.entries(form.secretInputs).filter(([, value]) => value.trim()),
-  ) as SecretsPayload & { XAI_API_KEY?: string };
+  ) as SecretsPayload;
   const replyStyles =
     form.replyFeatureEnabled && !form.replyStyles.some((style) => style.enabled)
       ? form.replyStyles.map((style, index) => ({
@@ -182,7 +179,7 @@ export function mapSettingsFormToPayload(
             language: form.sttLang,
             vad_engine: form.sttVadEngine,
             vad_sensitivity: form.sttVadSensitivity,
-            vad_aggressiveness: form.sttVad,
+            ...(!rustBackend ? { vad_aggressiveness: form.sttVad } : {}),
             silence_duration: form.sttSilence,
           },
         }

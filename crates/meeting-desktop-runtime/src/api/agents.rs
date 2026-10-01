@@ -75,7 +75,7 @@ pub(super) async fn connect(
 pub(super) async fn remove(State(api): State<Api>, Path(id): Path<String>) -> Reply {
     let _guard = maintenance(&api).await?;
     let store = api.shared.settings.lock().await;
-    let assigned = crate::ai::routes::assignments(&store)?;
+    let assigned = &store.document.ai.assignments;
     if assigned.reply.as_deref() == Some(format!("acp:{id}").as_str()) {
         return Err(ApiError(
             StatusCode::CONFLICT,

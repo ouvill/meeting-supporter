@@ -7,7 +7,6 @@ use crate::{
 use futures_util::StreamExt;
 use meeting_storage::models as db;
 use rig::streaming::StreamedAssistantContent;
-use serde::Deserialize;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -23,24 +22,6 @@ pub(crate) struct Replies {
 struct Generation {
     gate: Arc<Mutex<Vec<String>>>,
     task: JoinHandle<()>,
-}
-#[derive(Deserialize)]
-struct Style {
-    id: String,
-    #[serde(default)]
-    label: String,
-    #[serde(default = "enabled")]
-    enabled: bool,
-    #[serde(default = "priority")]
-    priority: i64,
-    #[serde(default)]
-    instruction: String,
-}
-fn enabled() -> bool {
-    true
-}
-fn priority() -> i64 {
-    100
 }
 enum ReplyRoute {
     Model(routes::Route),
@@ -87,10 +68,14 @@ impl Replies {
             return Err(AiError::Busy.into());
         }
         let store = shared.settings.lock().await.clone();
-        if store.document["reply"]["enabled"] != true {
+        if !store.document.reply.enabled {
             return Err(AiError::Disabled.into());
         }
-        let selected = routes::assignments(&store)?
+        let selected = store
+            .document
+            .ai
+            .assignments
+            .clone()
             .reply
             .ok_or(AiError::Configuration)?;
         let route = if let Some(id) = selected.strip_prefix("acp:") {
@@ -160,7 +145,7 @@ impl Replies {
             prompt.extend(live.context_text.chars().take(4000));
         }
         drop(live);
-        let styles: Vec<Style> = serde_json::from_value(store.document["reply"]["styles"].clone())?;
+        let styles = store.document.reply.styles.clone();
         let mut styles: Vec<_> = styles.into_iter().filter(|s| s.enabled).collect();
         styles.sort_by_key(|s| s.priority);
         if styles.is_empty() {
@@ -273,7 +258,7 @@ impl Job {
         let model = self.route.model();
         let local = self.route.local();
         crate::usage::begin(
-            &store.document,
+            &store.document.usage_budget,
             &self.shared.config.data_dir,
             &self.meeting_id,
             &request_id,

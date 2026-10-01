@@ -71,9 +71,7 @@ impl Shared {
     }
     pub async fn snapshot(&self) -> (Vec<Event>, broadcast::Receiver<Event>) {
         let settings = self.settings.lock().await;
-        let agents = settings.agent_event().unwrap_or_else(|error| Event::Error {
-            text: error.to_string(),
-        });
+        let agents = settings.agent_event();
         let live = self.live.lock().await;
         let mut events = vec![
             Event::Status {
@@ -169,8 +167,7 @@ impl Shared {
             tokio::spawn(async move {
                 let enabled = {
                     let settings = shared.settings.lock().await;
-                    settings.document["reply"]["auto_generate"] == true
-                        && settings.document["reply"]["enabled"] == true
+                    settings.document.reply.auto_generate && settings.document.reply.enabled
                 };
                 if !enabled {
                     return;
@@ -478,9 +475,6 @@ impl Runtime {
         let audio_changed = store.audio_changed(&candidate);
         if audio_changed {
             self.idle()?;
-            let mut proposed = store.clone();
-            proposed.document = candidate.clone();
-            proposed.speech()?;
         }
         let saved = tokio::task::spawn_blocking(move || {
             let mut store = store;
@@ -490,9 +484,7 @@ impl Runtime {
         .await
         .map_err(|_| Error::Closed)??;
         self.shared.live.lock().await.backend = saved.backend();
-        if let Ok(event) = saved.agent_event() {
-            self.shared.emit(event);
-        }
+        self.shared.emit(saved.agent_event());
         *current = saved;
         drop(current);
         self.shared
@@ -513,7 +505,6 @@ impl Runtime {
             return Err(Error::Cancelled);
         }
         self.idle()?;
-        self.shared.settings.lock().await.speech()?;
         let initialized = self.shared.live.lock().await.initialized;
         if initialized {
             self.stt_state(true, false).await;
@@ -535,12 +526,12 @@ impl Runtime {
     }
     async fn prepare_sources(&mut self) -> Result<(), Error> {
         let settings = self.shared.settings.lock().await;
-        let speech = settings.speech()?;
-        let recognizer = settings.recognizer()?;
+        let speech = settings.speech();
+        let recognizer = settings.recognizer();
         let model = match recognizer {
             media::Recognizer::Reazonspeech => self.shared.models.reazon_path()?,
             media::Recognizer::Whisper { .. } => {
-                self.shared.models.whisper_path(settings.whisper_model()?)?
+                self.shared.models.whisper_path(settings.whisper_model())?
             }
         };
         drop(settings);
@@ -571,11 +562,7 @@ impl Runtime {
     }
     async fn load_context(&self) -> Result<String, Error> {
         let settings = self.shared.settings.lock().await;
-        let path = settings.document["context"]["dir_override"]
-            .as_str()
-            .filter(|s| !s.is_empty())
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| self.shared.config.data_dir.join("context"));
+        let path = settings.context_dir();
         drop(settings);
         tokio::task::spawn_blocking(move || crate::references::load_context(&path))
             .await

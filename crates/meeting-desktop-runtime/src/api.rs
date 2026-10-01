@@ -581,7 +581,7 @@ fn settings_error(error: Error) -> ApiError {
             StatusCode::CONFLICT,
             json!({"code":"AUDIO_SETTINGS_LOCKED","message":"会議中・準備中は音声認識の設定を変更できません。"}),
         ),
-        Error::Settings | Error::Unsupported | Error::SpeechSelection => {
+        Error::Settings | Error::Unsupported => {
             ApiError(StatusCode::UNPROCESSABLE_ENTITY, error.to_string().into())
         }
         _ => error.into(),
@@ -642,7 +642,11 @@ fn model_error(error: crate::models::ModelError) -> ApiError {
 async fn ai_routes(State(api): State<Api>) -> Reply {
     let store = api.shared.settings.lock().await.clone();
     // Warm the previously selected agent on startup without prompting the model.
-    if let Some(id) = crate::ai::routes::assignments(&store)?
+    if let Some(id) = store
+        .document
+        .ai
+        .assignments
+        .clone()
         .reply
         .and_then(|id| id.strip_prefix("acp:").map(str::to_owned))
     {
@@ -682,24 +686,10 @@ async fn ai_assignments(
         }
     }
     let mut candidate = guard.document.clone();
-    let mut values = serde_json::to_value(&body)
-        .map_err(Error::from)?
-        .as_object()
-        .cloned()
-        .ok_or(Error::Settings)?;
-    values.retain(|_, v| !v.is_null());
-    candidate["ai"]["assignments"] = Value::Object(values);
+    candidate.ai.assignments = body;
     let mut store = guard.clone();
-    let selected = body.reply;
     let saved = tokio::task::spawn_blocking(move || {
-        if let Some(id) = selected.filter(|id| !id.starts_with("acp:")) {
-            if let Err(Error::Ai(crate::ai::AiError::Unsupported)) =
-                crate::ai::routes::resolve(&store, &id)
-            {
-                return Err(crate::ai::AiError::Unsupported.into());
-            }
-        }
-        store.save(candidate, serde_json::from_value(json!({}))?)?;
+        store.save(candidate, crate::settings::Patch::default())?;
         Ok::<_, Error>(store)
     })
     .await
@@ -723,10 +713,13 @@ struct OllamaQuery {
 async fn ollama_models(State(api): State<Api>, Query(query): Query<OllamaQuery>) -> Reply {
     let base_url = match query.base_url {
         Some(url) => url,
-        None => api.shared.settings.lock().await.document["ollama"]["base_url"]
-            .as_str()
-            .ok_or(Error::Settings)?
-            .into(),
+        None => api
+            .shared
+            .settings
+            .lock()
+            .await
+            .route_url(crate::ai::routes::Provider::Ollama)
+            .to_owned(),
     };
     match crate::ai::routes::ollama_models(&base_url).await {
         Ok(models) => Ok(Json(

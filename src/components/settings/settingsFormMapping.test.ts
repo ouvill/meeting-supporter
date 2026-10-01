@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   INITIAL_SETTINGS_FORM,
   mapSettingsResponseToForm,
+  mapSettingsFormToPayload,
   type SettingsResponseWithRetention,
 } from "./settingsFormMapping";
 
@@ -21,5 +22,29 @@ describe("settingsFormMapping STT defaults", () => {
 
     expect(form.sttBackend).toBe("reazonspeech");
     expect(form.sttLang).toBe("ja");
+  });
+});
+
+describe("settings save contract", () => {
+  it("sends only supported audio settings to the Rust backend", () => {
+    const form = {
+      ...INITIAL_SETTINGS_FORM,
+      sttBackend: "whisper",
+      sttWhisperModel: "tiny",
+      sttLang: "auto",
+      sttDevice: "cpu",
+    };
+    const payload = mapSettingsFormToPayload(form, null, [], true);
+    expect(payload.stt).toEqual({
+      backend: "whisper",
+      whisper_model: "tiny",
+      language: "auto",
+      device: "cpu",
+      vad_engine: "silero",
+      vad_sensitivity: 0.4,
+      silence_duration: 0.8,
+    });
+    const pythonPayload = mapSettingsFormToPayload(form, null, [], false);
+    expect(pythonPayload.stt?.vad_aggressiveness).toBe(2);
   });
 });

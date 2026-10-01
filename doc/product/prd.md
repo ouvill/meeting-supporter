@@ -57,6 +57,8 @@
 - 接続テストまたは状態確認が失敗した場合は、同じprovider固有controlに秘密情報を含まない復旧案を示す。
 - 未保存の設定変更がある状態で閉じるときは、`変更を破棄して閉じる`または`設定に戻る`を求める。破棄はform、secret draft/deletion、route選択をsaved baselineへ戻してから一度だけ閉じる。変更がなければ確認を挟まない。
 
+Rust 構成の設定はバージョン付きの専用形式とし、旧設定は自動移行しない。再設定しても会議記録は保持する。詳細は [ADR-020](../adr/020-versioned-rust-settings.md) に従う。
+
 ### Hosted service boundary
 
 Meeting Supporterが運営するhosted serviceのserver実装・運用文書は、このOSSリポジトリに含まれない。通常のOSS buildではhosted serviceは未設定で利用できず、`not_offered`かつ`selectable = false`としてfail closedする。local STT、利用者自身のAPI credential、Ollama、ACPエージェントはhosted accountなしで利用できる。

@@ -228,7 +228,7 @@ local STT、利用者自身のAPI credential、Ollama、ACPエージェントは
 ### Audio selection
 
 音声設定は Whisper / ReazonSpeech を選択できる。音声認識用の API キー、接続先、クラウドモデルと未提供の方式は表示しない。
-以前の利用不可の方式が保存されている場合は、ローカル方式を選び直すよう案内する。自動で方式を変更しない。
+Rust の旧設定は読み込まず、新形式の既定値から設定する。設定形式の扱いは [ADR-020](../adr/020-versioned-rust-settings.md) に従う。
 
 ## 5. Advanced AI Settings
 
