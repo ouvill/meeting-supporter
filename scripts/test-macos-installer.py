@@ -53,7 +53,7 @@ with tempfile.TemporaryDirectory(prefix="meeting macOS 日本語 ") as temporary
         resources / "native/meeting-native-backend",
         resources / "python-worker/meeting-python-worker",
     ]:
-        run("lipo", "-verify_arch", platform.machine(), str(executable))
+        run("lipo", str(executable), "-verify_arch", platform.machine())
     run("codesign", "--verify", "--deep", "--strict", str(installed))
     run("swift", str(root / "test/macos-app-window.swift"), str(installed))
     env = dict(os.environ)

@@ -5,13 +5,19 @@ on:
   push:
     branches: [main, "ci/rust-desktop-*"]
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Installer platform to verify
+        type: choice
+        default: all
+        options: [all, macos-15, macos-15-intel, windows-2022, ubuntu-22.04]
   workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: rust-installers-${{ github.workflow }}-${{ github.ref }}
+  group: rust-installers-${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform || 'all' }}
   cancel-in-progress: true
 
 jobs:
@@ -22,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [windows-2022, ubuntu-22.04, macos-15, macos-15-intel]
+        platform: ${{ inputs.platform && inputs.platform != 'all' && fromJSON(format('["{0}"]', inputs.platform)) || fromJSON('["windows-2022", "ubuntu-22.04", "macos-15", "macos-15-intel"]') }}
     env:
       MANAGED_API_BASE_URL: ""
       CARGO_TERM_COLOR: always
@@ -137,6 +143,7 @@ jobs:
             src-tauri/target/release/bundle/dmg/*.dmg
 
   windows-desktop:
+    if: ${{ !inputs.platform || inputs.platform == 'all' || inputs.platform == 'windows-2022' }}
     name: Rust desktop E2E (Windows)
     runs-on: windows-2022
     timeout-minutes: 40
