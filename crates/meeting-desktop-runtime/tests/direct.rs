@@ -109,17 +109,13 @@ async fn start(ws: &mut Socket) {
     until(ws, |v| v["type"] == "meeting_state" && v["running"] == true).await;
     // Observe capture progress after StartSpeech attached both routes. A fixed
     // sleep can expire before either worker is scheduled on a loaded runner.
-    let mut inputs = [false; 2];
-    while !inputs.iter().all(|ready| *ready) {
-        let level = until(ws, |v| {
-            v["type"] == "audio_level" && v["level"].as_f64().is_some_and(|p| p > 0.0)
+    for role in ["self", "other"] {
+        until(ws, |v| {
+            v["type"] == "audio_level"
+                && v["role"] == role
+                && v["level"].as_f64().is_some_and(|p| p > 0.0)
         })
         .await;
-        match level["role"].as_str() {
-            Some("self") => inputs[0] = true,
-            Some("other") => inputs[1] = true,
-            _ => panic!("unexpected capture role"),
-        }
     }
 }
 
