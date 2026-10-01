@@ -112,6 +112,13 @@ pub enum Recognition {
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Reply {
+    Segment {
+        role: Role,
+        segment: SegmentInfo,
+    },
+    Lag {
+        role: Role,
+    },
     Ready {
         protocol: u8,
         models: ModelStatus,

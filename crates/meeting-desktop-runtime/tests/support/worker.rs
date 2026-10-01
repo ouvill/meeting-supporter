@@ -70,6 +70,7 @@ fn main() {
 }
 fn speech(args: Vec<String>) {
     let whisper = args.iter().any(|s| s == "--whisper-model");
+    let shared = args.iter().any(|s| s == "--shared");
     let model = std::path::Path::new(
         &args[args
             .iter()
@@ -90,13 +91,33 @@ fn speech(args: Vec<String>) {
     std::fs::write(model.join(format!("pid-{}", std::process::id())), "").unwrap();
     println!(
         "{}",
-        json!({"type":"ready","id":null,"protocol":2,"transcription_available":true})
+        json!({"type":"ready","id":null,"protocol":if shared {3} else {2},"transcription_available":true})
     );
-    let mut generation = 0;
-    let mut samples = 0;
+    let mut generations = [0_u64; 2];
+    let mut sample_counts = [0_usize; 2];
+    let (inference, pending) = std::sync::mpsc::channel::<(Value, bool)>();
+    let inference_thread = std::thread::spawn(move || {
+        for (mut response, slow) in pending {
+            if slow {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+            }
+            let segment = response["segment"].take();
+            if !segment.is_null() {
+                println!(
+                    "{}",
+                    json!({"id":null,"type":"segment","role":response["role"],"segment":segment})
+                );
+            }
+            response.as_object_mut().unwrap().remove("role");
+            println!("{response}");
+        }
+    });
     for line in std::io::stdin().lock().lines() {
         let value: Value = serde_json::from_str(&line.unwrap()).unwrap();
         let command = &value["command"];
+        let role = if command["role"] == "other" { 1 } else { 0 };
+        let generation = &mut generations[role];
+        let samples = &mut sample_counts[role];
         let mut response = json!({"id":value["id"]});
         match command["op"].as_str().unwrap() {
             "prepare" => {
@@ -118,38 +139,49 @@ fn speech(args: Vec<String>) {
                 response["type"] = json!("configured");
             }
             "reset" => {
-                generation += 1;
-                samples = 0;
+                *generation += 1;
+                *samples = 0;
                 response["type"] = json!("reset");
             }
             "audio" => {
                 if model.ends_with("crash") {
                     std::process::exit(23);
                 }
-                samples += command["pcm"].as_array().unwrap().len();
+                *samples += command["pcm"].as_array().unwrap().len();
                 response["type"] = json!("audio");
                 response["segment"] = Value::Null;
             }
             "finish" => {
                 if model.ends_with("slow-finish") {
                     std::fs::write(
-                        model.join(format!("finished-samples-{}", std::process::id())),
+                        model.join(format!("finished-samples-{}-{role}", std::process::id())),
                         samples.to_string(),
                     )
                     .unwrap();
-                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    if !shared {
+                        std::thread::sleep(std::time::Duration::from_secs(2));
+                    }
                 }
                 response["type"] = json!("finished");
-                response["segment"] = if samples == 0 {
+                response["segment"] = if *samples == 0 {
                     Value::Null
                 } else {
-                    json!({"generation":generation,"start_sample":0,"end_sample":samples,"recognition":{"status":"recognized","text":"synthetic","punctuation":{"status":"applied","text":"synthetic。"}}})
+                    json!({"generation":generation,"start_sample":0,"end_sample":samples,"recognition":{"status":"recognized","text":format!("synthetic {role}"),"punctuation":{"status":"applied","text":format!("synthetic {role}。")}}})
                 };
+                if shared {
+                    response["role"] = command["role"].clone();
+                    inference
+                        .send((response, model.ends_with("slow-finish")))
+                        .unwrap();
+                    continue;
+                }
             }
             _ => std::process::exit(2),
         }
         println!("{response}");
     }
+    drop(inference);
+    inference_thread.join().unwrap();
 }
 fn capture() {
     let (tx, rx) = std::sync::mpsc::channel();

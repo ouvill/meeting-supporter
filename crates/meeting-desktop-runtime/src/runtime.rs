@@ -2,7 +2,7 @@ use crate::{
     wire::{self, Event},
     Config, Error,
 };
-use meeting_media_runtime::{wire as media, Options, Supervisor};
+use meeting_media_runtime::{wire as media, Options, SharedSpeech, Supervisor};
 use meeting_session::{Command as SessionCommand, Coordinator, Effect, Outcome, Phase, Session};
 use meeting_storage::{models as db, Repository};
 use std::{
@@ -330,6 +330,7 @@ pub(crate) struct Runtime {
     pub shared: Arc<Shared>,
     coordinator: Coordinator,
     sources: Vec<Source>,
+    speech: Option<SharedSpeech>,
     closed: bool,
     resources_failed: bool,
     ownership: Option<std::fs::File>,
@@ -388,6 +389,7 @@ impl Runtime {
             shared,
             coordinator: Coordinator::default(),
             sources: vec![],
+            speech: None,
             closed: false,
             resources_failed: false,
             ownership: Some(ownership),
@@ -437,6 +439,11 @@ impl Runtime {
                 result = Err(error);
             }
             self.shared.emit(Event::AudioLevel { role, level: 0.0 });
+        }
+        if let Some(mut speech) = self.speech.take() {
+            if let Err(error) = speech.close().await {
+                result = Err(error.into());
+            }
         }
         self.resources_failed |= result.is_err();
         self.stt_state(false, false).await;
@@ -535,6 +542,19 @@ impl Runtime {
             }
         };
         drop(settings);
+        let config = &self.shared.config;
+        let punctuation = match recognizer {
+            media::Recognizer::Reazonspeech => config.punctuation.as_deref(),
+            _ => None,
+        };
+        // Retain the owner before awaiting so cancelled preparation reaps it.
+        self.speech = Some(SharedSpeech::spawn(
+            &config.speech_worker,
+            &model,
+            &recognizer,
+            punctuation,
+        )?);
+        self.speech.as_mut().unwrap().prepare(speech).await?;
         let selected = self.shared.live.lock().await.selected.clone();
         for (role, device) in [media::Role::User, media::Role::Other]
             .into_iter()
@@ -542,20 +562,11 @@ impl Runtime {
         {
             let source = Source::open(self.shared.clone(), role, device).await?;
             self.sources.push(source);
-            let config = &self.shared.config;
             self.sources
                 .last_mut()
                 .unwrap()
                 .supervisor
-                .execute(media::Command::Prepare {
-                    recognizer: recognizer.clone(),
-                    model: model.clone(),
-                    punctuation: match recognizer {
-                        media::Recognizer::Reazonspeech => config.punctuation.clone(),
-                        _ => None,
-                    },
-                    config: speech.clone(),
-                })
+                .attach_shared(self.speech.as_ref().unwrap())
                 .await?;
         }
         Ok(())

@@ -8,7 +8,6 @@ use crate::{
 use meeting_audio_core::{Config, FRAME_SAMPLES, Segment, Segmenter};
 use std::path::PathBuf;
 
-/// Validated compositions, not a requirement that every provider expose VAD/ASR separately.
 #[derive(Clone)]
 pub enum SpeechPlan {
     SileroOnly,
@@ -22,21 +21,15 @@ pub enum SpeechPlan {
         punctuation_directory: Option<PathBuf>,
     },
 }
-
 #[derive(Clone)]
 pub struct SessionConfig {
     pub runtime_library: PathBuf,
     pub plan: SpeechPlan,
 }
-
 pub struct Unprepared(SessionConfig);
 pub struct Prepared {
-    vad: Vad,
-    segmentation: Config,
-    vad_threshold: f32,
-    recognizer: Option<Recognizer>,
-    punctuator: Option<Punctuator>,
-    sources: [Source; 2],
+    frontend: Frontend,
+    inference: Inference,
 }
 
 /// Only a successfully prepared session has audio/finish methods.
@@ -44,26 +37,54 @@ pub struct Prepared {
 /// ```compile_fail
 /// use meeting_native_backend::{protocol::Role, session::{SessionConfig, SpeechPlan, SpeechSession}};
 /// let mut session = SpeechSession::new(SessionConfig {
-///     runtime_library: "runtime.so".into(),
-///     plan: SpeechPlan::SileroOnly,
+///     runtime_library: "runtime.so".into(), plan: SpeechPlan::SileroOnly,
 /// });
 /// session.audio(Role::User, &[0; 480]);
 /// ```
 pub struct SpeechSession<State> {
     state: State,
 }
-
 impl SpeechSession<Unprepared> {
     pub fn new(config: SessionConfig) -> Self {
         Self {
             state: Unprepared(config),
         }
     }
-
     pub fn prepare(self) -> Result<SpeechSession<Prepared>, SpeechError> {
         let config = self.state.0;
-        let vad = Vad::load(&config.runtime_library)?;
-        let (recognizer, punctuator) = match config.plan {
+        // Initialize ORT before loading optional punctuation on the inference thread.
+        let frontend = Frontend::load(&config.runtime_library)?;
+        let inference = Inference::load(config.plan)?;
+        Ok(SpeechSession {
+            state: Prepared {
+                frontend,
+                inference,
+            },
+        })
+    }
+}
+
+enum Recognizer {
+    Reazon(Reazon),
+    Whisper(crate::whisper::Whisper),
+}
+impl Recognizer {
+    fn transcribe(&mut self, audio: &[f32]) -> Result<String, SpeechError> {
+        match self {
+            Self::Reazon(model) => model.transcribe(audio),
+            Self::Whisper(model) => model.transcribe(audio),
+        }
+    }
+}
+
+/// Owns the heavy models; one instance serves both roles serially.
+pub struct Inference {
+    recognizer: Option<Recognizer>,
+    punctuator: Option<Punctuator>,
+}
+impl Inference {
+    pub fn load(plan: SpeechPlan) -> Result<Self, SpeechError> {
+        let (recognizer, punctuator) = match plan {
             SpeechPlan::SileroOnly => (None, None),
             SpeechPlan::SileroWhisper {
                 model,
@@ -86,40 +107,57 @@ impl SpeechSession<Unprepared> {
                     .transpose()?,
             ),
         };
-        Ok(SpeechSession {
-            state: Prepared {
-                vad,
-                segmentation: Config::default(),
-                vad_threshold: 0.5,
-                recognizer,
-                punctuator,
-                sources: [
-                    Source::new(0, Config::default())?,
-                    Source::new(0, Config::default())?,
-                ],
-            },
+        Ok(Self {
+            recognizer,
+            punctuator,
+        })
+    }
+    pub fn execution_device(&self) -> Option<&'static str> {
+        match &self.recognizer {
+            Some(Recognizer::Whisper(model)) => Some(model.device()),
+            _ => None,
+        }
+    }
+    pub fn recognize(&mut self, mut pending: PendingSegment) -> Result<SegmentInfo, SpeechError> {
+        pending.info.recognition = match (&mut self.recognizer, pending.accepted) {
+            (_, false) => Recognition::Rejected,
+            (None, true) => Recognition::NotRequested,
+            (Some(recognizer), true) => {
+                let text = recognizer.transcribe(&pending.audio)?;
+                let punctuation = self.punctuator.as_mut().map(|model| model.process(&text));
+                Recognition::Recognized { text, punctuation }
+            }
+        };
+        Ok(pending.info)
+    }
+}
+
+pub struct PendingSegment {
+    pub role: Role,
+    pub info: SegmentInfo,
+    pub audio: Vec<f32>,
+    accepted: bool,
+}
+impl PendingSegment {
+    pub fn new(
+        role: Role,
+        segment: Segment,
+        samples: u64,
+        generation: u64,
+    ) -> Result<Self, SpeechError> {
+        let info = SegmentInfo::new(&segment, samples, generation, Recognition::NotRequested)?;
+        Ok(Self {
+            role,
+            info,
+            audio: segment.audio,
+            accepted: segment.accepted,
         })
     }
 }
-
-enum Recognizer {
-    Reazon(Reazon),
-    Whisper(crate::whisper::Whisper),
-}
-impl Recognizer {
-    fn transcribe(&mut self, audio: &[f32]) -> Result<String, SpeechError> {
-        match self {
-            Self::Reazon(model) => model.transcribe(audio),
-            Self::Whisper(model) => model.transcribe(audio),
-        }
-    }
-}
-
 enum SourcePhase {
     Open,
     Finished,
 }
-
 struct Source {
     vad: VadState,
     segmenter: Segmenter,
@@ -127,7 +165,6 @@ struct Source {
     samples: u64,
     generation: u64,
 }
-
 impl Source {
     fn new(generation: u64, config: Config) -> Result<Self, SpeechError> {
         Ok(Self {
@@ -140,15 +177,29 @@ impl Source {
     }
 }
 
-impl SpeechSession<Prepared> {
-    pub fn execution_device(&self) -> Option<&'static str> {
-        match &self.state.recognizer {
-            Some(Recognizer::Whisper(model)) => Some(model.device()),
-            _ => None,
-        }
+/// VAD and utterance buffers remain available while a separate thread infers.
+pub struct Frontend {
+    vad: Vad,
+    segmentation: Config,
+    vad_threshold: f32,
+    sources: [Source; 2],
+}
+impl Frontend {
+    pub fn load(library: &std::path::Path) -> Result<Self, SpeechError> {
+        Ok(Self {
+            vad: Vad::load(library)?,
+            segmentation: Config::default(),
+            vad_threshold: 0.5,
+            sources: [
+                Source::new(0, Config::default())?,
+                Source::new(0, Config::default())?,
+            ],
+        })
     }
-
-    pub fn execute(&mut self, command: Command) -> Result<Reply, SpeechError> {
+    pub fn execute(
+        &mut self,
+        command: Command,
+    ) -> Result<(Reply, Option<PendingSegment>), SpeechError> {
         match command {
             Command::Configure {
                 vad_threshold,
@@ -159,7 +210,7 @@ impl SpeechSession<Prepared> {
             } => {
                 if !vad_threshold.is_finite()
                     || !(0.0..=1.0).contains(&vad_threshold)
-                    || self.state.sources.iter().any(|s| s.samples != 0)
+                    || self.sources.iter().any(|s| s.samples != 0)
                 {
                     return Err(SpeechError::InvalidAudioCommand);
                 }
@@ -169,97 +220,102 @@ impl SpeechSession<Prepared> {
                     min_voiced_ratio,
                     min_rms_dbfs,
                 };
-                let sources = [Source::new(0, config)?, Source::new(0, config)?];
-                self.state.sources = sources;
-                self.state.segmentation = config;
-                self.state.vad_threshold = vad_threshold;
-                Ok(Reply::Configured)
+                self.sources = [Source::new(0, config)?, Source::new(0, config)?];
+                self.segmentation = config;
+                self.vad_threshold = vad_threshold;
+                Ok((Reply::Configured, None))
             }
-            Command::Audio { role, pcm } => self.audio(role, &pcm),
-            Command::Finish { role } => self.finish(role),
             Command::Reset { role } => {
-                let source = &mut self.state.sources[role.index()];
+                let source = &mut self.sources[role.index()];
                 *source = Source::new(
                     source
                         .generation
                         .checked_add(1)
                         .ok_or(SpeechError::InvalidSegmentation)?,
-                    self.state.segmentation,
+                    self.segmentation,
                 )?;
-                Ok(Reply::Reset)
+                Ok((Reply::Reset, None))
+            }
+            Command::Audio { role, pcm } => {
+                if pcm.len() != FRAME_SAMPLES {
+                    return Err(SpeechError::InvalidFrameLength);
+                }
+                let source = &mut self.sources[role.index()];
+                if matches!(source.phase, SourcePhase::Finished) {
+                    return Err(SpeechError::SourceFinished);
+                }
+                let (speech, probabilities) =
+                    self.vad
+                        .process_with_threshold(&mut source.vad, &pcm, self.vad_threshold)?;
+                let bytes: Vec<u8> = pcm.iter().flat_map(|sample| sample.to_le_bytes()).collect();
+                let segment = source
+                    .segmenter
+                    .push(&bytes, speech)
+                    .map_err(|_| SpeechError::InvalidSegmentation)?;
+                source.samples = source
+                    .samples
+                    .checked_add(FRAME_SAMPLES as u64)
+                    .ok_or(SpeechError::InvalidSegmentation)?;
+                Ok((
+                    Reply::Audio {
+                        speech,
+                        probabilities,
+                        segment: None,
+                    },
+                    self.pending(role, segment)?,
+                ))
+            }
+            Command::Finish { role } => {
+                let source = &mut self.sources[role.index()];
+                source.phase = SourcePhase::Finished;
+                let segment = source.segmenter.finish();
+                Ok((
+                    Reply::Finished { segment: None },
+                    self.pending(role, segment)?,
+                ))
             }
             _ => Err(SpeechError::InvalidAudioCommand),
         }
     }
-
-    pub fn audio(&mut self, role: Role, pcm: &[i16]) -> Result<Reply, SpeechError> {
-        if pcm.len() != FRAME_SAMPLES {
-            return Err(SpeechError::InvalidFrameLength);
-        }
-        let source = &mut self.state.sources[role.index()];
-        if matches!(source.phase, SourcePhase::Finished) {
-            return Err(SpeechError::SourceFinished);
-        }
-        let (speech, probabilities) = self.state.vad.process_with_threshold(
-            &mut source.vad,
-            pcm,
-            self.state.vad_threshold,
-        )?;
-        let bytes: Vec<u8> = pcm.iter().flat_map(|sample| sample.to_le_bytes()).collect();
-        let segment = source
-            .segmenter
-            .push(&bytes, speech)
-            .map_err(|_| SpeechError::InvalidSegmentation)?;
-        source.samples = source
-            .samples
-            .checked_add(FRAME_SAMPLES as u64)
-            .ok_or(SpeechError::InvalidSegmentation)?;
-        let segment = self.recognize(role, segment)?;
-        Ok(Reply::Audio {
-            speech,
-            probabilities,
-            segment,
-        })
-    }
-
-    pub fn finish(&mut self, role: Role) -> Result<Reply, SpeechError> {
-        let source = &mut self.state.sources[role.index()];
-        // Idempotent flush; reset explicitly begins a new source generation.
-        source.phase = SourcePhase::Finished;
-        let segment = source.segmenter.finish();
-        Ok(Reply::Finished {
-            segment: self.recognize(role, segment)?,
-        })
-    }
-
-    fn recognize(
-        &mut self,
+    fn pending(
+        &self,
         role: Role,
         segment: Option<Segment>,
-    ) -> Result<Option<SegmentInfo>, SpeechError> {
-        let Some(segment) = segment else {
-            return Ok(None);
-        };
-        let source = &self.state.sources[role.index()];
-        let recognition = match (&mut self.state.recognizer, segment.accepted) {
-            (_, false) => Recognition::Rejected,
-            (None, true) => Recognition::NotRequested,
-            (Some(recognizer), true) => {
-                let text = recognizer.transcribe(&segment.audio)?;
-                let punctuation = self
-                    .state
-                    .punctuator
-                    .as_mut()
-                    .map(|model| model.process(&text));
-                Recognition::Recognized { text, punctuation }
+    ) -> Result<Option<PendingSegment>, SpeechError> {
+        segment
+            .map(|segment| {
+                let source = &self.sources[role.index()];
+                PendingSegment::new(role, segment, source.samples, source.generation)
+            })
+            .transpose()
+    }
+}
+
+impl SpeechSession<Prepared> {
+    pub fn execution_device(&self) -> Option<&'static str> {
+        self.state.inference.execution_device()
+    }
+    pub fn execute(&mut self, command: Command) -> Result<Reply, SpeechError> {
+        let (mut reply, pending) = self.state.frontend.execute(command)?;
+        if let Some(pending) = pending {
+            let recognized = self.state.inference.recognize(pending)?;
+            match &mut reply {
+                Reply::Audio { segment, .. } | Reply::Finished { segment } => {
+                    *segment = Some(recognized)
+                }
+                _ => return Err(SpeechError::InvalidAudioCommand),
             }
-        };
-        Ok(Some(SegmentInfo::new(
-            &segment,
-            source.samples,
-            source.generation,
-            recognition,
-        )?))
+        }
+        Ok(reply)
+    }
+    pub fn audio(&mut self, role: Role, pcm: &[i16]) -> Result<Reply, SpeechError> {
+        self.execute(Command::Audio {
+            role,
+            pcm: pcm.to_vec(),
+        })
+    }
+    pub fn finish(&mut self, role: Role) -> Result<Reply, SpeechError> {
+        self.execute(Command::Finish { role })
     }
 }
 
@@ -295,14 +351,14 @@ mod tests {
             Ok(Reply::Configured)
         ));
         for role in [Role::User, Role::Other] {
-            assert_eq!(session.state.sources[role.index()].samples, 0);
-            assert_eq!(session.state.sources[role.index()].generation, 0);
+            assert_eq!(session.state.frontend.sources[role.index()].samples, 0);
+            assert_eq!(session.state.frontend.sources[role.index()].generation, 0);
             assert!(matches!(
                 session.finish(role).unwrap(),
                 Reply::Finished { segment: None }
             ));
             session.execute(Command::Reset { role }).unwrap();
-            assert_eq!(session.state.sources[role.index()].generation, 1);
+            assert_eq!(session.state.frontend.sources[role.index()].generation, 1);
             for _ in 0..40 {
                 assert!(matches!(
                     session.audio(role, &[0; FRAME_SAMPLES]).unwrap(),

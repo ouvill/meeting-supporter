@@ -426,7 +426,9 @@ async fn failed_transcript_write_prevents_saved_notification_and_completion() {
 #[tokio::test]
 async fn repeated_meetings_keep_transcripts_in_their_own_session() {
     let temp = tempfile::tempdir().unwrap();
-    let server = Server::start(config(&temp, "model")).await.unwrap();
+    let settings = config(&temp, "model");
+    let model = settings.model.clone().unwrap();
+    let server = Server::start(settings).await.unwrap();
     for _ in 0..2 {
         let mut ws = connect(&server).await;
         start(&mut ws).await;
@@ -450,8 +452,23 @@ async fn repeated_meetings_keep_transcripts_in_their_own_session() {
         )
         .await;
         let detail: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(detail["turns"].as_array().unwrap().len(), 2);
+        let turns = detail["turns"].as_array().unwrap();
+        assert_eq!(turns.len(), 2);
+        for (speaker, text) in [("self", "synthetic 0。"), ("other", "synthetic 1。")] {
+            assert!(turns
+                .iter()
+                .any(|turn| turn["speaker"] == speaker && turn["text"] == text));
+        }
     }
+    assert_eq!(
+        std::fs::read_dir(model)
+            .unwrap()
+            .flatten()
+            .filter(|f| f.file_name().to_string_lossy().starts_with("pid-"))
+            .count(),
+        1,
+        "ReazonSpeech serves both inputs and meetings with one model"
+    );
     server.shutdown().await.unwrap();
 }
 
@@ -1692,7 +1709,7 @@ async fn model_api_reuses_huggingface_snapshot_and_rejects_removed_backend() {
 }
 
 #[tokio::test]
-async fn whisper_uses_ggml_cache_and_reuses_workers_across_meetings() {
+async fn whisper_shares_one_worker_and_reuses_it_across_meetings() {
     let temp = tempfile::tempdir().unwrap();
     let settings = config(&temp, "model");
     let root = settings.hub_cache.join("models--ggerganov--whisper.cpp");
@@ -1730,7 +1747,11 @@ async fn whisper_uses_ggml_cache_and_reuses_workers_across_meetings() {
         .flatten()
         .filter(|f| f.file_name().to_string_lossy().starts_with("pid-"))
         .collect();
-    assert_eq!(pids.len(), 2, "one prepared worker per input is reused");
+    assert_eq!(
+        pids.len(),
+        1,
+        "both inputs and meetings reuse one prepared model"
+    );
     for pid in &pids {
         let args = std::fs::read_to_string(snapshot.join(format!(
             "args-{}.json",
@@ -1738,7 +1759,8 @@ async fn whisper_uses_ggml_cache_and_reuses_workers_across_meetings() {
         )))
         .unwrap();
         assert!(
-            args.contains("--whisper-model")
+            args.contains("--shared")
+                && args.contains("--whisper-model")
                 && args.contains("--inference-device")
                 && args.contains("cpu")
                 && args.contains("auto")
@@ -1769,7 +1791,7 @@ async fn whisper_uses_ggml_cache_and_reuses_workers_across_meetings() {
 }
 
 #[tokio::test]
-async fn stopping_detaches_both_inputs_before_parallel_inference_drain() {
+async fn stopping_detaches_both_inputs_before_shared_inference_drain() {
     let temp = tempfile::tempdir().unwrap();
     let settings = config(&temp, "slow-finish");
     let model = settings.model.clone().unwrap();
@@ -1784,8 +1806,8 @@ async fn stopping_detaches_both_inputs_before_parallel_inference_drain() {
     .await;
     assert_eq!(status["saved"], true);
     assert!(
-        started.elapsed() < std::time::Duration::from_millis(3800),
-        "inputs must drain concurrently"
+        started.elapsed() < std::time::Duration::from_millis(5800),
+        "both inputs must drain through the shared worker"
     );
     let counts: Vec<usize> = std::fs::read_dir(model)
         .unwrap()

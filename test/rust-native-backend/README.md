@@ -95,6 +95,28 @@ test/rust-native-backend/target/release/meeting-native-backend --reazon-model te
 
 通信は親子プロセスの標準入出力だけで、ネットワークの待受はありません。モデル・ライブラリの path は起動者が管理する信頼済みファイルに限定し、UI 入力には公開しません。native stderr には engine が path などを出す可能性があるため、製品ログへそのまま転送しません。
 
+### 両入力でモデルを共有する JSON Lines protocol 3
+
+`--shared` を指定すると `ready.protocol` が `3` になり、VAD と推論を別 thread で処理します。
+Rust デスクトップバックエンドはこのモードの worker を 1 つ起動し、両入力でモデルを共有します。
+`--shared` は `--mic` / `--wav` と併用できません。指定しない場合は従来の protocol 2 です。
+
+- `audio` は VAD と区切り処理の完了時に応答し、`segment` は常に `null` です。
+- 完成した発話は共通キューで順番に推論し、`id: null`、`type: "segment"`、`role`、`segment` を持つ独立した通知で返します。
+- `finish` は、それ以前の認識結果をすべて通知してから `segment: null` で応答します。待機中も別入力の `audio` を処理できます。
+- 当該入力の推論が残る間は `reset` を、いずれかの入力の推論が残る間は `configure` を拒否します。会議の再開は両入力の `finish` 応答後に行います。
+- 推論キューは最大 16 件、処理中を含む発話音声は合計 60 秒までです。6 秒以上で `id: null`、`type: "lag"`、`role` を通知します。上限超過・推論障害時は呼び出し側が worker を終了し、両入力の認識を停止します。
+
+両入力の世代・サンプル位置と会議間の再利用は、実モデルに合成音を入力して検証できます。
+このコマンドはマイクを開かず、音声や認識文字列を保存・表示しません。
+Whisper では `--reazon-model` を `--whisper-model /path/to/ggml.bin --device gpu` に置き換えます。
+
+```bash
+python3 test/rust-native-backend/verify_shared.py \
+  --binary test/rust-native-backend/target/release/meeting-native-backend \
+  --reazon-model test/rust-native-backend/target/models/reazonspeech
+```
+
 ### マイクから使う
 
 上記の ReazonSpeech 版を再ビルドし、`--mic` を付けて起動します。モデルの準備完了後に既定の入力デバイスで取得を開始し、認識結果を WAV モードと同じ JSON Lines で標準出力へ返します。準備・取得開始・終了の案内は標準エラーへ出します。

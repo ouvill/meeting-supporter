@@ -37,14 +37,20 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
-    #[serde(rename = "self")]
+    #[serde(rename = "self", alias = "user")]
     User,
     Other,
 }
 impl Role {
+    pub fn index(self) -> usize {
+        match self {
+            Self::User => 0,
+            Self::Other => 1,
+        }
+    }
     pub fn as_str(self) -> &'static str {
         match self {
             Self::User => "self",
@@ -179,6 +185,13 @@ pub struct SpeechReply {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SpeechBody {
+    Segment {
+        role: Role,
+        segment: Segment,
+    },
+    Lag {
+        role: Role,
+    },
     Ready {
         protocol: u8,
         transcription_available: bool,
@@ -203,6 +216,7 @@ pub enum SpeechBody {
 #[serde(rename_all = "snake_case")]
 pub enum SpeechFailure {
     GpuUnavailable,
+    Busy,
     #[serde(other)]
     Other,
 }

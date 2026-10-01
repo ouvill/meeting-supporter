@@ -2,7 +2,9 @@
 mod capabilities;
 mod capture;
 mod process;
+mod shared_speech;
 mod speech;
+pub use shared_speech::SharedSpeech;
 pub mod wire;
 
 pub use capabilities::whisper_gpu_supported;
@@ -24,6 +26,8 @@ enum Speech {
     Preparing(Box<Prepared>),
     Prepared(Box<Prepared>),
     Running(Running),
+    SharedPrepared(shared_speech::Client),
+    SharedRunning(shared_speech::Running),
     Failed,
 }
 pub struct Supervisor {
@@ -64,7 +68,23 @@ impl Supervisor {
         self.capture.route.lock().unwrap().take();
     }
     pub fn is_prepared(&self) -> bool {
-        matches!(self.speech, Speech::Prepared(_)) && self.capture.healthy()
+        match &self.speech {
+            Speech::Prepared(_) => self.capture.healthy(),
+            Speech::SharedPrepared(client) => self.capture.healthy() && client.healthy(),
+            _ => false,
+        }
+    }
+    pub async fn attach_shared(&mut self, shared: &SharedSpeech) -> Result<(), Error> {
+        self.shutdown_speech().await?;
+        self.speech = Speech::SharedPrepared(shared.bind(self.options.role, self.events.clone())?);
+        self.generation = 0;
+        if let Some(device) = shared.execution_device {
+            self.events
+                .send(Event::ExecutionDevice { device })
+                .await
+                .map_err(|_| Error::Protocol)?;
+        }
+        Ok(())
     }
     /// Wait for the owner to commit all events produced before this barrier.
     pub async fn drain_events(&self) -> Result<(), Error> {
@@ -91,7 +111,7 @@ impl Supervisor {
                 punctuation,
                 config,
             } => {
-                if matches!(self.speech, Speech::Running(_)) {
+                if matches!(self.speech, Speech::Running(_) | Speech::SharedRunning(_)) {
                     return Err(Error::Busy);
                 }
                 self.shutdown_speech().await?;
@@ -123,6 +143,13 @@ impl Supervisor {
                     return Err(Error::Capture);
                 }
                 let speech = std::mem::replace(&mut self.speech, Speech::Failed);
+                if let Speech::SharedPrepared(client) = speech {
+                    let (generation, running) =
+                        client.start(self.options.role, &self.capture.route).await?;
+                    self.generation = generation;
+                    self.speech = Speech::SharedRunning(running);
+                    return Ok(None);
+                }
                 let Speech::Prepared(prepared) = speech else {
                     self.speech = speech;
                     return Err(Error::Busy);
@@ -136,7 +163,9 @@ impl Supervisor {
             Command::StopSpeech {} => {
                 self.capture.route.lock().unwrap().take();
                 let speech = std::mem::replace(&mut self.speech, Speech::Failed);
-                if let Speech::Running(running) = speech {
+                if let Speech::SharedRunning(running) = speech {
+                    self.speech = Speech::SharedPrepared(running.finish().await?);
+                } else if let Speech::Running(running) = speech {
                     self.speech = Speech::Prepared(Box::new(running.finish().await?));
                 } else {
                     let failed = matches!(speech, Speech::Failed);
@@ -196,6 +225,8 @@ impl Supervisor {
                 prepared.close().await
             }
             Speech::Running(running) => running.cancel().await,
+            Speech::SharedRunning(running) => running.cancel().await,
+            Speech::SharedPrepared(client) => client.close().await,
             _ => Ok(()),
         }
     }

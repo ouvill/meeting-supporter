@@ -14,13 +14,20 @@ flowchart LR
     Runtime --> Media[meeting-media-runtime]
   end
   Media --> Capture[音声取得・WAV worker × 2]
-  Media --> Speech[Silero・ReazonSpeech / Whisper.cpp worker × 2]
+  Media --> Speech[Silero・ReazonSpeech / Whisper.cpp 共有 worker × 1]
   Storage --> DB[(既存形式の SQLite)]
 ```
 
 HTTP / WebSocket adapter は既存画面の契約を保つためのものです。
 Python の API サーバーや Rust ドメイン処理用の追加プロセスは介在しません。
 資料変換の呼び出し・配布方法は [共通 Python worker](../../python-worker/README.md)を参照してください。
+
+自分と相手の音声取得・録音はそれぞれの worker で行い、選択した音声認識モデルは 1 つだけ読み込みます。
+共有 worker 内で VAD の状態・発話バッファ・時刻を入力元ごとに保持し、完成した発話を順番に推論します。
+推論中も両方の入力の VAD と発話の区切り処理を続けます。同時発話時は推論の順番待ちが生じます。
+Whisper は準備時にウォームアップまで済ませ、会議を停止してもモデルを保持します。
+準備解除・設定変更・アプリ終了時に解放します。待ち行列と停止期限は
+[音声ランタイム](../../crates/meeting-media-runtime/README.md#所有権と障害の分離)を参照してください。
 
 ## 起動
 

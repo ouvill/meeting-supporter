@@ -1,3 +1,4 @@
+mod shared;
 use meeting_native_backend::{
     error::SpeechError,
     microphone,
@@ -123,7 +124,7 @@ fn read_request(reader: &mut impl BufRead, bytes: &mut Vec<u8>) -> io::Result<bo
     }
 }
 
-fn run(config: SessionConfig) -> io::Result<()> {
+fn run(config: SessionConfig, shared: bool) -> io::Result<()> {
     let transcription_available = !matches!(config.plan, SpeechPlan::SileroOnly);
     let output = Arc::new(Mutex::new(io::stdout()));
     let status = Arc::new(Mutex::new(ModelStatus::Unloaded));
@@ -132,13 +133,19 @@ fn run(config: SessionConfig) -> io::Result<()> {
     let worker_status = Arc::clone(&status);
     let worker = thread::Builder::new()
         .name("onnx-audio".into())
-        .spawn(move || worker(receiver, config, worker_output, worker_status))?;
+        .spawn(move || {
+            if shared {
+                shared::worker(receiver, config, worker_output, worker_status)
+            } else {
+                worker(receiver, config, worker_output, worker_status)
+            }
+        })?;
     let result = (|| {
         respond(
             &output,
             None,
             Reply::Ready {
-                protocol: 2,
+                protocol: if shared { 3 } else { 2 },
                 models: ModelStatus::Unloaded,
                 transcription_available,
             },
@@ -202,7 +209,9 @@ fn run(config: SessionConfig) -> io::Result<()> {
 }
 
 enum Input {
-    JsonLines,
+    JsonLines {
+        shared: bool,
+    },
     Wav(PathBuf),
     Microphone {
         device: Option<usize>,
@@ -237,12 +246,17 @@ fn options(
     let mut language = None;
     let mut wav = None;
     let mut mic = false;
+    let mut shared = false;
     let mut desktop = false;
     let mut list = false;
     let mut device = None;
     let mut seconds = None;
     while let Some(option) = arguments.next() {
         match option.to_str() {
+            Some("--shared") if !shared => {
+                shared = true;
+                continue;
+            }
             Some("--mic") if !mic => {
                 mic = true;
                 continue;
@@ -292,7 +306,8 @@ fn options(
         }
     }
     if list {
-        if mic
+        if shared
+            || mic
             || desktop
             || wav.is_some()
             || device.is_some()
@@ -307,6 +322,9 @@ fn options(
             return Err("--list-input-devices must be used alone");
         }
         return Ok(Options::ListDevices);
+    }
+    if shared && (mic || wav.is_some()) {
+        return Err("--shared requires JSON Lines input");
     }
     if desktop && !mic {
         return Err("--desktop requires --mic");
@@ -360,7 +378,7 @@ fn options(
     } else if let Some(path) = wav {
         Input::Wav(path)
     } else {
-        Input::JsonLines
+        Input::JsonLines { shared }
     };
     // The full speech worker shares the runtime linked by sherpa-onnx. Do not
     // load an arbitrary second ORT alongside it. Libraries are packaged adjacent.
@@ -413,7 +431,7 @@ fn main() {
         Err(message) => {
             eprintln!("{message}");
             eprintln!(
-                "usage: meeting-native-backend [--ort-library <library>] [--reazon-model <directory> [--punctuation-model <directory>] | --whisper-model <ggml.bin> [--inference-device auto|cpu|gpu] [--language ja|en|auto]] [--wav <16 kHz mono PCM16 WAV> | --mic [--desktop] [--input-device <index>] [--seconds <n>]] | --list-input-devices | --capabilities"
+                "usage: meeting-native-backend [--ort-library <library>] [--reazon-model <directory> [--punctuation-model <directory>] | --whisper-model <ggml.bin> [--inference-device auto|cpu|gpu] [--language ja|en|auto]] [--shared | --wav <16 kHz mono PCM16 WAV> | --mic [--desktop] [--input-device <index>] [--seconds <n>]] | --list-input-devices | --capabilities"
             );
             std::process::exit(2);
         }
@@ -438,7 +456,7 @@ fn main() {
                 seconds,
                 desktop,
             } => microphone::transcribe(config, device, seconds, desktop).map_err(io::Error::other),
-            Input::JsonLines => run(config),
+            Input::JsonLines { shared } => run(config, shared),
         },
     };
     if let Err(error) = result {
@@ -468,6 +486,9 @@ mod tests {
             vec!["--mic", "--seconds", "0"],
             vec!["--list-input-devices", "--mic"],
             vec!["--mic", "--mic"],
+            vec!["--shared", "--shared"],
+            vec!["--shared", "--mic"],
+            vec!["--shared", "--wav", "synthetic.wav"],
             vec!["--mic"],
             vec!["--whisper-model", "model", "--reazon-model", "model"],
             vec!["--whisper-model", "model", "--punctuation-model", "model"],
