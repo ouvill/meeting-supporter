@@ -58,7 +58,7 @@ PulseAudio、または PipeWire の PulseAudio 互換サーバーがある Linux
 マイクと相手音声のモニター入力を Rust から列挙し、既存画面へ返します。
 既定の相手音声モニターが見つからない場合、マイクへ自動的に置き換えません。
 
-開発環境では `libpulse-dev` と Rust が必要です。上記の音声認識用環境変数に加えて指定します。
+開発環境では `libpulse-dev`、`libasound2-dev` と Rust が必要です。上記の音声認識用環境変数に加えて指定します。
 
 ```bash
 cargo build --release --locked --manifest-path crates/meeting-audio-runtime/Cargo.toml
@@ -69,8 +69,9 @@ npm run tauri -- dev
 
 `MEETING_AUDIO_RUNTIME` を省略すると従来の Python 音声取得・録音を使います。
 Rust 取得は現在、Rust ReazonSpeech・16 kHz 設定との組み合わせに限定しています。
-Windows / macOS の取得 adapter と一般配布は未対応です。
-実行環境には `libpulse` / `libpulse-simple` が必要ですが、Python の soundcard はこの経路で使用しません。
+取得 worker は CPAL を使い、Linux に加えて Windows の WASAPI に対応します。
+この Python 併用経路の手順は Linux 用です。Windows の実機検証、macOS の取得、一般配布は未対応です。
+Linux の実行環境には `libpulse` / `libasound` が必要ですが、Python の soundcard はこの経路で使用しません。
 
 Rust の取得 worker が同じ PCM を WAV 保存と音声認識向けの転送に分岐します。
 取得 worker は ONNX / ReazonSpeech をリンクせず、推論 worker が異常終了しても録音を継続します。

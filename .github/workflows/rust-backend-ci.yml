@@ -29,7 +29,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
-            build-essential clang cmake pkg-config libssl-dev libpulse-dev libasound2-dev
+            build-essential clang cmake pkg-config libssl-dev libpulse-dev libasound2-dev \
+            pulseaudio pulseaudio-utils
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - uses: swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
         with:
@@ -45,6 +46,28 @@ jobs:
           cargo test --locked --manifest-path crates/meeting-desktop-runtime/Cargo.toml --features test-fixtures
           cargo test --locked --manifest-path test/rust-audio-core/Cargo.toml
           cargo test --locked --manifest-path test/rust-native-backend/Cargo.toml
+      - name: Verify CPAL capture against isolated synthetic audio
+        run: |
+          cargo build --locked --manifest-path crates/meeting-audio-runtime/Cargo.toml
+          python3 test/audio-capture-smoke.py --worker "$CARGO_TARGET_DIR/debug/meeting-audio-runtime"
+
+  windows-audio:
+    name: CPAL audio workers (Windows)
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target/windows-audio
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          workspaces: crates/meeting-audio-runtime -> ../../target/windows-audio
+          key: windows-cpal
+      - name: Test capture, recording, and sample conversion
+        run: cargo test --locked --manifest-path crates/meeting-audio-runtime/Cargo.toml
+      - name: Test native worker CPAL integration without model dependencies
+        run: cargo test --locked --manifest-path test/rust-native-backend/Cargo.toml --no-default-features
 
   desktop:
     name: Rust Tauri desktop E2E (Linux)

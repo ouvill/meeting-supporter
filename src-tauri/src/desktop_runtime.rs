@@ -46,15 +46,23 @@ pub fn start(app: AppHandle) {
                 data_dir.join("models")
             };
             let audio = if cfg!(debug_assertions) {
-                root.join("crates/meeting-audio-runtime/target/release/meeting-audio-runtime")
+                root.join("crates/meeting-audio-runtime/target/release")
             } else {
-                resources.join("native/meeting-audio-runtime")
-            };
+                resources.join("native")
+            }
+            .join(format!(
+                "meeting-audio-runtime{}",
+                std::env::consts::EXE_SUFFIX
+            ));
             let speech = if cfg!(debug_assertions) {
-                root.join("test/rust-native-backend/target/release/meeting-native-backend")
+                root.join("test/rust-native-backend/target/release")
             } else {
-                resources.join("native/meeting-native-backend")
-            };
+                resources.join("native")
+            }
+            .join(format!(
+                "meeting-native-backend{}",
+                std::env::consts::EXE_SUFFIX
+            ));
             let punctuation = match std::env::var_os("MEETING_REAZON_PUNCTUATION") {
                 Some(path) => Some(PathBuf::from(path)),
                 None => {

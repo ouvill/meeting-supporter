@@ -119,6 +119,9 @@ python3 test/rust-native-backend/verify_shared.py \
 
 ### マイクから使う
 
+取得には CPAL 0.18.2 を使います。macOS では CPAL の対応条件に合わせて 14.2 以降が必要です。
+会議アプリのマイク・システム音声の取得は別の [取得 worker](../../crates/meeting-audio-runtime/README.md)が担当します。
+
 上記の ReazonSpeech 版を再ビルドし、`--mic` を付けて起動します。モデルの準備完了後に既定の入力デバイスで取得を開始し、認識結果を WAV モードと同じ JSON Lines で標準出力へ返します。準備・取得開始・終了の案内は標準エラーへ出します。
 
 ```bash

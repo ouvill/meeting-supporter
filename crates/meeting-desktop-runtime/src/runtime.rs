@@ -1125,7 +1125,10 @@ pub(crate) async fn private_write(path: &std::path::Path, bytes: &[u8]) -> Resul
 async fn list_devices(config: &Config) -> Result<Vec<wire::Device>, Error> {
     use std::process::Stdio;
     use tokio::io::AsyncReadExt;
-    let mut child = tokio::process::Command::new(&config.audio_worker)
+    let mut command = tokio::process::Command::new(&config.audio_worker);
+    #[cfg(windows)]
+    command.creation_flags(0x08000000); // CREATE_NO_WINDOW during device discovery.
+    let mut child = command
         .arg("--list-devices")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

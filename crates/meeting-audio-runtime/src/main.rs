@@ -1,3 +1,5 @@
+mod capture;
+mod convert;
 #[cfg(target_os = "linux")]
 mod pulse;
 mod recording;
@@ -103,14 +105,13 @@ fn controls(sender: SyncSender<Request>) {
     // EOF/malformed control drops the channel; main finalizes and exits.
 }
 
-#[cfg(target_os = "linux")]
 fn run_capture(device: Device, output: &SyncSender<Packet>) -> Result<(), Error> {
     let (capture_tx, capture_rx) = mpsc::sync_channel(200);
     let capture_failed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let failure = std::sync::Arc::clone(&capture_failed);
-    thread::spawn(move || pulse::capture(device.index, capture_tx, failure));
+    let _capture = capture::start(device.index, capture_tx, failure);
     match capture_rx.recv_timeout(Duration::from_secs(5)) {
-        Ok(pulse::CaptureEvent::Started) => {}
+        Ok(capture::CaptureEvent::Started) => {}
         _ => return Err(Error::Device),
     }
     send(
@@ -152,7 +153,7 @@ fn run_capture(device: Device, output: &SyncSender<Packet>) -> Result<(), Error>
             Err(TryRecvError::Empty) => {}
         }
         match capture_rx.recv_timeout(Duration::from_millis(5)) {
-            Ok(pulse::CaptureEvent::Frame(pcm)) => {
+            Ok(capture::CaptureEvent::Frame(pcm)) => {
                 progress = Instant::now();
                 if recorder.write(&pcm).is_err() {
                     send(
@@ -185,10 +186,9 @@ fn run_capture(device: Device, output: &SyncSender<Packet>) -> Result<(), Error>
     }
 }
 
-#[cfg(target_os = "linux")]
 fn run() -> Result<(), Error> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
-    let devices = pulse::devices()?;
+    let devices = capture::devices()?;
     if arguments == ["--list-devices"] {
         write_packet(
             &mut io::stdout().lock(),
@@ -243,11 +243,6 @@ fn run() -> Result<(), Error> {
         .map_err(|_| Error::Transport)?
         .map_err(|_| Error::Transport)?;
     result
-}
-
-#[cfg(not(target_os = "linux"))]
-fn run() -> Result<(), Error> {
-    Err(Error::Unsupported)
 }
 
 fn main() {

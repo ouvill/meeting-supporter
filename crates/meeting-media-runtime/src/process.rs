@@ -13,6 +13,8 @@ pub fn spawn(path: &Path, args: &[String], capture: bool) -> Result<Child, Error
         return Err(Error::Worker);
     }
     let mut command = Command::new(path);
+    #[cfg(windows)]
+    command.creation_flags(0x08000000); // CREATE_NO_WINDOW for desktop workers.
     command
         .args(args)
         .env_clear()

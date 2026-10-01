@@ -31,7 +31,8 @@ Whisper は準備時にウォームアップまで済ませ、会議を停止し
 
 ## 起動
 
-現在の取得・録音 adapter は Linux の PulseAudio / PipeWire 用です。
+取得・録音には CPAL を使います。Linux は PulseAudio / PipeWire、Windows は WASAPI に接続します。
+Windows の実デバイス・アプリ全体の動作検証と一般配布は未完了です。
 リポジトリのルートで実行します。
 
 ```bash
@@ -53,6 +54,8 @@ ReazonSpeech モデルは設定画面から取得できます。既にビルド�
 | 句読点 | `test/rust-native-backend/target/models/punctuation-bert` | `MEETING_REAZON_PUNCTUATION` |
 
 環境変数には絶対パスを指定してください。既定の句読点モデルはディレクトリが存在する場合に使用します。
+Windows では worker の既定ファイル名に `.exe` が付きます。
+音声取得の依存と検証手順は [取得 worker](../../crates/meeting-audio-runtime/README.md)を参照してください。
 明示した句読点モデルをロードできない場合は準備エラーになります。
 Silero threshold と無音時間は既存の設定画面で変更できます。既定値はそれぞれ 0.4、0.4 秒です。
 取得レートは 16 kHz です。デバイスは画面接続時に開き、モデル未準備でも両入力の音量メーターが動きます。
@@ -244,7 +247,7 @@ cargo build --release --locked --manifest-path test/rust-native-backend/Cargo.to
 ```
 
 CUDA は `reazonspeech,cuda`、Metal は `reazonspeech,metal` を指定します。これらはビルド時の選択であり、
-CPU 版に実行時設定だけで GPU 対応を追加することはできません。Windows / macOS の音声取得・配布は未対応です。
+CPU 版に実行時設定だけで GPU 対応を追加することはできません。Windows の実機検証・配布と macOS の音声取得・配布は未対応です。
 
 実行デバイスは設定画面の「自動」「CPU」「GPU」で選択します。
 GUI は設定済みの推論 worker に `--capabilities` でビルド時の GPU 対応を問い合わせます。
@@ -279,7 +282,7 @@ GPU 判定は固定した whisper.cpp 版の初期化通知を利用するため
 返答のモデル経路は OpenAI、Gemini、Anthropic、Ollama の設定だけを受け付けます。
 未設定の hosted service は `not_offered` のままです。
 
-汎用 provider plan、Windows / macOS の取得、配布用 worker と共有ライブラリの同梱も後続の作業です。
+汎用 provider plan、Windows の実機検証、macOS の取得、配布用 worker と共有ライブラリの同梱も後続の作業です。
 `tauri.rust.conf.json` では bundle を無効にしており、一般配布が完成した状態ではありません。
 
 Python が必要な AI 機能は、後続の移植で共通 PyInstaller worker のサブコマンドとして追加します。
@@ -301,6 +304,9 @@ Registry の展開では path traversal とリンクの拒否を検証します�
 `Rust backend CI` は pull request と main 更新時に実行し、リリース候補の作成時にも必須チェックとして呼び出します。
 `crates/` の各ライブラリ、音声コア、native 推論 worker のテストを個別に実行します。
 実モデルや外部サービスが必要な ignored テストは通常 CI に含めません。
+Linux では隔離した PulseAudio サーバーで CPAL の合成音取得・録音も確認します。
+Windows では取得 worker と native worker の CPAL・変換・録音をデバイス不要のテストで確認します。
+Windows CI の native worker は `--no-default-features` を使い、Whisper のビルド・実モデル推論は対象に含めません。
 
 Linux のデスクトップ E2E は次のコマンドで実行できます。
 GTK / WebKit の開発ライブラリに加え、Xvfb、xauth、Openbox、D-Bus が必要です。

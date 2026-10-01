@@ -16,16 +16,15 @@ PROVISIONED COMPONENTS (1)
 NPM COMPONENTS (0)
 -------------------
 
-CARGO COMPONENTS (59)
+CARGO COMPONENTS (64)
 ---------------------
-- alsa 0.9.1 | Apache-2.0/MIT | https://crates.io/api/v1/crates/alsa/0.9.1/download
-- alsa-sys 0.3.1 | MIT | https://crates.io/api/v1/crates/alsa-sys/0.3.1/download
-- bitflags 1.3.2 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/bitflags/1.3.2/download
+- alsa 0.11.0 | Apache-2.0/MIT | https://crates.io/api/v1/crates/alsa/0.11.0/download
+- alsa-sys 0.4.0 | MIT | https://crates.io/api/v1/crates/alsa-sys/0.4.0/download
 - bitflags 2.13.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/bitflags/2.13.2/download
 - block2 0.6.2 | MIT | https://crates.io/api/v1/crates/block2/0.6.2/download
 - cfg-if 1.0.5 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/cfg-if/1.0.5/download
-- coreaudio-rs 0.13.0 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/coreaudio-rs/0.13.0/download
-- cpal 0.16.0 | Apache-2.0 | https://crates.io/api/v1/crates/cpal/0.16.0/download
+- coreaudio-rs 0.14.2 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/coreaudio-rs/0.14.2/download
+- cpal 0.18.2 | Apache-2.0 | https://crates.io/api/v1/crates/cpal/0.18.2/download
 - crossbeam-utils 0.8.23 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/crossbeam-utils/0.8.23/download
 - ctrlc 3.5.2 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/ctrlc/3.5.2/download
 - dasp_sample 0.11.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/dasp_sample/0.11.0/download
@@ -34,7 +33,7 @@ CARGO COMPONENTS (59)
 - itoa 1.0.18 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/itoa/1.0.18/download
 - libc 0.2.189 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/libc/0.2.189/download
 - libloading 0.9.0 | ISC | https://crates.io/api/v1/crates/libloading/0.9.0/download
-- mach2 0.4.3 | BSD-2-Clause OR MIT OR Apache-2.0 | https://crates.io/api/v1/crates/mach2/0.4.3/download
+- mach2 0.6.0 | BSD-2-Clause OR MIT OR Apache-2.0 | https://crates.io/api/v1/crates/mach2/0.6.0/download
 - matrixmultiply 0.3.11 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/matrixmultiply/0.3.11/download
 - memchr 2.8.3 | Unlicense OR MIT | https://crates.io/api/v1/crates/memchr/2.8.3/download
 - ndarray 0.17.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/ndarray/0.17.2/download
@@ -63,19 +62,25 @@ CARGO COMPONENTS (59)
 - sherpa-onnx 1.13.8 | Apache-2.0 | https://crates.io/api/v1/crates/sherpa-onnx/1.13.8/download
 - sherpa-onnx-sys 1.13.8 | Apache-2.0 | https://crates.io/api/v1/crates/sherpa-onnx-sys/1.13.8/download
 - smallvec 1.16.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/smallvec/1.16.2/download
+- syn 2.0.119 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/syn/2.0.119/download
 - syn 3.0.6 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/syn/3.0.6/download
 - thiserror 2.0.21 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/thiserror/2.0.21/download
 - thiserror-impl 2.0.21 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/thiserror-impl/2.0.21/download
 - unicode-ident 1.0.26 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://crates.io/api/v1/crates/unicode-ident/1.0.26/download
 - whisper-rs 0.16.0 | Unlicense | https://crates.io/api/v1/crates/whisper-rs/0.16.0/download
 - whisper-rs-sys 0.15.0 | Unlicense | https://crates.io/api/v1/crates/whisper-rs-sys/0.15.0/download
-- windows 0.54.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows/0.54.0/download
-- windows-core 0.54.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-core/0.54.0/download
+- windows 0.62.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows/0.62.2/download
+- windows-collections 0.3.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-collections/0.3.2/download
+- windows-core 0.62.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-core/0.62.2/download
+- windows-future 0.3.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-future/0.3.2/download
+- windows-implement 0.60.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-implement/0.60.2/download
+- windows-interface 0.59.3 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-interface/0.59.3/download
 - windows-link 0.2.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-link/0.2.1/download
-- windows-result 0.1.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-result/0.1.2/download
+- windows-numerics 0.3.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-numerics/0.3.1/download
+- windows-result 0.4.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-result/0.4.1/download
+- windows-strings 0.5.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-strings/0.5.1/download
 - windows-sys 0.61.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-sys/0.61.2/download
-- windows-targets 0.52.6 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-targets/0.52.6/download
-- windows_x86_64_msvc 0.52.6 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows_x86_64_msvc/0.52.6/download
+- windows-threading 0.2.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-threading/0.2.1/download
 - zmij 1.0.23 | MIT | https://crates.io/api/v1/crates/zmij/1.0.23/download
 
 PYTHON COMPONENTS (0)
@@ -86,7 +91,6 @@ LICENSE AND ATTRIBUTION TEXTS
 
 [1] SHA-256 14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90
 Used by:
-  - cargo:bitflags@1.3.2 (LICENSE-MIT)
   - cargo:bitflags@2.13.2 (LICENSE-MIT)
   - cargo:num-complex@0.4.6 (LICENSE-MIT)
   - cargo:num-integer@0.1.47 (LICENSE-MIT)
@@ -199,7 +203,7 @@ Xcode you have already agreed to the Xcode license).
 
 [4] SHA-256 2545576743297ef54977df62ea237f43fa42f65a9ae89295a25ed57dcc153d77
 Used by:
-  - cargo:alsa@0.9.1 (LICENSE-MIT)
+  - cargo:alsa@0.11.0 (LICENSE-MIT)
 
 MIT License
 
@@ -227,7 +231,7 @@ SOFTWARE.
 
 [5] SHA-256 283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b
 Used by:
-  - cargo:cpal@0.16.0 (LICENSE)
+  - cargo:cpal@0.18.2 (LICENSE)
   - cargo:hound@3.5.1 (license)
   - cargo:ort-sys@2.0.0-rc.12 (LICENSE-APACHE)
   - cargo:ort@2.0.0-rc.12 (LICENSE-APACHE)
@@ -476,6 +480,7 @@ Used by:
   - cargo:serde_core@1.0.229 (LICENSE-MIT)
   - cargo:serde_derive@1.0.229 (LICENSE-MIT)
   - cargo:serde_json@1.0.151 (LICENSE-MIT)
+  - cargo:syn@2.0.119 (LICENSE-MIT)
   - cargo:syn@3.0.6 (LICENSE-MIT)
   - cargo:thiserror-impl@2.0.21 (LICENSE-MIT)
   - cargo:thiserror@2.0.21 (LICENSE-MIT)
@@ -582,7 +587,7 @@ SOFTWARE.
 
 [10] SHA-256 442d0fe8507a9593f9db68fba83ff37bd7a191f55d4a3da855f019bd6c32f586
 Used by:
-  - cargo:alsa-sys@0.3.1 (LICENSE)
+  - cargo:alsa-sys@0.4.0 (LICENSE)
 
 MIT License
 
@@ -644,7 +649,7 @@ DEALINGS IN THE SOFTWARE.
 
 [12] SHA-256 4bf96504d6e83ce5c6fc7167f1795d9ceaa68e70ab86bc5d08ab93184262bbbe
 Used by:
-  - cargo:alsa@0.9.1 (LICENSE-APACHE)
+  - cargo:alsa@0.11.0 (LICENSE-APACHE)
 
 Apache License
                            Version 2.0, January 2004
@@ -899,13 +904,18 @@ You may use this code under the terms of either license.
 
 [16] SHA-256 783829b43aacb86cb8e6cedcd777210c13f2081aae94419cc7a30e112977d488
 Used by:
-  - cargo:windows-core@0.54.0 (license-apache-2.0)
+  - cargo:windows-collections@0.3.2 (license-apache-2.0)
+  - cargo:windows-core@0.62.2 (license-apache-2.0)
+  - cargo:windows-future@0.3.2 (license-apache-2.0)
+  - cargo:windows-implement@0.60.2 (license-apache-2.0)
+  - cargo:windows-interface@0.59.3 (license-apache-2.0)
   - cargo:windows-link@0.2.1 (license-apache-2.0)
-  - cargo:windows-result@0.1.2 (license-apache-2.0)
+  - cargo:windows-numerics@0.3.1 (license-apache-2.0)
+  - cargo:windows-result@0.4.1 (license-apache-2.0)
+  - cargo:windows-strings@0.5.1 (license-apache-2.0)
   - cargo:windows-sys@0.61.2 (license-apache-2.0)
-  - cargo:windows-targets@0.52.6 (license-apache-2.0)
-  - cargo:windows@0.54.0 (license-apache-2.0)
-  - cargo:windows_x86_64_msvc@0.52.6 (license-apache-2.0)
+  - cargo:windows-threading@0.2.1 (license-apache-2.0)
+  - cargo:windows@0.62.2 (license-apache-2.0)
 
 Apache License
                            Version 2.0, January 2004
@@ -1179,13 +1189,14 @@ DEALINGS IN THE SOFTWARE.
 Used by:
   - cargo:itoa@1.0.18 (LICENSE-APACHE)
   - cargo:libc@0.2.189 (LICENSE-APACHE)
-  - cargo:mach2@0.4.3 (LICENSE-APACHE)
+  - cargo:mach2@0.6.0 (LICENSE-APACHE)
   - cargo:proc-macro2@1.0.107 (LICENSE-APACHE)
   - cargo:quote@1.0.47 (LICENSE-APACHE)
   - cargo:serde@1.0.229 (LICENSE-APACHE)
   - cargo:serde_core@1.0.229 (LICENSE-APACHE)
   - cargo:serde_derive@1.0.229 (LICENSE-APACHE)
   - cargo:serde_json@1.0.151 (LICENSE-APACHE)
+  - cargo:syn@2.0.119 (LICENSE-APACHE)
   - cargo:syn@3.0.6 (LICENSE-APACHE)
   - cargo:thiserror-impl@2.0.21 (LICENSE-APACHE)
   - cargo:thiserror@2.0.21 (LICENSE-APACHE)
@@ -1372,7 +1383,7 @@ END OF TERMS AND CONDITIONS
 
 [20] SHA-256 917d5dc3470e527b8be458c7ce07949ce2eab9e414c54532f9680c4bd5f61230
 Used by:
-  - cargo:mach2@0.4.3 (LICENSE-MIT)
+  - cargo:mach2@0.6.0 (LICENSE-MIT)
 
 Copyright (c) 2019 Nick Fitzgerald, 2021 Yuki Okushi
 
@@ -1404,10 +1415,9 @@ DEALINGS IN THE SOFTWARE.
 
 [21] SHA-256 954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76
 Used by:
-  - cargo:bitflags@1.3.2 (LICENSE-APACHE)
   - cargo:bitflags@2.13.2 (LICENSE-APACHE)
   - cargo:cfg-if@1.0.5 (LICENSE-APACHE)
-  - cargo:coreaudio-rs@0.13.0 (LICENSE-APACHE)
+  - cargo:coreaudio-rs@0.14.2 (LICENSE-APACHE)
   - cargo:crossbeam-utils@0.8.23 (LICENSE-APACHE)
   - cargo:matrixmultiply@0.3.11 (LICENSE-APACHE)
   - cargo:ndarray@0.17.2 (LICENSE-APACHE)
@@ -1847,7 +1857,7 @@ DEALINGS IN THE SOFTWARE.
 
 [30] SHA-256 d5652808cd243d91a66041cdde30e1f173dbb6940635a05941011179edde9b40
 Used by:
-  - cargo:mach2@0.4.3 (LICENSE-BSD)
+  - cargo:mach2@0.6.0 (LICENSE-BSD)
 
 Copyright (c) 2019 Nick Fitzgerald, 2021 Yuki Okushi
 All rights reserved.
@@ -2117,7 +2127,7 @@ limitations under the License.
 
 [33] SHA-256 fdd1c2117bcf8157d1d013d0953c0a7e6e5fab73df9e36773cd77634428568eb
 Used by:
-  - cargo:coreaudio-rs@0.13.0 (LICENSE-MIT)
+  - cargo:coreaudio-rs@0.14.2 (LICENSE-MIT)
   - cargo:rawpointer@0.2.1 (LICENSE-MIT)
 
 Copyright (c) 2015
@@ -2150,13 +2160,18 @@ DEALINGS IN THE SOFTWARE.
 
 [34] SHA-256 ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310
 Used by:
-  - cargo:windows-core@0.54.0 (license-mit)
+  - cargo:windows-collections@0.3.2 (license-mit)
+  - cargo:windows-core@0.62.2 (license-mit)
+  - cargo:windows-future@0.3.2 (license-mit)
+  - cargo:windows-implement@0.60.2 (license-mit)
+  - cargo:windows-interface@0.59.3 (license-mit)
   - cargo:windows-link@0.2.1 (license-mit)
-  - cargo:windows-result@0.1.2 (license-mit)
+  - cargo:windows-numerics@0.3.1 (license-mit)
+  - cargo:windows-result@0.4.1 (license-mit)
+  - cargo:windows-strings@0.5.1 (license-mit)
   - cargo:windows-sys@0.61.2 (license-mit)
-  - cargo:windows-targets@0.52.6 (license-mit)
-  - cargo:windows@0.54.0 (license-mit)
-  - cargo:windows_x86_64_msvc@0.52.6 (license-mit)
+  - cargo:windows-threading@0.2.1 (license-mit)
+  - cargo:windows@0.62.2 (license-mit)
 
 MIT License
 

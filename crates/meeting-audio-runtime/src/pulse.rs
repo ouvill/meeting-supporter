@@ -3,17 +3,12 @@ use crate::{Device, Error};
 use libpulse_binding::{
     callbacks::ListResult,
     context::{Context, FlagSet, State},
-    def::BufferAttr,
     mainloop::standard::{IterateResult, Mainloop},
     operation::State as OperationState,
-    sample::{Format, Spec},
-    stream::Direction,
 };
-use libpulse_simple_binding::Simple;
 use std::{
     cell::RefCell,
     rc::Rc,
-    sync::mpsc::SyncSender,
     thread,
     time::{Duration, Instant},
 };
@@ -92,61 +87,4 @@ pub fn devices() -> Result<Vec<Device>, Error> {
     }
     let devices = std::mem::take(&mut *result.borrow_mut());
     Ok(devices)
-}
-
-pub enum CaptureEvent {
-    Started,
-    Frame(Box<[u8; 960]>),
-    Failed,
-}
-
-pub fn capture(
-    device: String,
-    sender: SyncSender<CaptureEvent>,
-    failed: std::sync::Arc<std::sync::atomic::AtomicBool>,
-) {
-    let spec = Spec {
-        format: Format::S16le,
-        channels: 1,
-        rate: 16_000,
-    };
-    let buffer = BufferAttr {
-        maxlength: 32_000,
-        tlength: u32::MAX,
-        prebuf: u32::MAX,
-        minreq: u32::MAX,
-        fragsize: 960,
-    };
-    let result = Simple::new(
-        None,
-        "meeting-supporter",
-        Direction::Record,
-        Some(&device),
-        "meeting audio",
-        &spec,
-        None,
-        Some(&buffer),
-    );
-    let Ok(source) = result else {
-        failed.store(true, std::sync::atomic::Ordering::Release);
-        let _ = sender.send(CaptureEvent::Failed);
-        return;
-    };
-    if sender.send(CaptureEvent::Started).is_err() {
-        return;
-    }
-    loop {
-        let mut pcm = Box::new([0; 960]);
-        if source.read(pcm.as_mut()).is_err() {
-            failed.store(true, std::sync::atomic::Ordering::Release);
-            let _ = sender.send(CaptureEvent::Failed);
-            return;
-        }
-        // An overflow ends capture explicitly. No hidden holes in a successful WAV.
-        if sender.try_send(CaptureEvent::Frame(pcm)).is_err() {
-            failed.store(true, std::sync::atomic::Ordering::Release);
-            let _ = sender.send(CaptureEvent::Failed);
-            return;
-        }
-    }
 }

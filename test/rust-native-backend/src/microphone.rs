@@ -66,11 +66,17 @@ pub fn list_devices() -> Result<(), MicrophoneError> {
     let mut output = io::stdout().lock();
     for (index, device) in devices.enumerate() {
         let name = device
-            .name()
+            .description()
             .map_err(|_| MicrophoneError::DeviceUnavailable)?;
-        serde_json::to_writer(&mut output, &InputDevice { index, name })
-            .map_err(io::Error::other)
-            .map_err(MicrophoneError::Output)?;
+        serde_json::to_writer(
+            &mut output,
+            &InputDevice {
+                index,
+                name: name.name().to_owned(),
+            },
+        )
+        .map_err(io::Error::other)
+        .map_err(MicrophoneError::Output)?;
         use io::Write;
         output.write_all(b"\n").map_err(MicrophoneError::Output)?;
     }
@@ -165,7 +171,7 @@ fn capture_session(
     let supported = device
         .default_input_config()
         .map_err(|_| MicrophoneError::UnsupportedConfig)?;
-    let rate = supported.sample_rate().0 as usize;
+    let rate = supported.sample_rate() as usize;
     let channels = supported.channels() as usize;
     if !(8_000..=192_000).contains(&rate) || !(1..=32).contains(&channels) {
         return Err(MicrophoneError::UnsupportedConfig);
@@ -187,10 +193,12 @@ fn capture_session(
     let stream = match supported.sample_format() {
         SampleFormat::I8 => stream::<i8>(&device, &stream_config, producer, &control),
         SampleFormat::I16 => stream::<i16>(&device, &stream_config, producer, &control),
+        SampleFormat::I24 => stream::<cpal::I24>(&device, &stream_config, producer, &control),
         SampleFormat::I32 => stream::<i32>(&device, &stream_config, producer, &control),
         SampleFormat::I64 => stream::<i64>(&device, &stream_config, producer, &control),
         SampleFormat::U8 => stream::<u8>(&device, &stream_config, producer, &control),
         SampleFormat::U16 => stream::<u16>(&device, &stream_config, producer, &control),
+        SampleFormat::U24 => stream::<cpal::U24>(&device, &stream_config, producer, &control),
         SampleFormat::U32 => stream::<u32>(&device, &stream_config, producer, &control),
         SampleFormat::U64 => stream::<u64>(&device, &stream_config, producer, &control),
         SampleFormat::F32 => stream::<f32>(&device, &stream_config, producer, &control),
@@ -311,7 +319,7 @@ where
     let error_failed = Arc::clone(&control.failed);
     device
         .build_input_stream(
-            config,
+            *config,
             move |data: &[T], _| {
                 if !control.should_stop() {
                     capture(data, channels, &mut producer, &control.failed);
