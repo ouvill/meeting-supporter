@@ -67,6 +67,23 @@ jobs:
           if [ "$RUNNER_OS" = Windows ]; then suffix=.exe; else suffix=; fi
           export MEETING_TEST_PYTHON_WORKER="$GITHUB_WORKSPACE/generated/python-worker/dist/meeting-python-worker/meeting-python-worker$suffix"
           npm run test:python-worker
+      - name: Install the Windows candidate and verify its bundled workers
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer is missing' }
+          $destination = Join-Path $env:RUNNER_TEMP 'Meeting Supporter 日本語'
+          $installation = Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/D=$destination") -PassThru -Wait
+          if ($installation.ExitCode -ne 0) { throw 'NSIS installation failed' }
+          if (-not (Test-Path (Join-Path $destination 'meeting-supporter.exe'))) { throw 'Installed application is missing' }
+          if (Test-Path (Join-Path $destination 'python')) { throw 'Legacy backend was bundled' }
+          $env:MEETING_TEST_NATIVE_BUNDLE = Join-Path $destination 'native'
+          npm run test:rust-bundle -- --models
+          if ($LASTEXITCODE -ne 0) { throw 'Installed speech worker failed' }
+          $env:MEETING_TEST_PYTHON_WORKER = Join-Path $destination 'python-worker/meeting-python-worker.exe'
+          npm run test:python-worker
+          if ($LASTEXITCODE -ne 0) { throw 'Installed DOCX worker failed' }
       - name: Upload installer candidates
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
