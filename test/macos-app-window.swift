@@ -7,13 +7,12 @@ import Foundation
 let app = URL(fileURLWithPath: CommandLine.arguments[1])
 let configuration = NSWorkspace.OpenConfiguration()
 configuration.createsNewApplicationInstance = true
-var failed = true
 NSWorkspace.shared.openApplication(at: app, configuration: configuration) { running, error in
     guard error == nil, let running = running else {
         fputs("Installed application could not launch\n", stderr)
         exit(1)
     }
-    defer { running.forceTerminate() }
+    var failed = true
     let deadline = Date().addingTimeInterval(30)
     while Date() < deadline && !running.isTerminated {
         let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
@@ -28,6 +27,7 @@ NSWorkspace.shared.openApplication(at: app, configuration: configuration) { runn
     }
     if failed { fputs("Installed application did not open a window\n", stderr) }
     else { print("Installed macOS application opened a window.") }
+    running.forceTerminate()
     exit(failed ? 1 : 0)
 }
 RunLoop.main.run()

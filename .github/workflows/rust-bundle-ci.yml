@@ -53,7 +53,9 @@ jobs:
             src-tauri -> target
             crates/meeting-audio-runtime -> ../../target/bundle/audio
             test/rust-native-backend -> ../../target/bundle/speech
+            crates/meeting-desktop-runtime -> ../../target/macos-tests
           key: cpu-installer
+          cache-on-failure: true
       - run: npm ci
       - run: node --test scripts/test-native-runtime.mjs
       - name: Prepare the verified native runtime
@@ -116,6 +118,7 @@ jobs:
         if: runner.os == 'macOS'
         env:
           MACOSX_DEPLOYMENT_TARGET: "14.6"
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target/macos-tests
         run: |
           cargo test --locked --manifest-path crates/meeting-audio-runtime/Cargo.toml
           cargo test --locked --manifest-path crates/meeting-media-runtime/Cargo.toml
