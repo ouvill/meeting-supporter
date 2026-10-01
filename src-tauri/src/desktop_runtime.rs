@@ -62,11 +62,17 @@ pub fn start(app: AppHandle) {
                     path.is_dir().then_some(path)
                 }
             };
+            // The dedicated debug WebDriver build must never read the user's keychain.
+            let webdriver = cfg!(all(debug_assertions, feature = "webdriver"));
             let secrets: std::sync::Arc<dyn meeting_desktop_runtime::settings::Secrets> =
-                std::sync::Arc::new(crate::desktop_secrets::OsSecrets);
+                if webdriver {
+                    std::sync::Arc::new(meeting_desktop_runtime::settings::UnavailableSecrets)
+                } else {
+                    std::sync::Arc::new(crate::desktop_secrets::OsSecrets)
+                };
             Server::start_with_secrets(
                 Config {
-                    agent_updates: true,
+                    agent_updates: !webdriver,
                     data_dir,
                     audio_worker: configured("MEETING_AUDIO_WORKER", audio),
                     speech_worker: configured("MEETING_REAZON_WORKER", speech),

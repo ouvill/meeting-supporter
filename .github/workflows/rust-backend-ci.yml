@@ -1,0 +1,89 @@
+name: Rust backend CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  MANAGED_API_BASE_URL: ""
+  HF_HUB_OFFLINE: "1"
+
+jobs:
+  libraries:
+    name: Rust libraries and synthetic integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target/rust-ci
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            build-essential clang cmake pkg-config libssl-dev libpulse-dev libasound2-dev
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          workspaces: crates/meeting-desktop-runtime -> ../../target/rust-ci
+          key: rust-libraries
+      - name: Test every runtime crate and native speech implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          for crate in meeting-audio-runtime meeting-media-runtime meeting-speech-runtime meeting-session meeting-storage; do
+            cargo test --locked --manifest-path "crates/$crate/Cargo.toml"
+          done
+          cargo test --locked --manifest-path crates/meeting-desktop-runtime/Cargo.toml --features test-fixtures
+          cargo test --locked --manifest-path test/rust-audio-core/Cargo.toml
+          cargo test --locked --manifest-path test/rust-native-backend/Cargo.toml
+
+  desktop:
+    name: Rust Tauri desktop E2E (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target/rust-e2e
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            build-essential pkg-config libssl-dev libayatana-appindicator3-dev \
+            libgtk-3-dev librsvg2-dev libwebkit2gtk-4.1-dev libxdo-dev \
+            patchelf openbox xvfb xauth fonts-noto-cjk gstreamer1.0-plugins-good
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          workspaces: src-tauri -> ../target/rust-e2e
+          key: rust-desktop
+      - run: npm ci
+      - name: Typecheck desktop scenarios
+        run: npm run test:tauri:types
+      - name: Test the Rust Tauri composition
+        env:
+          TAURI_CONFIG: '{"bundle":{"resources":null}}'
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --features rust-backend,webdriver
+      - name: Run Rust desktop without Python, models, or audio devices
+        run: dbus-run-session -- xvfb-run -a npm run test:tauri:rust
+      - name: Upload synthetic desktop failure logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rust-desktop-e2e-${{ github.run_id }}
+          if-no-files-found: warn
+          path: logs/
+          retention-days: 3

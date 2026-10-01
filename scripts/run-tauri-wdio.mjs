@@ -42,6 +42,7 @@ const child = spawn(
     resolve(repoRoot, "node_modules", "@wdio", "cli", "bin", "wdio.js"),
     "run",
     configPath,
+    ...process.argv.slice(3),
   ],
   {
     cwd: repoRoot,

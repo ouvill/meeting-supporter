@@ -1,5 +1,9 @@
 import { $, browser, expect } from "@wdio/globals";
-import { localBackendRequest, waitForBackendReady } from "./helpers/backend";
+import {
+  localBackendRequest,
+  syntheticSpeechSettings,
+  waitForBackendReady,
+} from "./helpers/backend";
 import { expectDisplayedSurface } from "./helpers/displayedSurface";
 import {
   finishMeeting,
@@ -135,17 +139,18 @@ describe("Contextual settings credentials", () => {
     }
   });
 
-  it("shows managed pricing", async () => {
+  it("does not allow selecting an unavailable hosted route", async () => {
     await openSettings(waitOptions);
-    const managedCard = await $('[data-route-id="managed"]');
-    await managedCard.waitForDisplayed(waitOptions);
-    expect(await managedCard.getText()).toContain(
-      "提供時に料金をご案内（無料ではありません）",
+    const card = await $('[data-route-id="managed"]');
+    await card.waitForDisplayed(waitOptions);
+    const reply = await card.$('.//button[normalize-space()="返答案"]');
+    expect(!(await reply.isExisting()) || !(await reply.isEnabled())).toBe(
+      true,
     );
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 
-  it("shows and toggles reply and minutes independently", async () => {
+  it("toggles the reply route without offering retired minutes generation", async () => {
     await openSettings(waitOptions);
 
     const geminiCard = await $('[data-route-id="gemini"]');
@@ -155,14 +160,13 @@ describe("Contextual settings credentials", () => {
     );
     await reply.waitForClickable(waitOptions);
     const initialReply = await reply.getAttribute("aria-pressed");
-    const initialMinutes = await minutes.getAttribute("aria-pressed");
+    expect(await minutes.isExisting()).toBe(false);
 
     await reply.click();
 
     expect(await reply.getAttribute("aria-pressed")).toBe(
       initialReply === "true" ? "false" : "true",
     );
-    expect(await minutes.getAttribute("aria-pressed")).toBe(initialMinutes);
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 
@@ -259,7 +263,7 @@ describe("Contextual settings credentials", () => {
   });
 
   it("locks audio settings while a meeting is active", async () => {
-    await persistSttPatch({ backend: "dummy" });
+    await persistSttPatch(await syntheticSpeechSettings());
     await browser.refresh();
     await waitForBackendReady();
     await expectDisplayedSurface('[data-testid="setup-screen"]', waitOptions);

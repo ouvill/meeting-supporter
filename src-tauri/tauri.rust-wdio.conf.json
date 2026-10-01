@@ -1,0 +1,23 @@
+{
+  "identifier": "net.ouvill.meeting-supporter.rust-wdio",
+  "build": {
+    "beforeBuildCommand": "npm run build:wdio"
+  },
+  "bundle": {
+    "active": false,
+    "resources": null
+  },
+  "app": {
+    "security": {
+      "capabilities": [
+        "default",
+        {
+          "identifier": "wdio",
+          "description": "WebDriver permissions used only by desktop smoke tests",
+          "windows": ["main", "assistant"],
+          "permissions": ["wdio:default", "wdio-webdriver:default"]
+        }
+      ]
+    }
+  }
+}

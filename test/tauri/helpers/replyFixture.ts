@@ -24,9 +24,25 @@ function promptText(value: unknown): string {
       ) {
         throw new Error("Invalid synthetic message");
       }
-      if (typeof message.content !== "string")
+      if (typeof message.content === "string") return message.content;
+      // Rig serializes user messages as OpenAI content parts.
+      if (!Array.isArray(message.content))
         throw new Error("Expected text content");
-      return message.content;
+      return message.content
+        .map((part: unknown) => {
+          if (
+            typeof part !== "object" ||
+            part === null ||
+            !("type" in part) ||
+            part.type !== "text" ||
+            !("text" in part) ||
+            typeof part.text !== "string"
+          ) {
+            throw new Error("Expected text part");
+          }
+          return part.text;
+        })
+        .join("\n");
     })
     .join("\n");
 }
@@ -69,9 +85,10 @@ export async function createReplyFixture({
       response.flushHeaders();
       // The first request stays pending until the UI cancels it.
       if (current === 0) return;
-      const reply = text.includes("短く、1文で言える形")
-        ? "承知しました。"
-        : "準備できました。進めてください。";
+      const reply =
+        text.includes("短く、1文で言える形") || text.includes("短い1文")
+          ? "承知しました。"
+          : "準備できました。進めてください。";
       const chunk = (delta: object, finishReason: string | null) => ({
         id: "synthetic-reply",
         object: "chat.completion.chunk",

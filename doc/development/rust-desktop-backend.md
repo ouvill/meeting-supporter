@@ -295,3 +295,27 @@ Registry の展開では path traversal とリンクの拒否を検証します�
 実際の認証情報・外部 AI サービスはテストに使用しません。
 画面の接続先選択は `src/__tests__/App.rustBackend.test.tsx` で検証します。
 実デバイスの音質・長時間稼働や一般配布は別途検証が必要です。
+
+### CI とデスクトップ E2E
+
+`Rust backend CI` は pull request と main 更新時に実行し、リリース候補の作成時にも必須チェックとして呼び出します。
+`crates/` の各ライブラリ、音声コア、native 推論 worker のテストを個別に実行します。
+実モデルや外部サービスが必要な ignored テストは通常 CI に含めません。
+
+Linux のデスクトップ E2E は次のコマンドで実行できます。
+GTK / WebKit の開発ライブラリに加え、Xvfb、xauth、Openbox、D-Bus が必要です。
+
+```bash
+npm run test:tauri:types
+dbus-run-session -- xvfb-run -a npm run test:tauri:rust
+```
+
+専用のアプリ識別子と一時データ・モデル領域を使用し、Rust の合成 worker が両入力の音声取得・録音・認識応答を返します。
+実マイク、音声モデル、Python / uv の環境準備は不要です。
+debug の WebDriver ビルドでは OS の認証情報ストアを読み書きせず、エージェントの自動更新も無効にします。
+返答生成には loopback の模擬 AI サーバーだけを使います。
+通常操作中に PATH 上の Python / uv が呼び出された場合はテストを失敗にします。
+
+会議の開始・再接続・終了、両入力の末尾認識と録音の履歴保存、タイトル変更、履歴削除を確認します。
+共通シナリオでは設定、アクセシビリティ、ウィンドウ操作、返答生成の停止・再試行・言い換え・破棄も確認します。
+実機の認識品質、GPU、Windows / macOS の音声取得、署名済み配布物の検証は別途必要です。

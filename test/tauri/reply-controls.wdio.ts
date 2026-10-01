@@ -5,7 +5,11 @@ import {
   removeReplyFixture,
   type ReplyFixture,
 } from "./helpers/replyFixture";
-import { localBackendRequest, waitForBackendReady } from "./helpers/backend";
+import {
+  localBackendRequest,
+  syntheticSpeechSettings,
+  waitForBackendReady,
+} from "./helpers/backend";
 import { expectDisplayedSurface } from "./helpers/displayedSurface";
 import {
   finishMeeting,
@@ -23,7 +27,6 @@ interface RouteCatalog {
   }>;
   assignments: {
     reply: string | null;
-    minutes: string | null;
   };
 }
 
@@ -106,7 +109,7 @@ async function configureFixture(initialInvocation?: number): Promise<void> {
     path: "/api/settings",
     method: "POST",
     body: {
-      stt: { backend: "dummy" },
+      stt: await syntheticSpeechSettings(),
       reply: { enabled: true, auto_generate: false },
       ollama: { base_url: fixture.baseUrl },
     },
@@ -120,7 +123,7 @@ async function configureFixture(initialInvocation?: number): Promise<void> {
   await localBackendRequest({
     path: "/api/ai/routes/assignments",
     method: "PUT",
-    body: { reply: "ollama", minutes: null },
+    body: { reply: "ollama" },
   });
   await browser.refresh();
   await waitForBackendReady();

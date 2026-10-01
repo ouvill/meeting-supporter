@@ -30,18 +30,25 @@ async function setAssistantVisible(visible: boolean): Promise<void> {
 async function currentWindowAlwaysOnTop(
   label: AppWindowLabel,
 ): Promise<boolean> {
-  return browser.tauri.execute(
-    ({ core }, currentLabel) =>
-      core.invoke("plugin:window|is_always_on_top", { label: currentLabel }),
+  const value = await browser.tauri.execute(
+    async ({ core }, currentLabel) =>
+      await core.invoke("plugin:window|is_always_on_top", {
+        label: currentLabel,
+      }),
     label,
-  ) as Promise<boolean>;
+  );
+  if (typeof value !== "boolean") throw new Error("Invalid native pin state");
+  return value;
 }
 
 async function assistantWindowVisible(): Promise<boolean> {
   await browser.tauri.switchWindow("main");
-  return browser.tauri.execute(({ core }) =>
-    core.invoke("plugin:window|is_visible", { label: "assistant" }),
-  ) as Promise<boolean>;
+  const value = await browser.tauri.execute(
+    async ({ core }) =>
+      await core.invoke("plugin:window|is_visible", { label: "assistant" }),
+  );
+  if (typeof value !== "boolean") throw new Error("Invalid native visibility");
+  return value;
 }
 
 async function pressedState(): Promise<boolean> {

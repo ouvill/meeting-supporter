@@ -10,6 +10,10 @@ permissions:
   contents: read
 
 jobs:
+  rust-backend:
+    name: Verify Rust backend
+    uses: ./.github/workflows/rust-backend-ci.yml
+
   verify:
     name: Verify release inputs
     runs-on: ubuntu-24.04
@@ -153,7 +157,7 @@ jobs:
   build:
     name: Build ${{ matrix.label }}
     if: github.ref_type == 'tag'
-    needs: [verify, native-e2e]
+    needs: [verify, native-e2e, rust-backend]
     permissions:
       contents: write
     strategy:
@@ -235,7 +239,7 @@ jobs:
   build-windows-draft:
     name: Build Windows x64 draft
     if: github.event_name == 'workflow_dispatch'
-    needs: verify
+    needs: [verify, rust-backend]
     runs-on: windows-latest
     permissions:
       contents: write

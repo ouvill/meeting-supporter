@@ -17,8 +17,10 @@ describe("Rust-only local speech", () => {
     const start = await $("button=文字起こしを開始");
     await start.waitForEnabled();
     await start.click();
-    await $('[role="status"]').waitUntil(async function () {
-      return (await this.getText()).includes("マイクから文字起こし中");
+    await browser.waitUntil(async () => {
+      return (await $('[role="status"]').getText()).includes(
+        "マイクから文字起こし中",
+      );
     });
     await $("button=停止").click();
     await $("p=明日の会議は十時からです。").waitForDisplayed();
@@ -35,7 +37,7 @@ describe("Rust-only local speech", () => {
     await $("button=停止").click();
     await browser.waitUntil(
       async () =>
-        (await $$("section[aria-label='文字起こし'] li")).length === 2,
+        (await $$("section[aria-label='文字起こし'] li").length) === 2,
     );
     const temporary = mkdtempSync(join(tmpdir(), "meeting-native-export-"));
     try {
