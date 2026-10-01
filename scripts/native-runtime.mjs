@@ -88,22 +88,29 @@ export async function prepareRuntime() {
   const staging = await mkdtemp(join(cache, "extract-"));
   const directory = join(cache, runtime.directory);
   try {
-    // Use Windows' built-in libarchive implementation. Git's GNU tar can hang
-    // in its external bzip2 process when launched from Node on the CI runner.
-    const tar =
-      process.platform === "win32"
-        ? join(
-            process.env.SystemRoot ?? process.env.WINDIR ?? "C:\\Windows",
-            "System32",
-            "tar.exe",
-          )
-        : "tar";
-    // A relative archive name also works with GNU tar on Windows, which can
-    // interpret the drive letter in an absolute filename as a remote host.
-    await run(tar, ["-xjf", basename(archive), "-C", staging], {
-      cwd: cache,
-      timeout: 120_000,
-    });
+    if (process.platform === "win32") {
+      // Windows tar delegates bzip2 to an external process that hangs on the
+      // hosted runner. Reuse the DOCX build's uv/Python toolchain and stdlib.
+      await run(
+        "uv",
+        [
+          "run",
+          "--no-project",
+          "--python",
+          "3.12",
+          "python",
+          "-c",
+          "import sys, tarfile\nwith tarfile.open(sys.argv[1], 'r:bz2') as archive:\n    archive.extractall(sys.argv[2], filter='data')",
+          archive,
+          staging,
+        ],
+        { timeout: 240_000 },
+      );
+    } else {
+      await run("tar", ["-xjf", archive, "-C", staging], {
+        timeout: 120_000,
+      });
+    }
     for (const [name, digest] of Object.entries(runtime.files)) {
       if (
         !(await matches(join(staging, runtime.directory, "lib", name), digest))
