@@ -1,39 +1,39 @@
 use super::*;
+type Reply = Result<Value, ApiError>;
 
 #[derive(Default, Deserialize)]
 pub(super) struct CatalogQuery {
     #[serde(default)]
-    refresh: bool,
+    pub(super) refresh: bool,
 }
-pub(super) async fn catalog(State(api): State<Api>, Query(query): Query<CatalogQuery>) -> Reply {
+pub(super) async fn catalog(api: Api, query: CatalogQuery) -> Reply {
     if query.refresh {
         check(&api, true).await?;
     }
-    Ok(Json(
-        api.shared
-            .agents
-            .catalog(false)
-            .await
-            .map_err(Error::from)?,
-    ))
+    Ok(api
+        .shared
+        .agents
+        .catalog(false)
+        .await
+        .map_err(Error::from)?)
 }
-pub(super) async fn install(State(api): State<Api>, Path(id): Path<String>) -> Reply {
+pub(super) async fn install(api: Api, id: String) -> Reply {
     let _guard = maintenance(&api).await?;
     let mut stopping = api.stopping.clone();
     let changed = tokio::select! {
         result = api.shared.agents.install(&id) => result.map_err(Error::from)?,
         _ = stopping.changed() => return Err(Error::Closed.into()),
     };
-    Ok(Json(json!({"ok":true,"changed":changed})))
+    Ok(json!({"ok":true,"changed":changed}))
 }
-pub(super) async fn update_all(State(api): State<Api>) -> Reply {
+pub(super) async fn update_all(api: Api) -> Reply {
     let _guard = maintenance(&api).await?;
     let mut stopping = api.stopping.clone();
     let result = tokio::select! {
         result = api.shared.agents.update_all() => result.map_err(Error::from)?,
         _ = stopping.changed() => return Err(Error::Closed.into()),
     };
-    Ok(Json(result))
+    Ok(result)
 }
 
 async fn maintenance(api: &Api) -> Result<tokio::sync::MutexGuard<'_, ()>, ApiError> {
@@ -57,34 +57,32 @@ async fn maintenance(api: &Api) -> Result<tokio::sync::MutexGuard<'_, ()>, ApiEr
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Connect {
-    method: Option<String>,
+    pub(super) method: Option<String>,
 }
-pub(super) async fn connect(
-    State(api): State<Api>,
-    Path(id): Path<String>,
-    Json(body): Json<Connect>,
-) -> Reply {
+pub(super) async fn connect(api: Api, id: String, body: Connect) -> Reply {
     let _guard = maintenance(&api).await?;
     let mut stopping = api.stopping.clone();
     let status = tokio::select! {
         result = api.shared.agents.connect(&id, body.method) => result.map_err(Error::from)?,
         _ = stopping.changed() => return Err(Error::Closed.into()),
     };
-    Ok(Json(serde_json::to_value(status).map_err(Error::from)?))
+    Ok(serde_json::to_value(status).map_err(Error::from)?)
 }
-pub(super) async fn remove(State(api): State<Api>, Path(id): Path<String>) -> Reply {
+pub(super) async fn remove(api: Api, id: String) -> Reply {
     let _guard = maintenance(&api).await?;
     let store = api.shared.settings.lock().await;
     let assigned = &store.document.ai.assignments;
     if assigned.reply.as_deref() == Some(format!("acp:{id}").as_str()) {
         return Err(ApiError(
             StatusCode::CONFLICT,
-            json!({"detail":"利用するAIの選択を解除して保存してから削除してください。"}),
+            dto::ErrorDetail::Nested(dto::NestedErrorDetail {
+                detail: "利用するAIの選択を解除して保存してから削除してください。".into(),
+            }),
         ));
     }
     drop(store);
     api.shared.agents.remove(&id).await.map_err(Error::from)?;
-    Ok(Json(json!({"ok":true})))
+    Ok(json!({"ok":true}))
 }
 
 async fn check(api: &Api, force: bool) -> Result<(), ApiError> {

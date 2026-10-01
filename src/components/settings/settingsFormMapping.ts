@@ -3,7 +3,7 @@ import type {
   SecretsPayload,
   SettingsResponse,
   SettingsSaveRequest,
-  TomlTable,
+  SttSettingsPatch,
 } from "../../api/generated/types.gen";
 import type { ConnectionSecretKey } from "./ApiConnectionControl";
 import {
@@ -21,6 +21,8 @@ export type SettingsResponseWithRetention = SettingsResponse & {
 };
 
 export type SettingsSaveRequestWithRetention = SettingsSaveRequest & {
+  // Only the legacy Python path sends this extra setting.
+  stt?: SttSettingsPatch & { vad_aggressiveness?: number };
   delete_secrets?: ConnectionSecretKey[];
   recording_retention: {
     cutoff_date: string | null;
@@ -62,7 +64,7 @@ export const INITIAL_SETTINGS_FORM: SettingsForm = {
 };
 
 export function getTomlString(
-  table: TomlTable | undefined,
+  table: Readonly<Record<string, unknown>> | undefined,
   key: string,
 ): string | undefined {
   const value = table?.[key];
@@ -70,7 +72,7 @@ export function getTomlString(
 }
 
 function getTomlNumber(
-  table: TomlTable | undefined,
+  table: Readonly<Record<string, unknown>> | undefined,
   key: string,
 ): number | undefined {
   const value = table?.[key];

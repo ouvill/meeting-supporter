@@ -22,6 +22,34 @@ HTTP / WebSocket adapter は既存画面の契約を保つためのものです�
 Python の API サーバーや Rust ドメイン処理用の追加プロセスは介在しません。
 資料変換の呼び出し・配布方法は [共通 Python worker](../../python-worker/README.md)を参照してください。
 
+## API 契約と DTO
+
+HTTP / WebSocket adapter は Poem を使用します。HTTP のルート・要求・応答は
+`poem-openapi` で定義し、その定義から `openapi.json` を生成します。
+設定、DB、音声処理の内部型は API に直接公開せず、
+[HTTP DTO](../../crates/meeting-desktop-runtime/src/dto/http.rs) を境界に置きます。
+保存層からの応答は DTO に変換・検証してから返し、録音の内部ファイルパスなどを含めません。
+
+設定の部分更新では、項目の省略、明示的な `null`、設定値を区別します。
+DTO が要求の構造を検証し、設定値の範囲や会議中の変更可否は既存の設定・会議処理が検証します。
+秘密値を含み得る要求の解析エラーは、その本文を画面やログへ返しません。
+
+```bash
+npm run generate:api
+```
+
+このコマンドは Rust の `export-openapi` を実行し、続けて既存の
+`@hey-api/openapi-ts` で TypeScript クライアントを生成します。
+生成時はアプリの保存先、認証情報ストア、音声 worker に接続せず、Python も起動しません。
+`openapi.json` と `src/api/generated` は手編集しません。
+旧 Python API の診断用出力は `python/scripts/generate_openapi.py` に別の出力先を明示して取得します。
+
+[WebSocket DTO](../../crates/meeting-desktop-runtime/src/dto/ws.rs) はコマンドとイベントの型を所有します。
+WebSocket メッセージの TypeScript / Zod 定義は `src/types/wsMessages.ts` にあり、
+HTTP の OpenAPI 生成とは別に管理します。
+
+## 音声入力と共有モデル
+
 自分と相手の音声取得・録音はそれぞれの worker で行い、選択した音声認識モデルは 1 つだけ読み込みます。
 共有 worker 内で VAD の状態・発話バッファ・時刻を入力元ごとに保持し、完成した発話を順番に推論します。
 推論中も両方の入力の VAD と発話の区切り処理を続けます。同時発話時は推論の順番待ちが生じます。

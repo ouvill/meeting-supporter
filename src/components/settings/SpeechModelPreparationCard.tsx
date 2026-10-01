@@ -69,7 +69,7 @@ function statePresentation(
 }
 
 function progressPercent(status: SpeechModelStatusResponse): number | null {
-  if (status.progress_percent !== null)
+  if (status.progress_percent != null)
     return Math.min(100, Math.max(0, status.progress_percent));
   if (status.total_bytes && status.total_bytes > 0)
     return Math.min(

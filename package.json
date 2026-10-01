@@ -31,7 +31,7 @@
     "tauri": "tauri",
     "licenses:generate": "uv run --project python python scripts/third-party-licenses.py",
     "licenses:check": "uv run --project python python scripts/third-party-licenses.py --check",
-    "generate:openapi": "cd python && uv run poe generate-openapi",
+    "generate:openapi": "cargo run --locked --manifest-path crates/meeting-desktop-runtime/Cargo.toml --bin export-openapi -- openapi.json",
     "generate:api": "npm run generate:openapi && openapi-ts",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -1,15 +1,8 @@
-"""Shared utilities for generating the OpenAPI schema from the FastAPI app.
+"""Diagnostic OpenAPI export for the legacy FastAPI app.
 
-This module factors out the ``write_openapi_json`` logic used by both the
-runtime ``lifespan.py`` (DEBUG startup side-effect) and the standalone
-``generate_openapi.py`` script so that the write behaviour is identical
-in both paths.
-
-The canonical way to regenerate ``openapi.json`` is the npm script::
-
-    npm run generate:openapi
-
-which invokes ``python/scripts/generate_openapi.py``.
+``python/scripts/generate_openapi.py`` calls this helper with an explicit
+output path. The desktop ``openapi.json`` is generated from Rust via
+``npm run generate:api``; Python startup does not write schema files.
 """
 
 from __future__ import annotations

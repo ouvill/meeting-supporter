@@ -24,6 +24,7 @@ const detail: MeetingDetail = {
   reply_suggestions: [],
   recording_assets: [],
   ai_note: "",
+  minutes: "",
 };
 
 const resetHistoryStore = useMeetingHistoryStore.getState().reset;

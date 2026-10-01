@@ -12,7 +12,6 @@ import {
   testConnectionApiSettingsConnectionsTestPost,
 } from "../api/generated/sdk.gen";
 import type {
-  SettingsResponse,
   SpeechModelStatusResponse,
 } from "../api/generated/types.gen";
 import type {
@@ -50,7 +49,8 @@ vi.mock("../api/recordingRetention", () => ({
 
 const response = new Response(null, { status: 200 });
 const request = new Request("http://localhost/api/settings");
-function settings(overrides: Partial<SettingsResponse> = {}): SettingsResponse {
+// Raw responses also exercise legacy and unsupported backend values.
+function settings(overrides: Record<string, unknown> = {}) {
   return {
     ollama: { base_url: "http://127.0.0.1:11434/v1" },
     stt: { backend: "whisper", language: "ja" },

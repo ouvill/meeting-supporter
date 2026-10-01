@@ -129,6 +129,19 @@
           "sha256": "e562a2ddfaf8280537795ac5ecd34e3012b6582a147ef69ba6a6a5c08c84757d"
         }
       ]
+    },
+    "cargo:rfc7239@0.1.3": {
+      "selected_license": "Apache-2.0",
+      "supplemental_documents": [
+        {
+          "path": "licenses/rfc7239-0.1.3.txt",
+          "sha256": "cdc74ad7d370591d75a567b6ed1495b1deb3db693aa3f3451eadbbde345abcfa"
+        },
+        {
+          "path": "licenses/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        }
+      ]
     }
   },
   "provisioned_artifacts": [

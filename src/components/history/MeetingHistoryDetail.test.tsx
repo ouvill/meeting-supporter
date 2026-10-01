@@ -23,6 +23,7 @@ function makeMeeting(overrides?: Partial<MeetingDetail>): MeetingDetail {
     reply_suggestions: [],
     recording_assets: [],
     ai_note: "",
+    minutes: "",
     ...overrides,
   };
 }

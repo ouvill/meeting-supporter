@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 from app.core.config import AiRouteAssignments
 from app.lifespan import create_lifespan
@@ -118,6 +119,18 @@ class _RecordingHistoryService:
 
 class LifespanShutdownTest(unittest.IsolatedAsyncioTestCase):
     """Verifies shutdown uses the coordinator path when present."""
+
+    async def test_debug_startup_does_not_generate_the_rust_api_contract(self) -> None:
+        lifespan_fn = create_lifespan(
+            stt_controller=_RecordingSttController([]),  # pyright: ignore[reportArgumentType]
+            config=_DummyConfig(),  # pyright: ignore[reportArgumentType]
+            state=_DummyState(),  # pyright: ignore[reportArgumentType]
+        )
+        app = _make_dummy_app()
+        with patch.dict("os.environ", {"DEBUG": "1"}), patch.object(app, "openapi") as schema:
+            async with lifespan_fn(app):
+                pass
+            schema.assert_not_called()
 
     async def test_shutdown_calls_coordinator_when_provided(self) -> None:
         """When meeting_lifecycle is given, stop_meeting should use coordinator,

@@ -10,9 +10,8 @@ publish = false
 meeting-session = { path = "../meeting-session" }
 meeting-storage = { path = "../meeting-storage" }
 meeting-media-runtime = { path = "../meeting-media-runtime" }
-axum = { version = "0.8", features = ["ws"] }
-tower-http = { version = "0.6", features = ["cors", "fs"] }
-tower = { version = "0.5", features = ["util"] }
+poem = { version = "3.1", features = ["websocket", "static-files"] }
+poem-openapi = "5.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "net", "sync", "time", "io-util", "process"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -39,6 +38,7 @@ flate2 = "1"
 
 [dev-dependencies]
 tempfile = "3"
+axum = { version = "0.8", features = ["ws"] }
 
 [features]
 test-fixtures = []

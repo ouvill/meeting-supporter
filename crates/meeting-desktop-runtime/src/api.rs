@@ -3,17 +3,22 @@ use crate::{
     wire, Config, Error,
 };
 mod agents;
-use axum::{
-    extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
-        DefaultBodyLimit, Path, Query, State,
+use crate::dto::http as dto;
+use futures_util::{SinkExt, StreamExt};
+use poem::{
+    endpoint::BoxEndpoint,
+    http::{header, Method, StatusCode},
+    listener::TcpAcceptor,
+    middleware::Cors,
+    web::{
+        websocket::{Message, WebSocket, WebSocketStream},
+        Data,
     },
-    http::{header, HeaderMap, Method, Request, StatusCode},
-    middleware::{self, Next},
-    response::{IntoResponse, Response},
-    routing::get,
-    Json, Router,
+    Endpoint, EndpointExt, IntoResponse, Request, Response, Route,
 };
+use poem_openapi::{payload::Json, OpenApiService};
+mod http;
+mod operations;
 use meeting_storage::models as db;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -22,8 +27,6 @@ use std::sync::{
     Arc,
 };
 use tokio::sync::{watch, Mutex};
-use tower::ServiceExt;
-use tower_http::{cors::CorsLayer, services::ServeFile};
 
 #[derive(Clone)]
 struct Api {
@@ -78,10 +81,14 @@ impl Server {
         let running = alive.clone();
         let task = tokio::spawn(async move {
             let mut stopping = stopping;
-            let result = axum::serve(listener, router)
-                .with_graceful_shutdown(async move {
-                    let _ = stopping.changed().await;
-                })
+            let result = poem::Server::new_with_acceptor(TcpAcceptor::from_tokio(listener)?)
+                .run_with_graceful_shutdown(
+                    router,
+                    async move {
+                        let _ = stopping.changed().await;
+                    },
+                    None,
+                )
                 .await;
             running.store(false, Ordering::Release);
             result
@@ -114,75 +121,95 @@ impl Server {
         result
     }
 }
-fn router(api: Api) -> Router {
-    let origins = [
-        "http://localhost:1420",
-        "http://127.0.0.1:1420",
-        "tauri://localhost",
-        "http://tauri.localhost",
-        "https://tauri.localhost",
-    ];
-    Router::new()
-        .route(
-            "/health",
-            get(|| async { Json(json!({"status":"ok","runtime":"rust"})) }),
+
+const ORIGINS: [&str; 5] = [
+    "http://localhost:1420",
+    "http://127.0.0.1:1420",
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+];
+
+/// Generate the contract without opening storage, credentials, workers or a socket.
+pub fn openapi() -> String {
+    OpenApiService::new(
+        http::HttpApi,
+        "Meeting Supporter",
+        env!("CARGO_PKG_VERSION"),
+    )
+    .spec()
+}
+
+fn router(api: Api) -> BoxEndpoint<'static, Response> {
+    let gate = api.clone();
+    Route::new()
+        .at("/ws", poem::get(websocket))
+        .nest(
+            "/",
+            OpenApiService::new(
+                http::HttpApi,
+                "Meeting Supporter",
+                env!("CARGO_PKG_VERSION"),
+            ),
         )
-        .route("/ws", get(websocket))
-        .route("/api/settings", get(settings_get).post(settings_save))
-        .route("/api/stt/capabilities", get(speech_capabilities))
-        .route("/api/stt/model", get(model_status))
-        .route(
-            "/api/stt/model/download",
-            axum::routing::post(model_download),
-        )
-        .route("/api/stt/model/cancel", axum::routing::post(model_cancel))
-        .route("/meetings", get(list))
-        .route(
-            "/meetings/recordings/cleanup/preview",
-            axum::routing::post(cleanup_preview),
-        )
-        .route(
-            "/meetings/recordings/cleanup",
-            axum::routing::post(cleanup_execute),
-        )
-        .route("/meetings/{id}", get(detail).patch(title).delete(delete))
-        .route("/meetings/{id}/recordings", get(recordings))
-        .route("/meetings/{id}/recordings/{role}", get(recording))
-        .route("/api/ai/routes", get(ai_routes))
-        .route("/api/ai/agents", get(agents::catalog))
-        .route(
-            "/api/ai/agents/update-all",
-            axum::routing::post(agents::update_all),
-        )
-        .route(
-            "/api/ai/agents/{id}/install",
-            axum::routing::post(agents::install),
-        )
-        .route(
-            "/api/ai/agents/{id}/connect",
-            axum::routing::post(agents::connect),
-        )
-        .route("/api/ai/agents/{id}", axum::routing::delete(agents::remove))
-        .route(
-            "/api/ai/routes/assignments",
-            axum::routing::put(ai_assignments),
-        )
-        .route("/api/settings/ollama/models", get(ollama_models))
-        .route(
-            "/api/settings/connections/test",
-            axum::routing::post(connection_test),
-        )
-        .fallback(|| async {
-            (
-                StatusCode::NOT_IMPLEMENTED,
-                Json(json!({"detail":"この機能は Rust バックエンドへの移植中です。"})),
-            )
+        .data(api)
+        .around(move |ep, mut req| {
+            let api = gate.clone();
+            async move {
+                if let Err(status) = authorize(&api, &req) {
+                    return Ok(
+                        ApiError(status, "このリクエストを受け付けられません。".into())
+                            .into_response(),
+                    );
+                }
+                if req.uri().path() != "/ws" {
+                    // Bound actual bytes, including chunked bodies without Content-Length.
+                    let body = match req.take_body().into_bytes_limit(1024 * 1024).await {
+                        Ok(body) => body,
+                        Err(error) => {
+                            let status =
+                                if matches!(error, poem::error::ReadBodyError::PayloadTooLarge) {
+                                    StatusCode::PAYLOAD_TOO_LARGE
+                                } else {
+                                    StatusCode::BAD_REQUEST
+                                };
+                            return Ok(ApiError(
+                                status,
+                                "リクエスト本文を受け付けられません。".into(),
+                            )
+                            .into_response());
+                        }
+                    };
+                    req.set_body(body);
+                }
+                match ep.call(req).await {
+                    Ok(response) => Ok(response),
+                    Err(error) => {
+                        if error.is_from_response() {
+                            return Ok(error.into_response());
+                        }
+                        // Never expose framework parser errors containing submitted secrets.
+                        let status = error.status();
+                        let status = if error
+                            .downcast_ref::<poem_openapi::error::ParseRequestPayloadError>()
+                            .is_some()
+                        {
+                            StatusCode::UNPROCESSABLE_ENTITY
+                        } else {
+                            status
+                        };
+                        Ok(Json(dto::ErrorResponse {
+                            detail: "リクエストを処理できませんでした。".into(),
+                        })
+                        .with_status(status)
+                        .into_response())
+                    }
+                }
+            }
         })
-        .layer(DefaultBodyLimit::max(1024 * 1024))
-        .layer(middleware::from_fn_with_state(api.clone(), authorize))
-        .layer(
-            CorsLayer::new()
-                .allow_origin(origins.map(|s| s.parse().unwrap()))
+        .with(
+            Cors::new()
+                .allow_origins(ORIGINS)
                 .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::RANGE])
                 .allow_methods([
                     Method::GET,
@@ -193,27 +220,19 @@ fn router(api: Api) -> Router {
                 ])
                 .expose_headers([header::CONTENT_RANGE, header::ACCEPT_RANGES]),
         )
-        .with_state(api)
+        .boxed()
 }
-async fn authorize(
-    State(api): State<Api>,
-    request: Request<axum::body::Body>,
-    next: Next,
-) -> Response {
+fn authorize(api: &Api, request: &Request) -> Result<(), StatusCode> {
     if *api.stopping.borrow() {
-        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
     }
     let headers = request.headers();
     if let Some(origin) = headers.get(header::ORIGIN) {
-        if !matches!(
-            origin.to_str(),
-            Ok("http://localhost:1420"
-                | "http://127.0.0.1:1420"
-                | "tauri://localhost"
-                | "http://tauri.localhost"
-                | "https://tauri.localhost")
-        ) {
-            return StatusCode::FORBIDDEN.into_response();
+        if !origin
+            .to_str()
+            .is_ok_and(|origin| ORIGINS.contains(&origin))
+        {
+            return Err(StatusCode::FORBIDDEN);
         }
     }
     let authorized = if request.uri().path() == "/ws" {
@@ -230,31 +249,36 @@ async fn authorize(
             .and_then(|v| v.to_str().ok())
             .is_some_and(|v| v == format!("Bearer {}", api.token))
     };
-    if !authorized {
-        return StatusCode::UNAUTHORIZED.into_response();
+    if authorized {
+        Ok(())
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
     }
-    next.run(request).await
 }
-async fn websocket(State(api): State<Api>, ws: WebSocketUpgrade) -> Response {
+#[poem::handler]
+fn websocket(Data(api): Data<&Api>, ws: WebSocket) -> impl IntoResponse {
+    let config = poem::web::websocket::WebSocketConfig::default()
+        .max_message_size(Some(crate::references::MAX_MESSAGE))
+        .max_frame_size(Some(crate::references::MAX_MESSAGE));
+    let api = api.clone();
     ws.protocols([format!("auth.{}", api.token)])
-        .max_message_size(crate::references::MAX_MESSAGE)
-        .max_frame_size(crate::references::MAX_MESSAGE)
+        .config(config)
         .on_upgrade(move |socket| connection(api, socket))
 }
-async fn send(socket: &mut WebSocket, event: &wire::Event) -> bool {
+async fn send(socket: &mut WebSocketStream, event: &wire::Event) -> bool {
     let Ok(text) = serde_json::to_string(event) else {
         return false;
     };
     matches!(
         tokio::time::timeout(
             std::time::Duration::from_secs(5),
-            socket.send(Message::Text(text.into()))
+            socket.send(Message::Text(text))
         )
         .await,
         Ok(Ok(()))
     )
 }
-async fn connection(mut api: Api, mut socket: WebSocket) {
+async fn connection(mut api: Api, mut socket: WebSocketStream) {
     let (snapshot, mut events) = api.shared.snapshot().await;
     for event in snapshot {
         if !send(&mut socket, &event).await {
@@ -288,7 +312,7 @@ async fn connection(mut api: Api, mut socket: WebSocket) {
                 Ok(event) => if !send(&mut socket, &event).await { break; },
                 Err(_) => break, // A slow consumer reconnects for an authoritative snapshot.
             },
-            message = socket.recv() => match message {
+            message = socket.next() => match message {
                 Some(Ok(Message::Text(text))) => match serde_json::from_str::<wire::Command>(&text) {
                     Ok(command) => {
                         if matches!(command, wire::Command::ShutdownStt {}) { api.shared.cancel_prepare.send_modify(|v| *v = v.wrapping_add(1)); }
@@ -307,7 +331,7 @@ async fn connection(mut api: Api, mut socket: WebSocket) {
     // Accepted effects survive disconnects. Dropping an in-flight save is unsafe.
     let _ = worker.await;
 }
-struct ApiError(StatusCode, Value);
+struct ApiError(StatusCode, dto::ErrorDetail);
 impl From<Error> for ApiError {
     fn from(error: Error) -> Self {
         let status = match &error {
@@ -331,410 +355,47 @@ impl From<meeting_storage::StorageError> for ApiError {
 }
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (self.0, Json(json!({"detail":self.1}))).into_response()
+        Json(dto::ErrorResponse { detail: self.1 })
+            .with_status(self.0)
+            .into_response()
     }
-}
-type Reply = Result<Json<Value>, ApiError>;
-#[derive(Deserialize)]
-struct Page {
-    #[serde(default = "default_limit")]
-    limit: u32,
-    #[serde(default)]
-    offset: u32,
-}
-fn default_limit() -> u32 {
-    50
-}
-async fn list(State(api): State<Api>, Query(page): Query<Page>) -> Reply {
-    if !(1..=200).contains(&page.limit) {
-        return Err(ApiError(StatusCode::BAD_REQUEST, "invalid limit".into()));
-    }
-    let mut items = api
-        .shared
-        .repository
-        .execute(db::Command::ListMeetings {
-            limit: page.limit,
-            offset: page.offset,
-        })
-        .await?;
-    if let Some(items) = items.as_array_mut() {
-        for item in items {
-            item["has_ai_note"] = json!(!item["ai_note"]
-                .as_str()
-                .unwrap_or_default()
-                .trim()
-                .is_empty());
-        }
-    }
-    let total = api
-        .shared
-        .repository
-        .execute(db::Command::CountMeetings {})
-        .await?;
-    Ok(Json(
-        json!({"items":items,"total":total,"limit":page.limit,"offset":page.offset}),
-    ))
-}
-async fn get_meeting(api: &Api, id: &str) -> Result<Value, ApiError> {
-    let meeting = api
-        .shared
-        .repository
-        .execute(db::Command::GetMeeting {
-            meeting_id: id.into(),
-        })
-        .await?;
-    if meeting.is_null() {
-        return Err(ApiError(StatusCode::NOT_FOUND, "Meeting not found".into()));
-    }
-    Ok(meeting)
-}
-async fn detail(State(api): State<Api>, Path(id): Path<String>) -> Reply {
-    let mut meeting = get_meeting(&api, &id).await?;
-    meeting["turns"] = api
-        .shared
-        .repository
-        .execute(db::Command::ListTurns {
-            meeting_id: id.clone(),
-        })
-        .await?;
-    meeting["reply_suggestions"] = api
-        .shared
-        .repository
-        .execute(db::Command::ListReplySuggestions {
-            meeting_id: id.clone(),
-        })
-        .await?;
-    meeting["recording_assets"] = api
-        .shared
-        .repository
-        .execute(db::Command::ListRecordingAssets { meeting_id: id })
-        .await?;
-    Ok(Json(meeting))
-}
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Title {
-    title: String,
-}
-async fn title(State(api): State<Api>, Path(id): Path<String>, Json(body): Json<Title>) -> Reply {
-    get_meeting(&api, &id).await?;
-    api.shared
-        .repository
-        .execute(db::Command::UpdateMeetingTitle {
-            meeting_id: id,
-            title: body.title,
-        })
-        .await?;
-    Ok(Json(json!({"ok":true})))
-}
-async fn delete(State(api): State<Api>, Path(id): Path<String>) -> Reply {
-    // Accepted deletion finishes even if the HTTP client disconnects.
-    tokio::spawn(async move {
-        let mut guard = api
-            .runtime
-            .try_lock()
-            .map_err(|_| ApiError(StatusCode::CONFLICT, "会議を処理中です。".into()))?;
-        get_meeting(&api, &id).await?;
-        if !guard.can_delete(&id) {
-            return Err(ApiError(
-                StatusCode::CONFLICT,
-                "処理中の会議は削除できません。終了してから削除してください。".into(),
-            ));
-        }
-        let root = api.shared.config.data_dir.clone();
-        let owned_id = id.clone();
-        tokio::task::spawn_blocking(move || crate::cleanup::remove_files(&root, &owned_id))
-            .await
-            .map_err(|_| Error::CleanupFiles)??;
-        api.shared
-            .repository
-            .execute(db::Command::DeleteMeeting { meeting_id: id })
-            .await?;
-        Ok(Json(json!({"ok":true})))
-    })
-    .await
-    .map_err(|_| Error::CleanupFiles)?
-}
-async fn cleanup_preview(
-    State(api): State<Api>,
-    Json(body): Json<crate::cleanup::Request>,
-) -> Reply {
-    let _guard = api
-        .runtime
-        .try_lock()
-        .map_err(|_| ApiError(StatusCode::CONFLICT, "会議を処理中です。".into()))?;
-    let plan = crate::cleanup::plan(&api.shared.repository, &body).await?;
-    let response = serde_json::to_value(&plan.preview).map_err(Error::from)?;
-    *api.cleanup_preview.lock().await = Some(plan);
-    Ok(Json(response))
-}
-async fn cleanup_execute(
-    State(api): State<Api>,
-    Json(body): Json<crate::cleanup::Request>,
-) -> Reply {
-    tokio::spawn(async move {
-        let _guard = api
-            .runtime
-            .try_lock()
-            .map_err(|_| ApiError(StatusCode::CONFLICT, "会議を処理中です。".into()))?;
-        let previous = api
-            .cleanup_preview
-            .lock()
-            .await
-            .take()
-            .ok_or(Error::CleanupChanged)?;
-        let result = crate::cleanup::execute(&api.shared, &body, previous).await?;
-        Ok(Json(serde_json::to_value(result).map_err(Error::from)?))
-    })
-    .await
-    .map_err(|_| Error::CleanupFiles)?
 }
 
-async fn recordings(State(api): State<Api>, Path(id): Path<String>) -> Reply {
-    get_meeting(&api, &id).await?;
-    Ok(Json(
-        api.shared
-            .repository
-            .execute(db::Command::ListRecordingAssets { meeting_id: id })
-            .await?,
-    ))
-}
-async fn contained(
-    base: &std::path::Path,
-    path: &std::path::Path,
-) -> Result<std::path::PathBuf, ApiError> {
-    let base = tokio::fs::canonicalize(base).await.map_err(Error::from)?;
-    let path = tokio::fs::canonicalize(path)
-        .await
-        .map_err(|_| ApiError(StatusCode::NOT_FOUND, "Recording not found".into()))?;
-    if !path.starts_with(&base) || path == base {
-        return Err(ApiError(StatusCode::BAD_REQUEST, "Invalid path".into()));
-    }
-    Ok(path)
-}
-async fn recording(
-    State(api): State<Api>,
-    Path((id, role)): Path<(String, db::Role)>,
-    headers: HeaderMap,
-) -> Result<Response, ApiError> {
-    let asset = api
-        .shared
-        .repository
-        .execute(db::Command::GetRecordingAssetByRole {
-            meeting_id: id,
-            role,
-        })
-        .await?;
-    if asset.is_null() {
-        return Err(ApiError(
-            StatusCode::NOT_FOUND,
-            "Recording not found".into(),
-        ));
-    }
-    let asset: db::Asset = serde_json::from_value(asset).map_err(Error::from)?;
-    let path = contained(
-        &api.shared.config.data_dir,
-        &api.shared.config.data_dir.join(asset.relative_path),
-    )
-    .await?;
-    let mut request = Request::new(axum::body::Body::empty());
-    *request.headers_mut() = headers;
-    let response = ServeFile::new(path)
-        .oneshot(request)
-        .await
-        .unwrap_or_else(|never| match never {});
-    Ok(response.into_response())
-}
-
-async fn settings_value(api: &Api) -> Result<Value, ApiError> {
-    let guard = api.shared.settings.lock().await;
-    let store = guard.clone();
-    let response = tokio::task::spawn_blocking(move || store.response())
-        .await
-        .map_err(|_| Error::Closed)?;
-    drop(guard);
-    let mut response = response?;
-    let id = api
-        .shared
-        .live
-        .lock()
-        .await
-        .session
-        .as_ref()
-        .map(|s| s.id.clone());
-    if let Some(id) = id {
-        let path = api.shared.config.data_dir.join("usage.jsonl");
-        let summary = tokio::task::spawn_blocking(move || crate::usage::meeting(&path, &id))
-            .await
-            .map_err(|_| Error::Closed)??;
-        response["usage"]["current_meeting"] =
-            serde_json::to_value(summary).map_err(Error::from)?;
-    }
-    Ok(response)
-}
-async fn settings_get(State(api): State<Api>) -> Reply {
-    Ok(Json(settings_value(&api).await?))
-}
-fn settings_error(error: Error) -> ApiError {
-    match error {
-        Error::Busy | Error::Session(_) => ApiError(
-            StatusCode::CONFLICT,
-            json!({"code":"AUDIO_SETTINGS_LOCKED","message":"会議中・準備中は音声認識の設定を変更できません。"}),
-        ),
-        Error::Settings | Error::Unsupported => {
-            ApiError(StatusCode::UNPROCESSABLE_ENTITY, error.to_string().into())
-        }
-        _ => error.into(),
+impl From<ApiError> for poem::Error {
+    fn from(error: ApiError) -> Self {
+        poem::Error::from_response(error.into_response())
     }
 }
-async fn settings_save(State(api): State<Api>, Json(patch): Json<crate::settings::Patch>) -> Reply {
-    let mut runtime = api
-        .runtime
-        .try_lock()
-        .map_err(|_| settings_error(Error::Busy))?;
-    runtime.save_settings(patch).await.map_err(settings_error)?;
-    Ok(Json(
-        json!({"ok":true,"settings":settings_value(&api).await?}),
-    ))
-}
-async fn speech_capabilities(State(api): State<Api>) -> Json<Value> {
-    let supported = meeting_media_runtime::whisper_gpu_supported(&api.shared.config.speech_worker)
-        .await
-        .ok();
-    // null means unknown (missing, outdated or failing worker), never CPU-only.
-    Json(json!({"whisper_gpu": supported}))
-}
-
-async fn model_status(
-    State(api): State<Api>,
-    Query(query): Query<crate::models::Request>,
-) -> Reply {
-    Ok(Json(
-        serde_json::to_value(api.shared.models.status(&query).map_err(model_error)?)
-            .map_err(Error::from)?,
-    ))
-}
-async fn model_download(
-    State(api): State<Api>,
-    Json(query): Json<crate::models::Request>,
-) -> Reply {
-    Ok(Json(
-        serde_json::to_value(api.shared.models.start(&query).map_err(model_error)?)
-            .map_err(Error::from)?,
-    ))
-}
-async fn model_cancel(
-    State(api): State<Api>,
-    Query(query): Query<crate::models::Request>,
-) -> Reply {
-    Ok(Json(
-        serde_json::to_value(api.shared.models.cancel(&query).map_err(model_error)?)
-            .map_err(Error::from)?,
-    ))
-}
-fn model_error(error: crate::models::ModelError) -> ApiError {
-    ApiError(
-        StatusCode::UNPROCESSABLE_ENTITY,
-        json!({"detail":error.to_string()}),
-    )
-}
-
-async fn ai_routes(State(api): State<Api>) -> Reply {
-    let store = api.shared.settings.lock().await.clone();
-    // Warm the previously selected agent on startup without prompting the model.
-    if let Some(id) = store
-        .document
-        .ai
-        .assignments
-        .clone()
-        .reply
-        .and_then(|id| id.strip_prefix("acp:").map(str::to_owned))
-    {
-        if !api.shared.live.lock().await.running && !api.shared.agents.pool.status(&id).await.ready
-        {
-            if let Ok(_guard) = api.shared.agents.maintenance.try_lock() {
-                let _ = api.shared.agents.connect(&id, None).await;
-            }
+impl poem_openapi::ApiResponse for ApiError {
+    fn meta() -> poem_openapi::registry::MetaResponses {
+        poem_openapi::registry::MetaResponses {
+            responses: [400, 401, 403, 404, 409, 413, 422, 500, 503]
+                .into_iter()
+                .map(|status| {
+                    let mut response = Json::<dto::ErrorResponse>::meta().responses.remove(0);
+                    response.status = Some(status);
+                    response.description = "Request or runtime error";
+                    response
+                })
+                .collect(),
         }
     }
-    Ok(Json(
-        crate::ai::routes::catalog(store, &api.shared.agents).await?,
-    ))
+    fn register(registry: &mut poem_openapi::registry::Registry) {
+        Json::<dto::ErrorResponse>::register(registry);
+    }
 }
-async fn ai_assignments(
-    State(api): State<Api>,
-    Json(body): Json<crate::ai::routes::Assignments>,
-) -> Reply {
-    let _runtime = api.runtime.try_lock().map_err(|_| {
+fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, ApiError> {
+    serde_json::from_value(value).map_err(|error| Error::from(error).into())
+}
+fn request<T: serde::de::DeserializeOwned>(body: impl serde::Serialize) -> Result<T, ApiError> {
+    let value = serde_json::to_value(body).map_err(Error::from)?;
+    serde_json::from_value(value).map_err(|_| {
         ApiError(
-            StatusCode::CONFLICT,
-            "会議の操作中です。完了を待ってください。".into(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "リクエストの形式が不正です。".into(),
         )
-    })?;
-    let mut guard = api.shared.settings.lock().await;
-    if let Some(id) = &body.reply {
-        if let Some(agent) = id.strip_prefix("acp:") {
-            api.shared.agents.launch(agent).await.map_err(Error::from)?;
-            if !api.shared.agents.pool.status(agent).await.ready {
-                return Err(Error::Agent(crate::agents::AgentError::Connect).into());
-            }
-        } else if !matches!(id.as_str(), "openai" | "gemini" | "anthropic" | "ollama") {
-            return Err(ApiError(
-                StatusCode::UNPROCESSABLE_ENTITY,
-                "このAI経路はまだ選択できません。".into(),
-            ));
-        }
-    }
-    let mut candidate = guard.document.clone();
-    candidate.ai.assignments = body;
-    let mut store = guard.clone();
-    let saved = tokio::task::spawn_blocking(move || {
-        store.save(candidate, crate::settings::Patch::default())?;
-        Ok::<_, Error>(store)
     })
-    .await
-    .map_err(|_| Error::Closed)??;
-    *guard = saved.clone();
-    drop(guard);
-    api.shared
-        .replies
-        .lock()
-        .await
-        .cancel_all(&api.shared)
-        .await;
-    Ok(Json(
-        crate::ai::routes::catalog(saved, &api.shared.agents).await?,
-    ))
 }
-#[derive(Deserialize)]
-struct OllamaQuery {
-    base_url: Option<String>,
-}
-async fn ollama_models(State(api): State<Api>, Query(query): Query<OllamaQuery>) -> Reply {
-    let base_url = match query.base_url {
-        Some(url) => url,
-        None => api
-            .shared
-            .settings
-            .lock()
-            .await
-            .route_url(crate::ai::routes::Provider::Ollama)
-            .to_owned(),
-    };
-    match crate::ai::routes::ollama_models(&base_url).await {
-        Ok(models) => Ok(Json(
-            json!({"ok":true,"base_url":base_url,"models":models,"message":null}),
-        )),
-        Err(error) => Ok(Json(
-            json!({"ok":false,"base_url":base_url,"models":[],"message":error.to_string()}),
-        )),
-    }
-}
-
-async fn connection_test(
-    State(api): State<Api>,
-    Json(body): Json<crate::ai::connections::Request>,
-) -> Reply {
-    let store = api.shared.settings.lock().await.clone();
-    Ok(Json(crate::ai::connections::check(store, body).await?))
+fn response<T: serde::de::DeserializeOwned>(value: Value) -> Result<Json<T>, ApiError> {
+    decode(value).map(Json)
 }

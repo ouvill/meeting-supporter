@@ -159,6 +159,8 @@ async fn existing_ui_flow_drains_both_final_transcripts_and_serves_recording_ran
     let detail: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(detail["turns"].as_array().unwrap().len(), 3);
     assert_eq!(detail["recording_assets"].as_array().unwrap().len(), 2);
+    assert!(detail["recording_assets"][0].get("relative_path").is_none());
+    assert!(detail["recording_assets"][0].get("meeting_id").is_none());
     let (status, body) = http(
         &server,
         "GET",
@@ -169,6 +171,40 @@ async fn existing_ui_flow_drains_both_final_transcripts_and_serves_recording_ran
     assert_eq!(status, 206);
     assert_eq!(body.len(), 44);
     assert_eq!(&body[..4], b"RIFF");
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let recording_url = format!(
+        "http://127.0.0.1:{}/meetings/{id}/recordings/self",
+        server.port
+    );
+    let full = client
+        .get(&recording_url)
+        .bearer_auth(&server.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(full.status(), 200);
+    assert_eq!(full.headers()["content-type"], "audio/wav");
+    let etag = full.headers()["etag"].clone();
+    let cached = client
+        .get(&recording_url)
+        .bearer_auth(&server.token)
+        .header("If-None-Match", etag)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cached.status(), 304);
+    let invalid = client
+        .get(&recording_url)
+        .bearer_auth(&server.token)
+        .header("Range", "bytes=999999999-")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(invalid.status(), 416);
+    assert!(invalid.headers()["content-range"]
+        .to_str()
+        .unwrap()
+        .starts_with("bytes */"));
     let (status, _) = http(&server, "DELETE", &format!("/meetings/{id}"), "").await;
     assert_eq!(status, 200);
     assert!(!temp.path().join("data/recordings").join(id).exists());
@@ -299,6 +335,109 @@ async fn rejects_untrusted_origins_and_missing_auth() {
     );
     let url = format!("ws://127.0.0.1:{}/ws", server.port);
     assert!(tokio_tungstenite::connect_async(url).await.is_err());
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn poem_boundary_preserves_auth_cors_patch_semantics_and_safe_errors() {
+    let temp = tempfile::tempdir().unwrap();
+    let server = Server::start(config(&temp, "model")).await.unwrap();
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let url = format!("{base}/api/settings");
+    assert_eq!(client.get(&url).send().await.unwrap().status(), 401);
+    let preflight = client
+        .request(reqwest::Method::OPTIONS, &url)
+        .header("Origin", "http://localhost:1420")
+        .header("Access-Control-Request-Method", "POST")
+        .header(
+            "Access-Control-Request-Headers",
+            "authorization,content-type",
+        )
+        .send()
+        .await
+        .unwrap();
+    assert!(preflight.status().is_success());
+    assert_eq!(
+        preflight.headers()["access-control-allow-origin"],
+        "http://localhost:1420"
+    );
+
+    let send_patch = |value: Value| {
+        client
+            .post(&url)
+            .bearer_auth(&server.token)
+            .json(&value)
+            .send()
+    };
+    let set = send_patch(
+        json!({"recording_retention":{"cutoff_date":"2026-01-01","max_total_bytes":1024}}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(set.status(), 200);
+    let kept: Value = send_patch(json!({"reply":{"auto_generate":true}}))
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        kept["settings"]["recording_retention"]["max_total_bytes"],
+        1024
+    );
+    let cleared: Value = send_patch(json!({"recording_retention":{"max_total_bytes":null}}))
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(cleared["settings"]["recording_retention"]["max_total_bytes"].is_null());
+    assert_eq!(
+        cleared["settings"]["recording_retention"]["cutoff_date"],
+        "2026-01-01"
+    );
+    for bad in [
+        json!({"stt":{"backend":"cloud"}}),
+        json!({"stt":{"vad_engine":"webrtc"}}),
+        json!({"context":{"unexpected":true}}),
+    ] {
+        assert_eq!(send_patch(bad).await.unwrap().status(), 422);
+    }
+    let malformed = client
+        .post(format!("{base}/api/settings/connections/test"))
+        .bearer_auth(&server.token)
+        .json(&json!({"provider":"synthetic-private-value", "api_key":"synthetic-private-value"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(malformed.status(), 422);
+    assert!(!malformed
+        .text()
+        .await
+        .unwrap()
+        .contains("synthetic-private-value"));
+    let chunks = futures_util::stream::iter([Ok::<_, std::io::Error>(
+        r#"{"reply":{"auto_generate":false}}"#.to_owned(),
+    )]);
+    let chunked = client
+        .post(&url)
+        .bearer_auth(&server.token)
+        .header("Content-Type", "application/json")
+        .body(reqwest::Body::wrap_stream(chunks))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(chunked.status(), 200);
+    let too_large = client
+        .post(&url)
+        .bearer_auth(&server.token)
+        .header("Content-Type", "application/json")
+        .body(" ".repeat(1024 * 1024 + 1))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(too_large.status(), 413);
     server.shutdown().await.unwrap();
 }
 

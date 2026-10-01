@@ -3,6 +3,7 @@ mod agents;
 mod ai;
 mod api;
 mod cleanup;
+pub mod dto;
 mod interrupted;
 pub mod models;
 mod python_worker;
@@ -10,9 +11,9 @@ mod references;
 mod runtime;
 pub mod settings;
 mod usage;
-pub mod wire;
+pub use dto::ws as wire;
 
-pub use api::Server;
+pub use api::{openapi, Server};
 use std::path::PathBuf;
 use thiserror::Error;
 

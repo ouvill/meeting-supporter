@@ -8,7 +8,8 @@
 - `meeting-session` の状態遷移に従った開始・停止・失敗時の保存判断。
 - `meeting-storage` の SQLx repository。アプリの SQLite を直接使用します。
 - 自分・相手それぞれの `meeting-media-runtime::Supervisor` と認識結果の保存。
-- 既存 UI 用の認証付き loopback HTTP / WebSocket adapter。
+- Poem による既存 UI 用の認証付き loopback HTTP / WebSocket adapter。
+- HTTP / WebSocket の DTO 層と、実際の HTTP ハンドラーからの OpenAPI 生成。
 - 既存 TOML 設定の検証・保存、認証情報ストアへの接続、利用量の記録と予算チェック。
 - 資料の保存・返答への反映、前提資料フォルダの再読み込み。DOCX は共通 Python worker の MarkItDown に委譲します。
 - 終了済み会議の期限・容量による削除対象確認と明示的な削除実行。

@@ -1,10 +1,8 @@
 """Application lifespan (startup / shutdown)."""
 
 import logging
-import os
 import traceback
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 
@@ -12,7 +10,6 @@ from app.core.state import AppState
 from app.meetings.lifecycle import MeetingLifecycleCoordinator
 from app.meetings.repository import MeetingHistoryRepository
 from app.meetings.service import MeetingHistoryService
-from app.openapi_utils import write_openapi_json
 from app.services.config_loader import ConfigLoader
 from app.services.context_loader import load_context_files
 from app.services.stt_controller import SttController
@@ -99,14 +96,6 @@ def create_lifespan(
             )
 
         logger.info("会議支援AI 起動完了")
-
-        # Developer fallback: write OpenAPI schema on DEBUG startup.
-        # The canonical generation command is ``npm run generate:openapi``
-        # (or equivalently ``cd python && uv run python scripts/generate_openapi.py``).
-        if os.getenv("DEBUG"):
-            _openapi_path = Path(__file__).parent.parent.parent / "openapi.json"
-            _ = write_openapi_json(app, path=_openapi_path)
-            logger.debug("OpenAPI schema written to %s", _openapi_path.resolve())
 
         yield
 
