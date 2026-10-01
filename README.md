@@ -37,11 +37,11 @@
 
 - Whisper（local。アプリ設定からmodelを準備可能）
 - ReazonSpeech K2-v2 int8（local・日本語専用。アプリ設定からmodelを準備可能）
-- Dummy（development/smoke用）
+- Dummy（旧 Python 構成の development/smoke 用）
 
 既定はReazonSpeechです。モデルの利用規約は各提供元に従います。
 
-VADエンジンはSTT backendとは独立して、Silero VADまたはWebRTC VADから選択します。
+Rust 構成の VAD は Silero です。旧 Python 構成では Silero VAD または WebRTC VAD を選択します。
 
 
 ## AIの利用方法
@@ -80,9 +80,10 @@ macOS は引き続き旧 Python 構成です。
 ### 依存関係
 
 ```bash
-npm install
-cd python && uv sync --locked
+npm ci
 ```
+
+旧 Python 構成を使う場合は、追加で `uv sync --directory python --locked` を実行します。
 
 ### Desktop development
 

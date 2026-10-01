@@ -12,7 +12,7 @@ UI・API・履歴ファイルの形式は維持します。
 cargo build --release --locked --manifest-path crates/meeting-storage/Cargo.toml
 export MEETING_STORAGE_RUNTIME=rust
 export MEETING_STORAGE_WORKER="$PWD/crates/meeting-storage/target/release/meeting-storage"
-npm run tauri -- dev
+npm run dev:python
 ```
 
 未指定時は従来の Python 実装です。Rust を選択した場合、起動失敗時の自動切替は行いません。

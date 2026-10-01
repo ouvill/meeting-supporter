@@ -21,7 +21,7 @@ export MEETING_REAZON_WORKER="$PWD/test/rust-native-backend/target/release/meeti
 export MEETING_REAZON_MODEL="$PWD/test/rust-native-backend/target/models/reazonspeech"
 export MEETING_REAZON_PUNCTUATION="$PWD/test/rust-native-backend/target/models/punctuation-bert"
 
-npm run tauri -- dev
+npm run dev:python
 ```
 
 音声認識は Silero + ReazonSpeech / Whisper.cpp、16 kHz を使用します。

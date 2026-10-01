@@ -1,22 +1,21 @@
 # Rust 音声認識の既存アプリへの接続
 
-既存の会議画面・入力選択・録音・履歴・AI 連携を保ち、ローカル音声認識を
-Rust の Silero / ReazonSpeech / 任意の句読点処理へ置換する開発用の経路です。
-既定では音声取得と会議管理を Python が担当します。Linux では取得・録音も Rust へ切り替えられます。
-通常起動から Python を除去する段階ではありません。
+旧 Python バックエンドから Rust の音声・会議・保存 worker を呼ぶ比較検証用の経路です。
+画面を併用する場合は、バックエンドとは別の端末で `npm run dev` を実行してブラウザーから接続します。
+Linux / Windows の標準 Tauri 構成は [Rust の直接接続](rust-desktop-backend.md)を使います。
 
 ## 起動経路と Python 配布方針
 
-現在の既存画面の起動では、会議管理などを担当する Python バックエンドを準備・起動します。
+この比較経路では、会議管理などを担当する Python バックエンドを準備・起動します。
 音声取得・認識を Rust に切り替えても、ログには `uv sync` と FastAPI の起動が表示されます。
 これは Rust worker の使用有無とは別です。
 
-会議管理の Rust 移行後は、Python が不可欠な機能だけを
+標準の Rust 構成では、DOCX 変換用の Python worker を
 PyInstaller `--onedir` で梱包し、Rust から必要時に直接起動します。
 uv は開発・ビルド用とし、製品の通常起動で環境同期を行いません。
 この配布方式と Rust → Python の通信契約は
 [ADR-016 の Python worker 配布方針](../adr/016-rust-runtime-and-ownership-boundaries.md#python-worker-は-pyinstaller-の-onedir-形式で配布する)
-に記載しています。Python 専用 worker の梱包と、現在の uv 起動経路の除去は未実装です。
+に記載しています。旧 Python バックエンドのコードは比較用に残っています。
 
 ## 既存画面で Rust 音声認識を使う
 
@@ -33,7 +32,7 @@ export MEETING_REAZON_RUNTIME=rust
 export MEETING_REAZON_WORKER="$PWD/test/rust-native-backend/target/release/meeting-native-backend"
 export MEETING_REAZON_MODEL="$PWD/test/rust-native-backend/target/models/reazonspeech"
 export MEETING_REAZON_PUNCTUATION="$PWD/test/rust-native-backend/target/models/punctuation-bert"
-npm run tauri -- dev
+npm run dev:python
 ```
 
 いつもの設定画面で ReazonSpeech と Silero を選び、入力デバイスを設定し、
@@ -64,7 +63,7 @@ PulseAudio、または PipeWire の PulseAudio 互換サーバーがある Linux
 cargo build --release --locked --manifest-path crates/meeting-audio-runtime/Cargo.toml
 export MEETING_AUDIO_RUNTIME=rust
 export MEETING_AUDIO_WORKER="$PWD/crates/meeting-audio-runtime/target/release/meeting-audio-runtime"
-npm run tauri -- dev
+npm run dev:python
 ```
 
 `MEETING_AUDIO_RUNTIME` を省略すると従来の Python 音声取得・録音を使います。
@@ -234,7 +233,7 @@ xvfb-run -a dbus-run-session -- node scripts/run-tauri-wdio.mjs \
 cargo build --release --locked --manifest-path crates/meeting-storage/Cargo.toml
 export MEETING_STORAGE_RUNTIME=rust
 export MEETING_STORAGE_WORKER="$PWD/crates/meeting-storage/target/release/meeting-storage"
-npm run tauri -- dev
+npm run dev:python
 ```
 
 既存の会議サービスが Rust worker に保存を依頼し、Rust / SQLx が SQLite の接続を所有します。

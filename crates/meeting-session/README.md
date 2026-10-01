@@ -15,7 +15,7 @@ export MEETING_SESSION_RUNTIME=rust
 export MEETING_SESSION_WORKER="$PWD/crates/meeting-session/target/release/meeting-session"
 export MEETING_STORAGE_RUNTIME=rust
 export MEETING_STORAGE_WORKER="$PWD/crates/meeting-storage/target/release/meeting-storage"
-npm run tauri -- dev
+npm run dev:python
 ```
 
 音声取得・推論は既存の選択設定を使用します。

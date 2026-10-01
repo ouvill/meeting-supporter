@@ -71,7 +71,9 @@ test/rust-native-backend/target/release/meeting-native-backend --reazon-model te
 
 [assets.json](assets.json) はモデル revision、各ファイルの SHA-256、Linux 用 native archive と展開後ライブラリの SHA-256 を固定しています。取得は `target/` に限定し、モデルファイルは一時ファイルで検証後に配置します。モデルは約 160 MB、native archive は約 9.8 MB です。既に同じモデルがある場合は `--reazon-model` でそのディレクトリを指定できます。実行時に自動ダウンロードはしません。
 
-`SHERPA_ONNX_LIB_DIR` を指定しない場合、依存 crate の build script が native archive を取得します。再現検証では上記の検証済み artifact を明示してください。これは開発用セットアップであり、一般利用者向け installer はまだ作成していません。Windows / macOS の native 配布と実行は未検証です。
+`SHERPA_ONNX_LIB_DIR` を指定しない場合、依存 crate の build script が native archive を取得します。再現検証では上記の検証済み artifact を明示してください。
+アプリの Linux / Windows 用パッケージは [Rust のインストーラー](../../doc/development/rust-desktop-backend.md#linux--windows-のインストーラー)から生成します。
+macOS の native 配布と実行は未検証です。
 
 モデルの初期化前に protocol 2 の `ready` が返ります。次を 1 行ずつ標準入力へ送り、各応答を待って進められます。
 
@@ -247,7 +249,10 @@ python3 test/rust-native-backend/generate_notices.py
 python3 test/rust-native-backend/generate_notices.py --check
 ```
 
-この通知は ReazonSpeech feature を含む Rust 依存と埋め込み Silero の範囲です。取得した sherpa-onnx / ONNX Runtime の native library と ReazonSpeech モデルはリポジトリに同梱せず、この通知には含めていません。製品化時は公式 native runtime のバージョン・ABI・OS/architecture・ハッシュを固定し、その配布物の LICENSE / ThirdPartyNotices を含め、製品側の `npm run licenses:generate` に統合します。Python wheel の開発環境をユーザーに作らせる構成にはしません。
+この試作用の通知は ReazonSpeech feature を含む Rust 依存と埋め込み Silero の範囲です。
+アプリの配布用 native runtime はバージョン・OS/architecture・SHA-256 を固定し、
+sherpa-onnx と ONNX Runtime の LICENSE / ThirdPartyNotices を製品側の `npm run licenses:generate` に含めます。
+モデルは同梱せず、アプリの設定画面から取得します。
 
 ## 日本語の句読点復元
 
