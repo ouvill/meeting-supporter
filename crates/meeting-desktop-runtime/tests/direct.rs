@@ -83,13 +83,44 @@ async fn http(server: &Server, method: &str, path: &str, extra: &str) -> (u16, V
         .unwrap();
     (status, bytes[split + 4..].to_vec())
 }
+async fn delete_when_idle(server: &Server, id: &str) {
+    // The final state is broadcast before the command's runtime guard is
+    // released. DELETE deliberately reports 409 during that short interval.
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let status = http(server, "DELETE", &format!("/meetings/{id}"), "")
+                .await
+                .0;
+            if status == 200 {
+                break;
+            }
+            assert_eq!(status, 409);
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+}
 async fn start(ws: &mut Socket) {
     until(ws, |v| v["type"] == "devices_list").await;
     send(ws, json!({"type":"init_stt"})).await;
     until(ws, |v| v["type"] == "stt_state" && v["initialized"] == true).await;
     send(ws,json!({"type":"start_meeting","meeting_context":{"scenario":"synthetic","objective":"test"},"references":[]})).await;
     until(ws, |v| v["type"] == "meeting_state" && v["running"] == true).await;
-    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    // Observe capture progress after StartSpeech attached both routes. A fixed
+    // sleep can expire before either worker is scheduled on a loaded runner.
+    let mut inputs = [false; 2];
+    while !inputs.iter().all(|ready| *ready) {
+        let level = until(ws, |v| {
+            v["type"] == "audio_level" && v["level"].as_f64().is_some_and(|p| p > 0.0)
+        })
+        .await;
+        match level["role"].as_str() {
+            Some("self") => inputs[0] = true,
+            Some("other") => inputs[1] = true,
+            _ => panic!("unexpected capture role"),
+        }
+    }
 }
 
 #[tokio::test]
@@ -229,12 +260,7 @@ async fn inference_crash_preserves_records_and_allows_another_meeting() {
     assert_eq!(page["items"][0]["status"], "aborted");
     assert_eq!(page["items"][0]["has_recording"], true);
     let id = page["items"][0]["id"].as_str().unwrap();
-    assert_eq!(
-        http(&server, "DELETE", &format!("/meetings/{id}"), "")
-            .await
-            .0,
-        200
-    );
+    delete_when_idle(&server, &id).await;
     send(&mut ws, json!({"type":"init_stt"})).await;
     until(&mut ws, |v| {
         v["type"] == "stt_state" && v["initialized"] == true
@@ -568,9 +594,18 @@ async fn repeated_meetings_keep_transcripts_in_their_own_session() {
     let settings = config(&temp, "model");
     let model = settings.model.clone().unwrap();
     let server = Server::start(settings).await.unwrap();
-    for _ in 0..2 {
+    for generation in 1..=2 {
         let mut ws = connect(&server).await;
         start(&mut ws).await;
+        // Both inference inputs must actually receive PCM before Stop. The
+        // test checks session attribution, not how fast a worker is scheduled.
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while !(0..2).all(|role| model.join(format!("audio-{role}-{generation}")).exists()) {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
         send(&mut ws, json!({"type":"stop_meeting"})).await;
         let stopped = until(&mut ws, |v| {
             v["type"] == "meeting_state" && v["running"] == false
@@ -1783,12 +1818,7 @@ async fn reference_flow(worker: std::path::PathBuf) {
     })
     .await;
     assert!(directory.join("md/parsed.md").exists());
-    assert_eq!(
-        http(&server, "DELETE", &format!("/meetings/{id}"), "")
-            .await
-            .0,
-        200
-    );
+    delete_when_idle(&server, &id).await;
     assert!(!directory.exists());
     drop(ws);
     server.shutdown().await.unwrap();

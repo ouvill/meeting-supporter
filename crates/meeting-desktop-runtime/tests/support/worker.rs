@@ -157,6 +157,10 @@ fn speech(args: Vec<String>) {
                 if model.ends_with("crash") {
                     std::process::exit(23);
                 }
+                if *samples == 0 {
+                    std::fs::write(model.join(format!("audio-{role}-{generation}")), "received")
+                        .unwrap();
+                }
                 *samples += command["pcm"].as_array().unwrap().len();
                 response["type"] = json!("audio");
                 response["segment"] = Value::Null;
