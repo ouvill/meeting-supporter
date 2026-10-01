@@ -21,6 +21,30 @@ try {
     { recursive: true },
   );
   const executable = join(native, "meeting-native-backend" + suffix);
+  if (process.platform === "darwin") {
+    // Enumerating CoreAudio devices does not request recording permission.
+    const audio = spawnSync(
+      join(native, "meeting-audio-runtime"),
+      ["--list-devices"],
+      {
+        cwd: temporary,
+        env,
+        timeout: 15_000,
+        maxBuffer: 1024 * 1024,
+      },
+    );
+    assert.ifError(audio.error);
+    assert.equal(audio.status, 0, "Packaged CoreAudio worker failed");
+    const header = audio.stdout.readUInt32LE(0);
+    assert.equal(audio.stdout.readUInt32LE(4), 0);
+    assert.equal(audio.stdout.length, 8 + header);
+    const devices = JSON.parse(audio.stdout.subarray(8).toString("utf8"));
+    assert.equal(devices.type, "devices");
+    assert.ok(Array.isArray(devices.devices));
+    console.log(
+      "Relocated CoreAudio device enumeration passed with an empty PATH.",
+    );
+  }
   function worker(args, input) {
     const result = spawnSync(executable, args, {
       cwd: temporary,

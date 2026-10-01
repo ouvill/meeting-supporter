@@ -2,7 +2,7 @@
 
 旧 Python バックエンドから Rust の音声・会議・保存 worker を呼ぶ比較検証用の経路です。
 画面を併用する場合は、バックエンドとは別の端末で `npm run dev` を実行してブラウザーから接続します。
-Linux / Windows の標準 Tauri 構成は [Rust の直接接続](rust-desktop-backend.md)を使います。
+Linux / Windows / macOS の標準 Tauri 構成は [Rust の直接接続](rust-desktop-backend.md)を使います。
 
 ## 起動経路と Python 配布方針
 

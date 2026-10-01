@@ -106,10 +106,10 @@ Silero threshold と無音時間は既存の設定画面で変更できます。
 
 `dev:rust` は `rust-backend` feature と `tauri.rust.conf.json` を使い、Python resource の準備をスキップします。
 起動ログに `Rust in-process backend is ready (Python worker starts only on demand).` と表示します。
-`npm run tauri -- dev` は Linux / Windows では Rust を使い、固定版の native library と DOCX worker も準備します。
+`npm run tauri -- dev` は Linux / Windows / macOS では Rust を使い、固定版の native library と DOCX worker も準備します。
 ビルドには uv が必要ですが、アプリは利用者環境の Python / uv を起動しません。
 `dev:rust` は音声 worker のみを更新する開発用経路、`dev:native` は独立した音声検証画面です。
-macOS の標準構成は音声取得の移植が完了するまで既存 Python 経路を使います。
+macOS は CoreAudio を使い、14.6 以降の Apple Silicon / Intel を対象にします。
 
 保存先は既存アプリと同じ app-data directory です。履歴スキーマを維持しているため、既存履歴も参照できます。
 開発テストは一時 DB と合成音声で行い、実ユーザーの履歴をテストに使用しません。
@@ -296,7 +296,7 @@ CUDA は `--gpu cuda`、Metal は `--gpu metal` を指定します。
 ビルドが失敗しても選択は保持するため、SDK 等を準備した後に同じ設定で再試行できます。
 Whisper と ReazonSpeech はどの選択でも含めます。これらはビルド時の選択であり、
 CPU 版に実行時設定だけで GPU 対応を追加することはできません。標準インストーラーは CPU 版です。
-Windows の実機検証、GPU 版の配布、macOS の音声取得・配布は後続の作業です。
+Windows / macOS の実機検証と GPU 版の配布は後続の作業です。
 
 実行デバイスは設定画面の「自動」「CPU」「GPU」で選択します。
 GUI は設定済みの推論 worker に `--capabilities` でビルド時の GPU 対応を問い合わせます。
@@ -331,13 +331,13 @@ GPU 判定は固定した whisper.cpp 版の初期化通知を利用するため
 返答のモデル経路は OpenAI、Gemini、Anthropic、Ollama の設定だけを受け付けます。
 未設定の hosted service は `not_offered` のままです。
 
-汎用 provider plan、Windows の実機検証、macOS の取得は後続の作業です。
+汎用 provider plan と Windows / macOS の実機検証は後続の作業です。
 開発専用の `tauri.rust.conf.json` は bundle を無効にします。インストーラーは次の標準構成から生成します。
 
 Python が必要な AI 機能は、後続の移植で共通 PyInstaller worker のサブコマンドとして追加します。
 この直接接続の経路に Python の仲介を戻す必要はありません。
 
-## Linux / Windows のインストーラー
+## インストーラー
 
 ビルド環境には Node.js、Rust、C/C++ toolchain、CMake、Clang、uv が必要です。
 Windows は x64 MSVC と Windows SDK、Linux は Tauri の依存に加えて `libpulse-dev` と `libasound2-dev` を準備します。
@@ -350,7 +350,9 @@ npm run tauri -- build --ci
 OS 別の Tauri 設定が `rust-backend` を選択し、`prepare:rust-resources` を実行します。
 音声取得・推論 worker と共有ライブラリは `native/`、凍結した DOCX worker は `python-worker/` に同梱します。
 旧 FastAPI バックエンドは同梱しません。Windows は NSIS インストーラーを生成します。
-Linux は標準の Tauri パッケージを生成します。
+Linux は標準の Tauri パッケージ、macOS はネイティブ architecture ごとの app / DMG を生成します。
+macOS のビルドには Xcode Command Line Tools と macOS 14.6 以降が必要です。
+Intel 版は Intel runner でビルドし、Python worker も対象 architecture に揃えます。
 
 配布用 worker は開発用の GPU 設定・外部 worker 指定から独立した CPU 版です。
 Whisper と ReazonSpeech を含め、モデル本体はアプリの設定画面から取得します。
@@ -358,10 +360,15 @@ sherpa-onnx / ONNX Runtime は [固定した配布物](../../test/rust-native-ba
 アーカイブと展開後ファイルの SHA-256 を確認して使います。native library の通知も `THIRD-PARTY-NOTICES.txt` に含めます。
 Windows の worker は静的 CRT を使い、利用者に C++ 開発環境を要求しません。
 
-`Rust installers` CI は Windows / Linux のインストーラー候補を Actions artifact として保存します。
+`Rust installers` CI は Windows / Linux / macOS（Apple Silicon・Intel）のインストーラー候補を Actions artifact として保存します。
 再配置した worker を空の PATH で実行し、Silero、ReazonSpeech、Whisper tiny の準備と合成無音の処理、
 凍結 DOCX worker の変換を検証します。これは実会議の認識品質や実デバイスの検証ではありません。
-候補の署名と、Windows のマイク権限・音声入出力・デバイス切断は実機で確認してください。
+Windows は NSIS でインストールし、macOS は DMG をマウントして日本語・空白を含むパスへ app をコピーします。
+インストール後のウィンドウ表示と、同梱 worker の実モデル処理・MarkItDown による DOCX 変換も確認します。
+macOS では CoreAudio デバイス列挙と録音・変換・desktop runtime の合成テストを追加します。
+CI の macOS 候補は ad-hoc 署名です。Developer ID 署名・notarization と、
+Windows / macOS のマイク権限・音声入出力・デバイス切断は実機で確認してください。
+この CI は画面から DOCX をアップロードする操作や macOS の全画面操作 E2E を含みません。
 
 ## 検証
 

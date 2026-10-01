@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [windows-2022, ubuntu-22.04]
+        platform: [windows-2022, ubuntu-22.04, macos-15, macos-15-intel]
     env:
       MANAGED_API_BASE_URL: ""
       CARGO_TERM_COLOR: always
@@ -61,6 +61,9 @@ jobs:
         run: node --input-type=module -e "import { prepareRuntime } from './scripts/native-runtime.mjs'; await prepareRuntime();"
       - name: Build the standard Rust installer with native and DOCX workers
         # The platform config owns the feature and resource preparation.
+        env:
+          # Local ad-hoc signature, never a production Developer ID credential.
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
         run: npm run tauri -- build --ci
       - name: Load the bundled runtime and real speech models after relocation
         run: npm run test:rust-bundle -- --models
@@ -106,10 +109,21 @@ jobs:
           $env:MEETING_TEST_PYTHON_WORKER = Join-Path $destination 'python-worker/meeting-python-worker.exe'
           npm run test:python-worker
           if ($LASTEXITCODE -ne 0) { throw 'Installed DOCX worker failed' }
+      - name: Install the macOS DMG and verify startup and workers
+        if: runner.os == 'macOS'
+        run: python3 scripts/test-macos-installer.py
+      - name: Test macOS capture conversion and desktop integration
+        if: runner.os == 'macOS'
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "14.6"
+        run: |
+          cargo test --locked --manifest-path crates/meeting-audio-runtime/Cargo.toml
+          cargo test --locked --manifest-path crates/meeting-media-runtime/Cargo.toml
+          cargo test --locked --manifest-path crates/meeting-desktop-runtime/Cargo.toml --features test-fixtures
       - name: Upload installer candidates
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: rust-installer-${{ runner.os }}-${{ github.sha }}
+          name: rust-installer-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
           if-no-files-found: error
           retention-days: 7
           path: |
@@ -117,6 +131,7 @@ jobs:
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/dmg/*.dmg
 
   windows-desktop:
     name: Rust desktop E2E (Windows)

@@ -171,11 +171,11 @@ jobs:
       matrix:
         include:
           - label: macOS Apple Silicon
-            platform: macos-latest
+            platform: macos-15
             args: --target aarch64-apple-darwin
             rust_targets: aarch64-apple-darwin
           - label: macOS Intel
-            platform: macos-latest
+            platform: macos-15-intel
             args: --target x86_64-apple-darwin
             rust_targets: x86_64-apple-darwin
           - label: Linux x64
@@ -226,7 +226,6 @@ jobs:
         run: npm ci
 
       - name: Set up uv for frozen DOCX worker
-        if: runner.os != 'macOS'
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           cache-dependency-glob: python-worker/uv.lock

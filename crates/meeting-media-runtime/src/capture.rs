@@ -78,7 +78,7 @@ impl Capture {
                 let _ = events.try_send(Event::CaptureError {});
             }
         });
-        let ready = timeout(Duration::from_secs(8), replies.recv()).await;
+        let ready = timeout(startup_timeout() + Duration::from_secs(2), replies.recv()).await;
         let name = match ready {
             Ok(Some(Ok(CaptureEvent::Ready {
                 protocol: 1,
@@ -147,6 +147,11 @@ impl Capture {
         result
     }
 }
+fn startup_timeout() -> Duration {
+    // Allow the first microphone/system-audio permission prompt on macOS.
+    Duration::from_secs(if cfg!(target_os = "macos") { 92 } else { 6 })
+}
+
 async fn read(
     mut stream: BufReader<tokio::process::ChildStdout>,
     replies: &mpsc::Sender<Result<CaptureEvent, Error>>,
@@ -156,8 +161,9 @@ async fn read(
 ) -> Result<(), Error> {
     let mut last_level = Instant::now();
     let mut peak: f64 = 0.0;
+    let mut deadline = startup_timeout();
     loop {
-        let packet = timeout(Duration::from_secs(6), async {
+        let packet = timeout(deadline, async {
             let header = stream.read_u32_le().await? as usize;
             let size = stream.read_u32_le().await? as usize;
             if header == 0 || header > 16384 || (size != 0 && size != 960) {
@@ -177,6 +183,8 @@ async fn read(
         })
         .await
         .map_err(|_| Error::Timeout)??;
+        // Once the stream is open, preserve the ordinary no-progress watchdog.
+        deadline = Duration::from_secs(6);
         match packet {
             (
                 CaptureEvent::Audio {

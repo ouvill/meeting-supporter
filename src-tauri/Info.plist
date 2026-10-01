@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>会議中の自分の発言を文字起こし・録音するためにマイクを使用します。</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>会議相手の発言を文字起こし・録音するためにシステム音声を使用します。</string>
+</dict>
+</plist>

@@ -74,5 +74,27 @@
     "revision": "5359861c739e955e79d9a303bcbc70fb988958b1",
     "file": "ggml-tiny-q8_0.bin",
     "sha256": "c2085835d3f50733e2ff6e4b41ae8a2b8d8110461e18821b09a15c40c42d1cca"
+  },
+  "macos_aarch64_runtime": {
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-shared-lib.tar.bz2",
+    "sha256": "ae77050cdae565496059d96f5ab33d77b397a0864282a4e4a26e3b3b3effb948",
+    "directory": "sherpa-onnx-v1.13.8-osx-arm64-shared-lib",
+    "onnxruntime_version": "1.28.2",
+    "files": {
+      "libonnxruntime.dylib": "3567d114f7299d559993e536d605a6f46d7bc9d2542004accc80ee9bf5457f0b",
+      "libsherpa-onnx-c-api.dylib": "ee098d8b419d49b92101cde3c970a333b361066eb2d79a11ab480a116552b908",
+      "libsherpa-onnx-cxx-api.dylib": "7d9529551bea7e63d795a6c8d02b746bca06c1ab3080f2f14698d945b6810c8d"
+    }
+  },
+  "macos_x86_64_runtime": {
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x64-shared-lib.tar.bz2",
+    "sha256": "0f88371565a06372889c76266e253abd1b415fcc6f98232cabd968933efb0711",
+    "directory": "sherpa-onnx-v1.13.8-osx-x64-shared-lib",
+    "onnxruntime_version": "1.28.2",
+    "files": {
+      "libonnxruntime.dylib": "2bf27180c09e6fd3f407c9ab25205ebf1ff95f2d53bfa35e35409b5849e0ac70",
+      "libsherpa-onnx-c-api.dylib": "d32eb199b94c076afef9cfc42e445c581c0326a72fb2cfdfdc177ebacf9bf38f",
+      "libsherpa-onnx-cxx-api.dylib": "f6d8606fdaaf945b224da155b887cf552215c29bc66e8d2bf1115932a1443c59"
+    }
   }
 }

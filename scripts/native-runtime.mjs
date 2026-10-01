@@ -61,24 +61,25 @@ export async function download(url, destination, digest) {
   }
 }
 
+export function nativeTarget(platform = process.platform, arch = process.arch) {
+  const targets = {
+    "linux-x64": ["linux_x86_64_runtime", "x86_64-unknown-linux-gnu"],
+    "win32-x64": ["windows_x86_64_runtime", "x86_64-pc-windows-msvc"],
+    "darwin-x64": ["macos_x86_64_runtime", "x86_64-apple-darwin"],
+    "darwin-arm64": ["macos_aarch64_runtime", "aarch64-apple-darwin"],
+  };
+  const target = targets[`${platform}-${arch}`];
+  if (!target)
+    throw new Error(`Unsupported native installer: ${platform}-${arch}`);
+  return { runtime: target[0], triple: target[1] };
+}
+
 export async function prepareRuntime() {
-  if (
-    process.arch !== "x64" ||
-    !["linux", "win32"].includes(process.platform)
-  ) {
-    throw new Error(
-      "Rust installers currently support Linux x64 and Windows x64 only.",
-    );
-  }
+  const target = nativeTarget();
   const manifest = JSON.parse(
     await readFile(join(root, "test/rust-native-backend/assets.json"), "utf8"),
   );
-  const runtime =
-    manifest[
-      process.platform === "win32"
-        ? "windows_x86_64_runtime"
-        : "linux_x86_64_runtime"
-    ];
+  const runtime = manifest[target.runtime];
   const cache = join(root, "generated/native-runtime");
   const archive = join(cache, `${runtime.directory}.tar.bz2`);
   console.info("Preparing verified native speech libraries...");

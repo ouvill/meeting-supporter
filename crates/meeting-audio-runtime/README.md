@@ -1,6 +1,6 @@
 # meeting-audio-runtime
 
-CPAL 0.18.2 を使う Linux / Windows 用の音声取得・録音 worker です。
+CPAL 0.18.2 を使う Linux / Windows / macOS 用の音声取得・録音 worker です。
 ONNX と音声認識モデルをリンクせず、デバイスの入力を 16 kHz mono PCM16LE に変換します。
 会議状態・履歴データベース・モデル設定は所有しません。
 
@@ -11,9 +11,15 @@ Linux のビルドには `libpulse-dev` と `libasound2-dev`、実行には Puls
 CPAL の PulseAudio バックエンドを明示的に選び、PipeWire では `pipewire-pulse` を使います。
 monitor と既定出力の対応関係は CPAL が公開していないため、デバイスの列挙情報だけは `libpulse-binding` で補います。
 Windows は CPAL の WASAPI バックエンドでマイクと出力デバイスのループバックを取得します。
-macOS の adapter と署名済み配布物は未対応です。Windows の実デバイス取得は別途検証が必要です。
+macOS は CoreAudio のマイク入力と process tap によるシステム音声取得を使います。
+[CPAL 0.18.2 の対応条件](https://docs.rs/crate/cpal/0.18.2)に合わせ、macOS 14.6 以降が必要です。
+CPAL の制約でシステム音声取得は出力専用デバイスを対象にします。
+入出力一体型の USB ヘッドセットなどはマイクとして列挙し、システム音声入力には表示しません。
+初回はマイク・システム音声のアクセス許可が必要で、起動応答を最大 90 秒待ちます。
+権限を拒否した場合は「システム設定 → プライバシーとセキュリティ」で許可して再接続します。
+Windows / macOS の実デバイス取得と権限ダイアログは実機での検証が必要です。
 
-- `--list-devices` は安定した選択 ID を返します。Linux は既存の Pulse source 名、Windows は CPAL の device ID です。
+- `--list-devices` は安定した選択 ID を返します。Linux は既存の Pulse source 名、Windows / macOS は CPAL の device ID です。
 - `--role self|other [--device ID]` は選択入力を取得します。
   `self` の既定値はマイク、`other` の既定値は既定出力の monitor です。
 - stdin は最大 16 KiB の JSONL です。`id` と `command` を持ち、

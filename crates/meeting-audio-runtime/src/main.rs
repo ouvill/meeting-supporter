@@ -110,7 +110,9 @@ fn run_capture(device: Device, output: &SyncSender<Packet>) -> Result<(), Error>
     let capture_failed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let failure = std::sync::Arc::clone(&capture_failed);
     let _capture = capture::start(device.index, capture_tx, failure);
-    match capture_rx.recv_timeout(Duration::from_secs(5)) {
+    // The first CoreAudio stream may wait for the user's privacy permission.
+    let startup_seconds = if cfg!(target_os = "macos") { 90 } else { 5 };
+    match capture_rx.recv_timeout(Duration::from_secs(startup_seconds)) {
         Ok(capture::CaptureEvent::Started) => {}
         _ => return Err(Error::Device),
     }

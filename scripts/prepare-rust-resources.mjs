@@ -1,15 +1,19 @@
 import { access, copyFile, mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { prepareRuntime, root, run, suffix } from "./native-runtime.mjs";
+import { signMacResources } from "./sign-macos-resources.mjs";
+import {
+  nativeTarget,
+  prepareRuntime,
+  root,
+  run,
+  suffix,
+} from "./native-runtime.mjs";
 
 // Packaging deliberately uses its own CPU build, independent of developer GPU
 // selections, external workers, CARGO_TARGET_DIR, and cached development output.
 const library = await prepareRuntime();
 const development = process.argv.includes("--dev");
-const target =
-  process.platform === "win32"
-    ? "x86_64-pc-windows-msvc"
-    : "x86_64-unknown-linux-gnu";
+const target = nativeTarget().triple;
 const env = development
   ? { ...process.env, SHERPA_ONNX_LIB_DIR: library }
   : {
@@ -21,6 +25,7 @@ const env = development
       GGML_FMA: "OFF",
       GGML_F16C: "OFF",
     };
+if (process.platform === "darwin") env.MACOSX_DEPLOYMENT_TARGET = "14.6";
 if (!development) {
   delete env.CARGO_ENCODED_RUSTFLAGS;
   env.RUSTFLAGS =
@@ -74,10 +79,10 @@ for (const [name, directory, features] of [
     : join(build, target, "release", name + suffix);
   await copyFile(binary, join(output, name + suffix));
 }
-// Include SONAME aliases on Linux and every DLL in the pinned Windows runtime.
+// Include SONAME aliases on Linux, macOS dylibs, and Windows DLLs.
 // Dereference aliases when copying so installer formats need no symlink support.
 for (const name of await readdir(library)) {
-  if (/\.dll$|\.so(?:\.|$)/.test(name))
+  if (/\.dll$|\.dylib$|\.so(?:\.|$)/.test(name))
     await copyFile(join(library, name), join(output, name));
 }
 await copyFile(
@@ -98,4 +103,8 @@ if (
 ) {
   await run(process.execPath, ["scripts/build-python-worker.mjs"]);
 }
+await signMacResources([
+  output,
+  join(root, "generated/python-worker/dist/meeting-python-worker"),
+]);
 if (!development) await run(process.execPath, ["scripts/test-rust-bundle.mjs"]);

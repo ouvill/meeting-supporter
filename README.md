@@ -71,9 +71,9 @@ Meeting Supporterが運営するhosted serviceのserver実装・運用文書は�
 - Rust toolchain（Tauri desktop開発時）
 - `uv`（DOCX worker のビルド、または旧 Python バックエンドの開発時）
 
-Linux / Windows の標準構成は Rust を使用します。配布版には必要な worker を同梱し、利用者環境の Python / uv は使いません。
-ビルド環境と CI の検証範囲は [Rust のインストーラー](doc/development/rust-desktop-backend.md#linux--windows-のインストーラー)を参照してください。
-macOS は引き続き旧 Python 構成です。
+Linux / Windows / macOS の標準構成は Rust を使用します。配布版には必要な worker を同梱し、利用者環境の Python / uv は使いません。
+ビルド環境と CI の検証範囲は [Rust のインストーラー](doc/development/rust-desktop-backend.md#インストーラー)を参照してください。
+macOS は 14.6 以降の Apple Silicon / Intel に対応します。
 
 返答生成のcloud AI経路には各サービスのcredentialが必要です。ローカル音声認識には対応モデル、ローカルAIにはサービスの準備が必要です。
 
@@ -143,7 +143,7 @@ npm run tauri build
 npm run check:release -- --tag v0.1.0
 ```
 
-`package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`、`python/pyproject.toml`、`openapi.json`のversionは同じ値にします。`v<version>`タグのpush、またはGitHub Actionsから`Release draft`を手動実行すると、Linux x64、Windows x64、macOS Apple Silicon / Intelのinstaller候補がdraft releaseへ追加されます。各artifactには`LICENSE`と`THIRD-PARTY-NOTICES.txt`を収録し、`uv`バイナリ自体は再配布しません。配布版は必要な場合だけ、初回起動時に`uv 0.11.7`を公式配布元から取得し、対象OS・architectureごとに固定したSHA-256を検証してからAppData配下へ展開します。
+`package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`、`python/pyproject.toml`、`openapi.json`のversionは同じ値にします。`v<version>`タグのpush、またはGitHub Actionsから`Release draft`を手動実行すると、Linux x64、Windows x64、macOS Apple Silicon / Intelのinstaller候補がdraft releaseへ追加されます。各artifactには`LICENSE`と`THIRD-PARTY-NOTICES.txt`を収録し、`uv`バイナリ自体は再配布しません。標準配布版は Rust と同梱 worker を使い、初回起動時の Python / uv の取得は不要です。
 
 第三者ライセンス通知はlockfileから再生成し、差分と許可ポリシーをCIで検査します。
 

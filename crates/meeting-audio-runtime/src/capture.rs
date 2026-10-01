@@ -22,9 +22,11 @@ fn host() -> Result<cpal::Host, Error> {
     let id = cpal::HostId::PulseAudio;
     #[cfg(target_os = "windows")]
     let id = cpal::HostId::Wasapi;
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    let id = cpal::HostId::CoreAudio;
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     return cpal::host_from_id(id).map_err(|_| Error::Device);
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     Err(Error::Unsupported)
 }
 
@@ -41,7 +43,10 @@ pub fn devices() -> Result<Vec<Device>, Error> {
         let output = host.default_output_device().and_then(|d| d.id().ok());
         let mut result = Vec::new();
         for device in host.devices().map_err(|_| Error::Device)? {
-            let is_monitor = device.supports_output();
+            // CPAL 0.18 uses a CoreAudio process tap only on output-only devices.
+            // A duplex headset remains a microphone; advertising it as loopback
+            // would silently record its microphone instead of system audio.
+            let is_monitor = device.supports_output() && !device.supports_input();
             if !is_monitor && !device.supports_input() {
                 continue;
             }
