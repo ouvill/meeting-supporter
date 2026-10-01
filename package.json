@@ -43,7 +43,9 @@
     "test:tauri:rust:build": "node scripts/build-rust-tauri-e2e.mjs",
     "test:tauri:rust": "npm run test:tauri:rust:build && node scripts/run-rust-tauri-e2e.mjs",
     "test:tauri:types": "tsc --project test/tauri/tsconfig.json",
-    "dev:rust": "tauri dev --features rust-backend --config src-tauri/tauri.rust.conf.json",
+    "dev:rust": "node scripts/build-rust-workers.mjs && tauri dev --features rust-backend --config src-tauri/tauri.rust.conf.json",
+    "build:rust-workers": "node scripts/build-rust-workers.mjs",
+    "test:rust-workers-build": "node --test scripts/test-rust-workers-build.mjs",
     "dev:native": "tauri dev --features native-speech --config src-tauri/tauri.native.conf.json",
     "build:python-worker": "node scripts/build-python-worker.mjs",
     "test:python-worker": "uv run --locked --project python-worker pytest python-worker/tests"

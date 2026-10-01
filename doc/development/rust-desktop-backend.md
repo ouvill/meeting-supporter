@@ -64,13 +64,23 @@ Windows の実デバイス・アプリ全体の動作検証と一般配布は未
 リポジトリのルートで実行します。
 
 ```bash
-cargo build --release --locked --manifest-path crates/meeting-audio-runtime/Cargo.toml
 npm run dev:rust
 ```
 
-事前に [音声 worker のビルド](../../test/rust-native-backend/README.md#reazonspeech-版のビルドと実行)を行ってください。
-句読点モデルは同じ文書の「日本語の句読点復元」を参照してください。
-ReazonSpeech モデルは設定画面から取得できます。既にビルド・モデル取得済みなら再実行は不要です。
+起動前に音声取得・推論の両 worker を `--release --locked` でビルドします。
+変更がない場合は Cargo が既存の成果物を再利用し、どちらかのビルドに失敗した場合はアプリを起動しません。
+worker のソースを変更した後は `dev:rust` を起動し直してください。起動中の worker の自動再起動は行いません。
+
+初回に必要な native ライブラリとビルド環境は
+[音声 worker の準備](../../test/rust-native-backend/README.md#reazonspeech-版のビルドと実行)を参照してください。
+Linux x64 では、同手順で取得済みの `target/assets` 内の sherpa-onnx を自動参照します。
+`SHERPA_ONNX_LIB_DIR` を指定している場合はその配置を優先します。
+句読点モデルは同じ文書の「日本語の句読点復元」を参照してください。ReazonSpeech モデルは設定画面から取得できます。
+
+worker だけを更新する場合は `npm run build:rust-workers` を使います。
+GPU 用のビルド設定は同コマンドの `--gpu` で選択し、詳細は「Whisper.cpp の実行」を参照してください。
+新規環境の既定値は CPU です。既存の GPU 対応 worker があり、ビルド設定が未保存の場合は選択を求めて停止し、
+CPU 版で上書きしません。
 
 開発時は次を自動参照します。別の配置を使う場合は対応する環境変数を指定できます。
 
@@ -81,7 +91,10 @@ ReazonSpeech モデルは設定画面から取得できます。既にビルド�
 | ReazonSpeech | Hugging Face の共有キャッシュ（下記） | `MEETING_REAZON_MODEL` |
 | 句読点 | `test/rust-native-backend/target/models/punctuation-bert` | `MEETING_REAZON_PUNCTUATION` |
 
-環境変数には絶対パスを指定してください。既定の句読点モデルはディレクトリが存在する場合に使用します。
+環境変数には絶対パスを指定してください。worker の既定パス以外を指定した場合は、
+外部で管理する worker として自動ビルドの対象から外し、起動前にその旨を表示します。
+自動ビルドの出力先は上表に固定し、`CARGO_TARGET_DIR` によって本体の参照先とずれないようにします。
+既定の句読点モデルはディレクトリが存在する場合に使用します。
 Windows では worker の既定ファイル名に `.exe` が付きます。
 音声取得の依存と検証手順は [取得 worker](../../crates/meeting-audio-runtime/README.md)を参照してください。
 明示した句読点モデルをロードできない場合は準備エラーになります。
@@ -265,16 +278,19 @@ Whisper は `ggerganov/whisper.cpp` の `ggml-{model}-q8_0.bin` を取得しま�
 CPU 版は次のコマンドでビルドします。共有ライブラリの準備・配置は上記の音声 worker ビルド手順と共通です。
 
 ```bash
-cargo build --release --locked --manifest-path test/rust-native-backend/Cargo.toml --features reazonspeech
+npm run build:rust-workers -- --gpu cpu
 ```
 
-Linux / Windows の Vulkan 版は Vulkan SDK（`glslc` を含む）と対応ドライバーを用意し、次の feature を指定します。
+Linux / Windows の Vulkan 版は Vulkan SDK（`glslc` を含む）と対応ドライバーを用意し、次を実行します。
 
 ```bash
-cargo build --release --locked --manifest-path test/rust-native-backend/Cargo.toml --features reazonspeech,vulkan
+npm run build:rust-workers -- --gpu vulkan
 ```
 
-CUDA は `reazonspeech,cuda`、Metal は `reazonspeech,metal` を指定します。これらはビルド時の選択であり、
+CUDA は `--gpu cuda`、Metal は `--gpu metal` を指定します。
+選択は Git 管理外の `.rust-workers.local.json` に保存し、以後の `dev:rust` と `build:rust-workers` で再利用します。
+ビルドが失敗しても選択は保持するため、SDK 等を準備した後に同じ設定で再試行できます。
+Whisper と ReazonSpeech はどの選択でも含めます。これらはビルド時の選択であり、
 CPU 版に実行時設定だけで GPU 対応を追加することはできません。Windows の実機検証・配布と macOS の音声取得・配布は未対応です。
 
 実行デバイスは設定画面の「自動」「CPU」「GPU」で選択します。

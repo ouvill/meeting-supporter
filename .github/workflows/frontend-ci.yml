@@ -62,6 +62,9 @@ jobs:
       - name: Run tests
         run: npm run test
 
+      - name: Check automatic Rust worker builds
+        run: npm run test:rust-workers-build
+
       - name: Regenerate OpenAPI client and check freshness
         run: |
           npm run generate:api

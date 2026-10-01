@@ -101,6 +101,7 @@ npm run dev:python
 ### Rust ローカル文字起こし
 
 `npm run dev:rust` で、既存画面から Tauri 内の Rust バックエンドを直接利用できます。
+起動前に音声取得・推論 worker を差分ビルドするため、個別のビルド操作は不要です。
 Python を起動しない経路の手順と制約は [Rust バックエンドの直接接続](doc/development/rust-desktop-backend.md)を参照してください。
 
 既存 Python 経路の ReazonSpeech 音声認識だけを Rust worker に切り替えることもできます。
