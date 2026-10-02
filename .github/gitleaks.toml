@@ -1,0 +1,16 @@
+title = "Meeting Supporter secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "SHA-256 checksums for public native libraries and model vocabulary"
+condition = "AND"
+paths = ['''(^|/)test/rust-native-backend/assets\.json$''']
+regexTarget = "line"
+regexes = [
+  '''^\s*"(?:tokens\.txt|libsherpa-onnx-c(?:xx)?-api\.(?:so|dylib)|sherpa-onnx-c(?:xx)?-api\.(?:dll|lib))": "[0-9a-f]{64}",?\s*$''',
+]
