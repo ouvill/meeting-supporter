@@ -78,11 +78,18 @@ jobs:
         timeout-minutes: 5
         run: node --input-type=module -e "import { prepareRuntime } from './scripts/native-runtime.mjs'; await prepareRuntime();"
       - name: Build the standard Rust installer with native and DOCX workers
+        if: runner.os != 'macOS'
         # The standard config prepares native and document-conversion resources.
+        run: npm run tauri -- build --ci --verbose
+      - name: Build the macOS installer with bounded disk-image detach retries
+        if: runner.os == 'macOS'
         env:
           # Local ad-hoc signature, never a production Developer ID credential.
-          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
-        run: npm run tauri -- build --ci --verbose
+          APPLE_SIGNING_IDENTITY: "-"
+        run: |
+          chmod +x scripts/macos-ci/hdiutil
+          export PATH="$GITHUB_WORKSPACE/scripts/macos-ci:$PATH"
+          npm run tauri -- build --ci --verbose
       - name: Load the bundled runtime and real speech models after relocation
         run: npm run test:rust-bundle -- --models
       - name: Verify the frozen DOCX worker without Python on PATH
