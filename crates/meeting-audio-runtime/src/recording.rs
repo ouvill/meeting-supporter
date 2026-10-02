@@ -18,7 +18,7 @@ pub struct RecordingInfo {
 
 pub(super) struct Active {
     writer: WavWriter<BufWriter<File>>,
-    path: PathBuf,
+    file: File,
     started_ms: u64,
     samples: u64,
 }
@@ -52,6 +52,9 @@ impl Recorder {
             options.mode(0o600);
         }
         let file = options.open(&path).map_err(|_| Error::Recording)?;
+        // Keep a writable handle to the same file for sync_all after finalize.
+        // Windows cannot flush a handle reopened with read-only access.
+        let sync_file = file.try_clone().map_err(|_| Error::Recording)?;
         let writer = WavWriter::new(
             BufWriter::new(file),
             WavSpec {
@@ -64,7 +67,7 @@ impl Recorder {
         .map_err(|_| Error::Recording)?;
         *self = Self::Active(Box::new(Active {
             writer,
-            path,
+            file: sync_file,
             started_ms,
             samples: 0,
         }));
@@ -94,9 +97,8 @@ impl Recorder {
             Self::Failed => Err(Error::Recording),
             Self::Active(active) => {
                 active.writer.finalize().map_err(|_| Error::Recording)?;
-                let file = File::open(&active.path).map_err(|_| Error::Recording)?;
-                file.sync_all().map_err(|_| Error::Recording)?;
-                let size_bytes = file.metadata().map_err(|_| Error::Recording)?.len();
+                active.file.sync_all().map_err(|_| Error::Recording)?;
+                let size_bytes = active.file.metadata().map_err(|_| Error::Recording)?.len();
                 Ok(Some(RecordingInfo {
                     size_bytes,
                     started_ms: active.started_ms,
