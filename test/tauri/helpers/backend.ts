@@ -12,8 +12,7 @@ export interface WaitOptions {
   timeoutMsg?: string;
 }
 
-// Rust receives synthetic PCM through its real worker protocol; Python keeps its
-// existing dummy recognizer. Both exercise the same application screens.
+// Rust receives synthetic PCM through its real worker protocol.
 export async function syntheticSpeechSettings(): Promise<{ backend: string }> {
   const health = await localBackendRequest<{ runtime?: string }>({
     path: "/health",

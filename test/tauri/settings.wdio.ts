@@ -14,7 +14,7 @@ import { closeSettingsIfOpen, openSettings } from "./helpers/settings";
 
 type SttSnapshot = Record<string, unknown> & {
   backend: string;
-  vad_engine: "silero" | "webrtc";
+  vad_engine: "silero";
 };
 
 interface SettingsSnapshot {
@@ -236,7 +236,7 @@ describe("Contextual settings credentials", () => {
     }
   });
 
-  it("offers Torch-free Silero controls when selected", async () => {
+  it("offers Torch-free Silero controls without the retired VAD selector", async () => {
     await persistSttPatch({ vad_engine: "silero" });
     await browser.refresh();
     await waitForBackendReady();
@@ -248,13 +248,10 @@ describe("Contextual settings credentials", () => {
     await audioCategory.waitForClickable(waitOptions);
     await audioCategory.click();
 
-    const vadEngine = await $('select[aria-label="声の検出方法"]');
-    await vadEngine.waitForDisplayed(waitOptions);
-    expect(await vadEngine.getValue()).toBe("silero");
-    const sileroOption = await $(
-      'select[aria-label="声の検出方法"] option[value="silero"]',
+    await $('//p[normalize-space()="Silero VAD"]').waitForDisplayed(
+      waitOptions,
     );
-    expect(await sileroOption.getText()).toBe("Silero VAD（高精度・おすすめ）");
+    expect(await $('option[value="webrtc"]').isExisting()).toBe(false);
     await expect(
       $('input[aria-label="Silero音声判定しきい値"]'),
     ).toBeDisplayed();
@@ -282,9 +279,9 @@ describe("Contextual settings credentials", () => {
     expect(await $('select[aria-label="音声認識方式"]').isEnabled()).toBe(
       false,
     );
-    expect(await $('select[aria-label="声の検出方法"]').isEnabled()).toBe(
-      false,
-    );
+    expect(
+      await $('input[aria-label="Silero音声判定しきい値"]').isEnabled(),
+    ).toBe(false);
 
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
