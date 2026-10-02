@@ -107,6 +107,10 @@ async fn start(ws: &mut Socket) {
     until(ws, |v| v["type"] == "stt_state" && v["initialized"] == true).await;
     send(ws,json!({"type":"start_meeting","meeting_context":{"scenario":"synthetic","objective":"test"},"references":[]})).await;
     until(ws, |v| v["type"] == "meeting_state" && v["running"] == true).await;
+    wait_for_both_audio_inputs(ws).await;
+}
+
+async fn wait_for_both_audio_inputs(ws: &mut Socket) {
     // Observe capture progress after StartSpeech attached both routes. A fixed
     // sleep can expire before either worker is scheduled on a loaded runner.
     for role in ["self", "other"] {
@@ -1897,7 +1901,7 @@ async fn whisper_shares_one_worker_and_reuses_it_across_meetings() {
                 v["type"] == "meeting_state" && v["running"] == true
             })
             .await;
-            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            wait_for_both_audio_inputs(&mut ws).await;
         }
         send(&mut ws, json!({"type":"stop_meeting"})).await;
         assert_eq!(

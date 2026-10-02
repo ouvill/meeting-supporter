@@ -82,7 +82,7 @@ jobs:
         env:
           # Local ad-hoc signature, never a production Developer ID credential.
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
-        run: npm run tauri -- build --ci
+        run: npm run tauri -- build --ci --verbose
       - name: Load the bundled runtime and real speech models after relocation
         run: npm run test:rust-bundle -- --models
       - name: Verify the frozen DOCX worker without Python on PATH
