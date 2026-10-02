@@ -21,6 +21,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  backend:
+    if: ${{ !inputs.platform || inputs.platform == 'all' }}
+    name: Verify Rust backend and desktop
+    uses: ./.github/workflows/rust-backend-ci.yml
+
   bundle:
     name: CPU installer (${{ matrix.platform }})
     runs-on: ${{ matrix.platform }}
@@ -68,7 +73,7 @@ jobs:
         timeout-minutes: 5
         run: node --input-type=module -e "import { prepareRuntime } from './scripts/native-runtime.mjs'; await prepareRuntime();"
       - name: Build the standard Rust installer with native and DOCX workers
-        # The platform config owns the feature and resource preparation.
+        # The standard config prepares native and document-conversion resources.
         env:
           # Local ad-hoc signature, never a production Developer ID credential.
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}

@@ -10,10 +10,6 @@ permissions:
   contents: read
 
 jobs:
-  rust-backend:
-    name: Verify Rust backend
-    uses: ./.github/workflows/rust-backend-ci.yml
-
   rust-installers:
     name: Verify Rust installers
     uses: ./.github/workflows/rust-bundle-ci.yml
@@ -89,7 +85,7 @@ jobs:
   build:
     name: Build ${{ matrix.label }}
     if: github.ref_type == 'tag'
-    needs: [verify, rust-backend, rust-installers]
+    needs: [verify, rust-installers]
     permissions:
       contents: write
     strategy:
@@ -178,7 +174,7 @@ jobs:
   build-windows-draft:
     name: Build Windows x64 draft
     if: github.event_name == 'workflow_dispatch'
-    needs: [verify, rust-backend, rust-installers]
+    needs: [verify, rust-installers]
     runs-on: windows-latest
     permissions:
       contents: write
