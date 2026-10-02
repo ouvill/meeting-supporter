@@ -11,22 +11,27 @@ on:
         type: choice
         default: all
         options: [all, macos-15, macos-15-intel, windows-2022, ubuntu-22.04]
+      tests_only:
+        description: Run backend and desktop tests without rebuilding installers (ignores platform)
+        type: boolean
+        default: false
   workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: rust-installers-${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform || 'all' }}
+  group: rust-installers-${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform || 'all' }}${{ inputs.tests_only && '-tests' || '' }}
   cancel-in-progress: true
 
 jobs:
   backend:
-    if: ${{ !inputs.platform || inputs.platform == 'all' }}
+    if: ${{ inputs.tests_only || !inputs.platform || inputs.platform == 'all' }}
     name: Verify Rust backend and desktop
     uses: ./.github/workflows/rust-backend-ci.yml
 
   bundle:
+    if: ${{ !inputs.tests_only }}
     name: CPU installer (${{ matrix.platform }})
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 60
@@ -148,7 +153,7 @@ jobs:
             src-tauri/target/release/bundle/dmg/*.dmg
 
   windows-desktop:
-    if: ${{ !inputs.platform || inputs.platform == 'all' || inputs.platform == 'windows-2022' }}
+    if: ${{ inputs.tests_only || !inputs.platform || inputs.platform == 'all' || inputs.platform == 'windows-2022' }}
     name: Rust desktop E2E (Windows)
     runs-on: windows-2022
     timeout-minutes: 40
