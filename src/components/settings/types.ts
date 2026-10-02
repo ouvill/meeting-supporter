@@ -22,10 +22,10 @@ export function isConnectionUsable(state: ConnectionUiState): boolean {
   );
 }
 
-export type VadEngine = "silero" | "webrtc";
+export type VadEngine = "silero";
 
 export function isVadEngine(value: unknown): value is VadEngine {
-  return value === "silero" || value === "webrtc";
+  return value === "silero";
 }
 
 export interface ReplyStyleFormItem {
@@ -39,21 +39,16 @@ export interface SettingsForm {
   secretsStatus: Record<string, boolean>;
   secretInputs: Record<string, string>;
   ollamaBaseUrl: string;
-  acpCommand: string;
   sttBackend: string;
   sttWhisperModel: string;
-  sttDeepgramModel: string;
-  sttOpenaiModel: string;
-  sttVoskModelPath: string;
+  sttDevice: string;
   sttLang: string;
   sttVadEngine: VadEngine;
   sttVadSensitivity: number;
-  sttVad: number;
   sttSilence: number;
   replyFeatureEnabled: boolean;
   replyAutoGenerate: boolean;
   replyStyles: ReplyStyleFormItem[];
-  infoFeatureEnabled: boolean;
   usageMeetingLimitJpy: number;
   usageMonthlyLimitJpy: number;
   dataDir: string;
@@ -65,16 +60,12 @@ export interface SettingsForm {
 export const STT_FORM_FIELDS = [
   "sttBackend",
   "sttWhisperModel",
-  "sttDeepgramModel",
-  "sttOpenaiModel",
-  "sttVoskModelPath",
+  "sttDevice",
   "sttLang",
   "sttVadEngine",
   "sttVadSensitivity",
-  "sttVad",
   "sttSilence",
 ] as const satisfies readonly (keyof SettingsForm)[];
-
 
 export interface SettingsFieldErrors {
   support?: string;

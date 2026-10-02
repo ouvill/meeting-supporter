@@ -42,7 +42,7 @@ architecture boundary、protocol、永続schema、security/privacy/distribution�
 
 ## Hosted service boundary
 
-Meeting Supporterが運営するhosted serviceのserver実装・運用文書は、このOSSリポジトリに含まれない。通常のOSS buildではhosted serviceは未設定で利用できない。local STT、利用者自身のAPI credential、Ollama、Codex、ACPはhosted accountなしで利用できる。
+Meeting Supporterが運営するhosted serviceのserver実装・運用文書は、このOSSリポジトリに含まれない。通常のOSS buildではhosted serviceは未設定で利用できない。local STT、利用者自身のAPI credential、Ollama、ACPエージェントはhosted accountなしで利用できる。
 
 public clientに残る認証境界、schema validation、未設定時のfail-closed behaviorは公開codeのcontractとして扱う。
 

@@ -2,6 +2,7 @@
 
 - **ステータス**: Accepted
 - **日付**: 2026-05-29
+- **部分置換**: Rust 直接接続の中断会議の管理は [ADR-018](./018-interrupted-meeting-history.md) に従う。
 
 ## 背景
 

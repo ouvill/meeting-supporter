@@ -1,26 +1,9 @@
+import { useSpeechCapabilities } from "../../hooks/useSpeechCapabilities";
 import type { SpeechModelController } from "../../hooks/useSpeechModel";
-import type { ManagedSttAvailability } from "../../hooks/useManagedService";
 import { InlineNotice } from "../ui/InlineNotice";
-import { Button } from "../ui/Button";
-import {
-  ApiConnectionControl,
-  CONNECTIONS,
-  type ConnectionProvider,
-} from "./ApiConnectionControl";
 import { SpeechModelPreparationCard } from "./SpeechModelPreparationCard";
 import { FieldRow, SettingsCard, SettingsPage } from "./SettingsPrimitives";
-import {
-  isVadEngine,
-  type ConnectionUiState,
-  type SettingsFieldErrors,
-  type SettingsForm,
-} from "./types";
-
-const CLOUD_STT = {
-  deepgram: { label: "Deepgram" },
-  openai: { label: "OpenAI" },
-  xai: { label: "Grok / xAI" },
-} as const satisfies Partial<Record<ConnectionProvider, { label: string }>>;
+import { type SettingsFieldErrors, type SettingsForm } from "./types";
 
 interface Props {
   form: SettingsForm;
@@ -28,20 +11,6 @@ interface Props {
   speechModel: SpeechModelController;
   speechModelActionsDisabled?: boolean;
   audioSettingsLocked?: boolean;
-  managedStt: ManagedSttAvailability;
-  onManageAccount: () => void;
-  connectionStates: Record<ConnectionProvider, ConnectionUiState>;
-  secretsStatus: Record<string, boolean>;
-  secretInputs: Record<string, string>;
-  connectionEditingProvider: ConnectionProvider | null;
-  connectionTestingProvider: ConnectionProvider | null;
-  connectionTestMessages: Partial<Record<ConnectionProvider, string>>;
-  onBeginConnectionEdit: (provider: ConnectionProvider) => void;
-  onCancelConnectionEdit: (provider: ConnectionProvider) => void;
-  onSecretChange: (provider: ConnectionProvider, value: string) => void;
-  onTestConnection: (provider: ConnectionProvider) => void;
-  onRequestSecretDelete: (provider: ConnectionProvider) => void;
-  onCancelSecretDelete: (provider: ConnectionProvider) => void;
   update: <K extends keyof SettingsForm>(
     key: K,
     value: SettingsForm[K],
@@ -54,35 +23,24 @@ export function AudioSettingsPanel({
   speechModel,
   speechModelActionsDisabled = false,
   audioSettingsLocked = false,
-  managedStt,
-  onManageAccount,
-  connectionStates,
-  secretsStatus,
-  secretInputs,
-  connectionEditingProvider,
-  connectionTestingProvider,
-  connectionTestMessages,
-  onBeginConnectionEdit,
-  onCancelConnectionEdit,
-  onSecretChange,
-  onTestConnection,
-  onRequestSecretDelete,
-  onCancelSecretDelete,
   update,
 }: Props) {
   const speechModelControlsDisabled =
     audioSettingsLocked ||
     speechModel.blocksSettingsSave ||
     speechModelActionsDisabled;
-  const cloudProvider =
-    form.sttBackend in CLOUD_STT
-      ? (form.sttBackend as keyof typeof CLOUD_STT)
-      : null;
-  const cloud = cloudProvider ? CLOUD_STT[cloudProvider] : null;
+  const gpuSupport = useSpeechCapabilities(true);
+  const gpuDisabled = gpuSupport !== "supported";
+  const deviceHint =
+    gpuSupport === "supported"
+      ? "自動はGPUを優先し、使えない場合はCPUで実行します"
+      : gpuSupport === "unsupported"
+        ? "このビルドはGPUに対応していません。「自動」または「CPU」を選んでください。"
+        : gpuSupport === "loading"
+          ? "GPUへの対応状況を確認しています。"
+          : "GPUへの対応状況を確認できませんでした。設定を開き直して再確認するか、「自動」または「CPU」を選んでください。";
   const usesLocalSpeechModel =
-    form.sttBackend === "vosk" ||
-    form.sttBackend === "whisper" ||
-    form.sttBackend === "reazonspeech";
+    form.sttBackend === "whisper" || form.sttBackend === "reazonspeech";
   return (
     <SettingsPage
       title="音声"
@@ -106,7 +64,7 @@ export function AudioSettingsPanel({
             >
               <select
                 aria-label="音声認識方式"
-                value={form.sttBackend}
+                value={usesLocalSpeechModel ? form.sttBackend : ""}
                 disabled={speechModelControlsDisabled}
                 onChange={(event) => update("sttBackend", event.target.value)}
                 className="field"
@@ -115,66 +73,18 @@ export function AudioSettingsPanel({
                 <option value="reazonspeech">
                   端末内・日本語高精度（ReazonSpeech）
                 </option>
-                <option value="vosk">端末内・軽量</option>
-                <option value="managed" disabled={!managedStt.selectable}>
-                  Meeting Supporter AI（共通利用枠）
-                </option>
-                <option value="deepgram">Deepgram（クラウド処理）</option>
-                <option value="openai">OpenAI（クラウド処理）</option>
-                <option value="xai">Grok / xAI（クラウド処理）</option>
-                {form.sttBackend === "dummy" && (
-                  <option value="dummy">テスト用</option>
+                {!usesLocalSpeechModel && (
+                  <option value="" disabled>
+                    選択してください
+                  </option>
                 )}
               </select>
             </FieldRow>
-            {managedStt.offered && (
-              <InlineNotice tone={managedStt.selectable ? "info" : "warning"}>
-                <p>{managedStt.message}</p>
-                {!managedStt.selectable && (
-                  <Button
-                    size="sm"
-                    variant="quiet"
-                    className="mt-2"
-                    onClick={onManageAccount}
-                  >
-                    アカウントとプランを確認
-                  </Button>
-                )}
-              </InlineNotice>
-            )}
-            {cloudProvider && (
-              <ApiConnectionControl
-                provider={cloudProvider}
-                state={connectionStates[cloudProvider]}
-                hasSavedKey={
-                  secretsStatus[CONNECTIONS[cloudProvider].secretKey] ?? false
-                }
-                draftKey={
-                  secretInputs[CONNECTIONS[cloudProvider].secretKey] ?? ""
-                }
-                editing={connectionEditingProvider === cloudProvider}
-                testing={connectionTestingProvider === cloudProvider}
-                disabled={
-                  connectionTestingProvider !== null &&
-                  connectionTestingProvider !== cloudProvider
-                }
-                testMessage={connectionTestMessages[cloudProvider] ?? null}
-                onBeginEdit={() => onBeginConnectionEdit(cloudProvider)}
-                onCancelEdit={() => onCancelConnectionEdit(cloudProvider)}
-                onDraftChange={(value) => onSecretChange(cloudProvider, value)}
-                onTest={() => onTestConnection(cloudProvider)}
-                onRequestDelete={() => onRequestSecretDelete(cloudProvider)}
-                onCancelDelete={() => onCancelSecretDelete(cloudProvider)}
-              />
-            )}
-
-            {cloud && (
+            {!usesLocalSpeechModel && (
               <InlineNotice tone="warning">
-                音声データは {cloud.label}{" "}
-                に送信され、利用料は各サービスの契約先から請求されます。APIキーはこの画面で設定します。モデル識別子は詳細設定で管理します。
+                音声認識方式を選択してください。
               </InlineNotice>
             )}
-
             {form.sttBackend === "reazonspeech" && (
               <InlineNotice tone="info">
                 ReazonSpeech
@@ -184,27 +94,54 @@ export function AudioSettingsPanel({
             )}
 
             {form.sttBackend === "whisper" && (
-              <FieldRow
-                label="精度と速さ"
-                hint="高精度ほど端末への負荷が大きくなります"
-              >
-                <select
-                  aria-label="聞き取りの精度と速さ"
-                  value={form.sttWhisperModel}
-                  disabled={speechModelControlsDisabled}
-                  onChange={(event) =>
-                    update("sttWhisperModel", event.target.value)
-                  }
-                  className="field"
+              <>
+                <FieldRow
+                  label="精度と速さ"
+                  hint="高精度ほど端末への負荷が大きくなります"
                 >
-                  <option value="tiny">最速</option>
-                  <option value="base">軽量</option>
-                  <option value="small">バランス</option>
-                  <option value="medium">高精度</option>
-                  <option value="large-v2">より高精度</option>
-                  <option value="large-v3-turbo">最高精度（おすすめ）</option>
-                </select>
-              </FieldRow>
+                  <select
+                    aria-label="聞き取りの精度と速さ"
+                    value={form.sttWhisperModel}
+                    disabled={speechModelControlsDisabled}
+                    onChange={(event) =>
+                      update("sttWhisperModel", event.target.value)
+                    }
+                    className="field"
+                  >
+                    <option value="tiny">最速</option>
+                    <option value="base">軽量</option>
+                    <option value="small">バランス</option>
+                    <option value="medium">高精度</option>
+                    <option value="large-v2">より高精度</option>
+                    <option value="large-v3-turbo">最高精度（おすすめ）</option>
+                  </select>
+                </FieldRow>
+                <FieldRow label="音声認識の実行デバイス" hint={deviceHint}>
+                  <select
+                    aria-label="音声認識の実行デバイス"
+                    className="field"
+                    value={form.sttDevice}
+                    onChange={(event) => {
+                      if (event.target.value === "gpu" && gpuDisabled) return;
+                      update("sttDevice", event.target.value);
+                    }}
+                  >
+                    <option value="auto">自動</option>
+                    <option value="cpu">CPU</option>
+                    {!["auto", "cpu", "gpu"].includes(form.sttDevice) && (
+                      <option value={form.sttDevice} disabled>
+                        未対応の設定（{form.sttDevice}）
+                      </option>
+                    )}
+                    <option value="gpu" disabled={gpuDisabled}>
+                      GPU
+                    </option>
+                  </select>
+                </FieldRow>
+                <InlineNotice tone="info">
+                  Whisper.cppのQ8モデルを使います。大きなモデルでは文字起こしの表示が会話より遅れることがあります。
+                </InlineNotice>
+              </>
             )}
             <FieldRow
               label="会議の言語"
@@ -230,7 +167,14 @@ export function AudioSettingsPanel({
                 {form.sttBackend !== "reazonspeech" && (
                   <option value="en">英語</option>
                 )}
-                {!["ja", "en"].includes(form.sttLang) && (
+                {form.sttBackend === "whisper" && (
+                  <option value="auto">自動判定</option>
+                )}
+                {![
+                  "ja",
+                  "en",
+                  ...(form.sttBackend === "whisper" ? ["auto"] : []),
+                ].includes(form.sttLang) && (
                   <option value={form.sttLang}>{form.sttLang}</option>
                 )}
               </select>
@@ -252,21 +196,7 @@ export function AudioSettingsPanel({
               label="声の検出方法"
               hint="SileroはTorchを使わず、同梱した約208 KBのONNXモデルを端末内で実行します"
             >
-              <select
-                value={form.sttVadEngine}
-                disabled={audioSettingsLocked}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (isVadEngine(value)) {
-                    update("sttVadEngine", value);
-                  }
-                }}
-                className="field"
-                aria-label="声の検出方法"
-              >
-                <option value="silero">Silero VAD（高精度・おすすめ）</option>
-                <option value="webrtc">WebRTC VAD（最軽量）</option>
-              </select>
+              <p className="text-sm text-ink">Silero VAD</p>
             </FieldRow>
             <FieldRow
               label="無音とみなす時間"
@@ -291,48 +221,29 @@ export function AudioSettingsPanel({
                 </output>
               </div>
             </FieldRow>
-            {form.sttVadEngine === "silero" ? (
-              <FieldRow
-                label="音声判定しきい値"
-                hint="低いほど小さな声を拾い、高いほど雑音を除外します"
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="range"
-                    aria-label="Silero音声判定しきい値"
-                    value={form.sttVadSensitivity}
-                    disabled={audioSettingsLocked}
-                    min={0.05}
-                    max={0.95}
-                    step={0.05}
-                    onChange={(event) =>
-                      update("sttVadSensitivity", Number(event.target.value))
-                    }
-                    className="min-w-0 flex-1 accent-primary"
-                  />
-                  <output className="w-12 text-right text-sm font-semibold tabular-nums text-ink">
-                    {Math.round(form.sttVadSensitivity * 100)}%
-                  </output>
-                </div>
-              </FieldRow>
-            ) : (
-              <FieldRow label="声の検出感度">
-                <select
-                  value={form.sttVad}
+            <FieldRow
+              label="音声判定しきい値"
+              hint="低いほど小さな声を拾い、高いほど雑音を除外します"
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  aria-label="Silero音声判定しきい値"
+                  value={form.sttVadSensitivity}
                   disabled={audioSettingsLocked}
+                  min={0.05}
+                  max={0.95}
+                  step={0.05}
                   onChange={(event) =>
-                    update("sttVad", Number(event.target.value))
+                    update("sttVadSensitivity", Number(event.target.value))
                   }
-                  className="field"
-                  aria-label="声の検出感度"
-                >
-                  <option value={0}>低い</option>
-                  <option value={1}>やや低い</option>
-                  <option value={2}>標準</option>
-                  <option value={3}>高い</option>
-                </select>
-              </FieldRow>
-            )}
+                  className="min-w-0 flex-1 accent-primary"
+                />
+                <output className="w-12 text-right text-sm font-semibold tabular-nums text-ink">
+                  {Math.round(form.sttVadSensitivity * 100)}%
+                </output>
+              </div>
+            </FieldRow>
           </div>
         </SettingsCard>
       </fieldset>

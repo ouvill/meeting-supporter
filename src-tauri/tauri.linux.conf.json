@@ -1,1 +1,12 @@
-{}
+{
+  "build": {
+    "beforeDevCommand": "node scripts/prepare-rust-resources.mjs --dev && npm run dev",
+    "beforeBuildCommand": "npm run prepare:rust-resources && npm run build"
+  },
+  "bundle": {
+    "resources": {
+      "../generated/rust-resources/native": "native",
+      "../generated/python-worker/dist/meeting-python-worker": "python-worker"
+    }
+  }
+}

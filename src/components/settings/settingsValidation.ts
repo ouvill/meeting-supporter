@@ -11,12 +11,6 @@ import {
   type SettingsForm,
 } from "./types";
 
-export const CONNECTION_PROVIDER_BY_STT: Record<string, ConnectionProvider> = {
-  deepgram: "deepgram",
-  openai: "openai",
-  xai: "xai",
-};
-
 export function validateSettingsForm(
   form: SettingsForm,
   routes: AiRouteReadModel[],
@@ -35,13 +29,8 @@ export function validateSettingsForm(
     errors.support =
       "この支援方法を利用するには、利用可能なAPIキーが必要です。";
   }
-  if (routes.some((route) => route.id === "acp") && !form.acpCommand.trim()) {
-    errors.advanced = "ACPを利用するには、起動commandを入力してください。";
-  }
-  const sttProvider = CONNECTION_PROVIDER_BY_STT[form.sttBackend];
-  if (sttProvider && !isConnectionUsable(connectionStates[sttProvider])) {
-    errors.audio =
-      "クラウド音声認識を利用するには、利用可能なAPIキーが必要です。";
+  if (!["whisper", "reazonspeech", "dummy"].includes(form.sttBackend)) {
+    errors.audio = "音声認識方式を選択してください。";
   }
   return errors;
 }

@@ -25,6 +25,11 @@ const REQUIRED_AUTHORITIES = [
   "doc/adr/012-native-window-chrome-and-pin-preference.md",
   "doc/adr/013-contextual-api-credential-controls.md",
   "doc/adr/015-localized-ui-message-contract.md",
+  "doc/adr/017-acp-registry-and-shared-rust-client.md",
+  "doc/adr/018-interrupted-meeting-history.md",
+  "doc/adr/019-local-speech-and-saved-history.md",
+  "doc/adr/020-versioned-rust-settings.md",
+  "doc/adr/021-retire-python-backend.md",
 ];
 
 const REQUIRED_LINKS = [

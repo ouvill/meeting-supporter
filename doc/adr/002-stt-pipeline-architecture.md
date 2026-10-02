@@ -33,7 +33,7 @@ flowchart LR
     VOL --> WS1[WebSocket\n音量レベル]
     Qb --> VAD[VadStage\nis_speech 付与]
     VAD --> Q2[Q2\nAudioFrame]
-    Q2 --> STT[SttStage\nWhisper / ReazonSpeech / Vosk / Deepgram / Remote]
+    Q2 --> STT[SttStage\nWhisper / ReazonSpeech / Deepgram / Remote]
     STT --> Q3[Q3]
     Q3 --> DIAR[DiarizationStage\n話者分離 Optional]
     DIAR --> Q4[Q4]
@@ -103,7 +103,7 @@ CaptureStage → None → Q1
 | 音声取得 | `CaptureStage`                                                                       | soundcard → PCM フレーム                       | —                  | Q1 (`AudioFrame`) |
 | 音量計算 | `VolumeStage`                                                                        | Q1 をタップし RMS 計算                         | Q1 (read-only tap) | WebSocket         |
 | VAD      | `VadStage`                                                                           | 各フレームに `is_speech` を付与して全量通過    | Q1                 | Q2 (`AudioFrame`) |
-| 音声認識 | `WhisperStage` / `ReazonSpeechStage` / `VoskStage` / `DeepgramStage` / `RemoteStage` | `is_speech` を見てバッファリング・テキスト変換 | Q2                 | Q3                |
+| 音声認識 | `WhisperStage` / `ReazonSpeechStage` / `DeepgramStage` / `RemoteStage` | `is_speech` を見てバッファリング・テキスト変換 | Q2                 | Q3                |
 | 話者分離 | `DiarizationStage`                                                                   | 話者 ID 付与 (Optional)                        | Q3                 | Q4                |
 | 出力     | (パイプライン末端)                                                                   | WebSocket ブロードキャスト                     | Q4 or Q3           | WebSocket         |
 
@@ -121,7 +121,6 @@ app/stt/
 │   ├── vad.py           # VadStage (WebRTC VAD / Silero 切り替え可)
 │   ├── stt_whisper.py   # WhisperStage
 │   ├── stt_reazonspeech.py # ReazonSpeechStage
-│   ├── stt_vosk.py      # VoskStage
 │   ├── stt_deepgram.py  # DeepgramStage
 │   ├── stt_remote.py    # RemoteStage
 │   └── diarization.py   # DiarizationStage
@@ -165,7 +164,7 @@ flowchart LR
 `VadStage` は選択されたエンジンをコンストラクタで受け取る。
 **フレームは保留・フィルタせず、1入力につき1出力として`is_speech`を付与する**。各STTバックエンドが`is_speech`の遷移を見て、プリロールバッファ・終末バッファ・KeepAlive・Finalize等を制御する。
 
-Sileroは512 sampleの最初の完全なwindowがthreshold以上なら直ちに発話開始とする。threshold未満が約100ms（4 window）続いた場合に発話終了とする。WhisperとVoskは直前150msをプリロールとしてsegment先頭へ追加する。
+Sileroは512 sampleの最初の完全なwindowがthreshold以上なら直ちに発話開始とする。threshold未満が約100ms（4 window）続いた場合に発話終了とする。Whisperは直前150msをプリロールとしてsegment先頭へ追加する。
 
 ```python
 @dataclass
@@ -185,7 +184,7 @@ Silero VADはTorchやsherpa-onnxを依存にせず、k2-fsaが配布する16kHz�
 
 **各バックエンドの `is_speech` 活用例**
 
-- `WhisperStage` / `VoskStage`: `False→True`でプリロールバッファ（直前150ms）を先頭に追加してsegmentを開始する。プリロールは音声gateのvoiced frame数には含めない。
+- `WhisperStage`: `False→True`でプリロールバッファ（直前150ms）を先頭に追加してsegmentを開始する。プリロールは音声gateのvoiced frame数には含めない。
 - `DeepgramStage` / `OpenAIStage` / `XaiStage`: backend固有のプリロールとFinalizeを制御する。
 - `ManagedSttStage` / `RemoteStage`: server側のsegment仕様に従い全frameを送る。
 

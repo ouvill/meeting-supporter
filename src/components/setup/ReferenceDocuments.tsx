@@ -1,10 +1,12 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Trash2, Upload } from "lucide-react";
 import type { ReferenceDocumentInput } from "../../types";
 import { Tooltip } from "../ui";
 import {
   ACCEPTED_REFERENCE_EXTENSIONS,
   fileToReference,
+  MAX_REFERENCE_COUNT,
+  MAX_REFERENCE_TOTAL_BYTES,
 } from "./setupUtils";
 
 interface ReferenceDocumentsProps {
@@ -16,13 +18,31 @@ export function ReferenceDocuments({
   references,
   onChange,
 }: ReferenceDocumentsProps) {
+  const adding = useRef(false);
   const [dragActive, setDragActive] = useState(false);
   const [referenceMessage, setReferenceMessage] = useState("");
 
   async function addReferenceFiles(files: FileList | File[]) {
     const incoming = Array.from(files);
-    if (!incoming.length) return;
-    const documents = await Promise.all(incoming.map(fileToReference));
+    if (!incoming.length || adding.current) return;
+    if (
+      references.length + incoming.length > MAX_REFERENCE_COUNT ||
+      [
+        ...references,
+        ...incoming.map((file) => ({ sizeBytes: file.size })),
+      ].reduce((sum, document) => sum + document.sizeBytes, 0) >
+        MAX_REFERENCE_TOTAL_BYTES
+    ) {
+      setReferenceMessage("資料は10件まで、合計20 MiB以内で追加してください");
+      return;
+    }
+    adding.current = true;
+    let documents: ReferenceDocumentInput[];
+    try {
+      documents = await Promise.all(incoming.map(fileToReference));
+    } finally {
+      adding.current = false;
+    }
     onChange((current) => [...current, ...documents]);
     const failed = documents.filter(
       (document) => document.status === "failed",

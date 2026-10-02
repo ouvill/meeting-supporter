@@ -18,13 +18,14 @@ const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   replyAgents: [
     { id: "standard", label: "標準", enabled: true, priority: 10, model: null },
   ],
-  infoEnabled: true,
 };
 
 const INITIAL: SocketState = {
   connected: false,
   statusText: "接続中...",
   isRunning: false,
+  meetingSaved: undefined,
+  meetingEndStatus: undefined,
   sttBackend: "google",
   sttInitialized: false,
   sttInitializing: false,
@@ -42,7 +43,6 @@ const INITIAL: SocketState = {
   lastReplyCancelResult: null,
   cancelledSuggestionIds: [],
   discardedGenerationIds: [],
-  isResearchingInfo: false,
   interimOther: "",
   interimSelf: "",
   levelOther: 0,
@@ -126,7 +126,6 @@ function readAgentSettings(msg: {
   reply_enabled: boolean;
   reply_auto_generate?: boolean;
   reply_agents: AgentSettings["replyAgents"];
-  info_enabled: boolean;
 }): AgentSettings {
   return {
     replyEnabled: msg.reply_enabled,
@@ -135,7 +134,6 @@ function readAgentSettings(msg: {
       if (a.priority !== b.priority) return a.priority - b.priority;
       return a.label.localeCompare(b.label);
     }),
-    infoEnabled: msg.info_enabled,
   };
 }
 
@@ -149,6 +147,8 @@ function reduce(s: SocketState, msg: InboundMessage): SocketState {
       return {
         ...s,
         isRunning: running,
+        meetingSaved: msg.saved,
+        meetingEndStatus: msg.end_status,
         ...(running
           ? {}
           : {
@@ -182,9 +182,6 @@ function reduce(s: SocketState, msg: InboundMessage): SocketState {
         replyText: agentSettings.replyEnabled ? s.replyText : "",
         isGeneratingReply: agentSettings.replyEnabled
           ? s.isGeneratingReply
-          : false,
-        isResearchingInfo: agentSettings.infoEnabled
-          ? s.isResearchingInfo
           : false,
       };
     }
@@ -423,32 +420,6 @@ function reduce(s: SocketState, msg: InboundMessage): SocketState {
         lastReplyCancelResult,
         cancelledSuggestionIds,
         ...deriveSuggestionState(nextCards, s.activeSuggestionGenerationId),
-      };
-    }
-
-    case "info_researching":
-      return { ...s, isResearchingInfo: true };
-
-    case "info_researching_finished":
-      return { ...s, isResearchingInfo: false };
-
-    case "ai_note_updated": {
-      const session = s.session ? { ...s.session, aiNote: msg.text } : null;
-      return {
-        ...s,
-        session,
-        isResearchingInfo: false,
-      };
-    }
-
-    case "info_chunk": { // Legacy fallback — no longer emitted by the server but kept for safety.
-      const session = s.session
-        ? { ...s.session, aiNote: s.session.aiNote + msg.text }
-        : null;
-      return {
-        ...s,
-        session,
-        isResearchingInfo: !msg.final,
       };
     }
 

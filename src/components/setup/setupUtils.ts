@@ -1,5 +1,9 @@
 import type { MeetingContextInput, ReferenceDocumentInput } from "../../types";
 
+export const MAX_REFERENCE_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_REFERENCE_TOTAL_BYTES = 20 * 1024 * 1024;
+export const MAX_REFERENCE_COUNT = 10;
+
 export const ACCEPTED_REFERENCE_EXTENSIONS = [
   ".md",
   ".markdown",
@@ -29,40 +33,54 @@ export async function fileToReference(
   file: File,
 ): Promise<ReferenceDocumentInput> {
   const extension = extensionOf(file.name);
+  const metadata = {
+    id: createDocumentId(),
+    name: file.name,
+    mimeType: file.type || "application/octet-stream",
+    sizeBytes: file.size,
+  };
   if (!ACCEPTED_REFERENCE_EXTENSIONS.includes(extension)) {
     return {
-      id: createDocumentId(),
-      name: file.name,
-      mimeType: file.type || "application/octet-stream",
-      sizeBytes: file.size,
+      ...metadata,
       status: "failed",
       error: "この形式のファイルは追加できません",
     };
   }
-
-  if (extension === ".docx") {
+  if (file.size > MAX_REFERENCE_FILE_BYTES) {
     return {
-      id: createDocumentId(),
-      name: file.name,
-      mimeType:
-        file.type ||
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      sizeBytes: file.size,
-      contentBase64: bufferToBase64(await file.arrayBuffer()),
-      status: "queued",
-      error: null,
+      ...metadata,
+      status: "failed",
+      error: "資料は1件10 MiB以内で追加してください",
     };
   }
-
-  return {
-    id: createDocumentId(),
-    name: file.name,
-    mimeType: file.type || "text/plain",
-    sizeBytes: file.size,
-    text: await file.text(),
-    status: "parsed",
-    error: null,
-  };
+  try {
+    if (extension === ".docx") {
+      return {
+        ...metadata,
+        mimeType:
+          file.type ||
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        contentBase64: bufferToBase64(await file.arrayBuffer()),
+        status: "queued",
+        error: null,
+      };
+    }
+    return {
+      ...metadata,
+      mimeType: file.type || "text/plain",
+      text: Array.from(await file.text())
+        .slice(0, 40_000)
+        .join(""),
+      status: "parsed",
+      error: null,
+    };
+  } catch {
+    return {
+      ...metadata,
+      status: "failed",
+      error: "ファイルを読み込めませんでした",
+    };
+  }
 }
 
 export function contextWithFallback(

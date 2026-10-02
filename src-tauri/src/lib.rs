@@ -1,15 +1,14 @@
 pub mod commands;
+pub mod desktop_runtime;
+mod desktop_secrets;
 pub mod error;
 pub mod managed_auth;
-pub mod paths;
-pub mod process;
+pub mod native_speech;
 pub mod state;
 
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
 
-use crate::paths::ensure_python_environment;
-use crate::process::{kill_backend, start_backend, BackendProcess, BackendState};
 use crate::state::{set_bootstrap_status, BootstrapState, BootstrapStateData};
 #[derive(Debug, PartialEq, Eq)]
 enum NativeClosePolicy {
@@ -24,6 +23,11 @@ fn native_close_policy(label: &str) -> NativeClosePolicy {
         "assistant" => NativeClosePolicy::HideWindow,
         _ => NativeClosePolicy::CloseWindow,
     }
+}
+
+fn request_exit(app: &tauri::AppHandle) {
+    native_speech::shutdown(app);
+    desktop_runtime::request_exit(app);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -44,9 +48,10 @@ pub fn run() {
     };
 
     builder
-        .manage(BackendState::new(BackendProcess::none()))
+        .manage(desktop_runtime::DesktopState::default())
         .manage(BootstrapState::new(BootstrapStateData::new()))
         .manage(managed_auth::ManagedAuthState::default())
+        .manage(native_speech::NativeSpeechState::default())
         .setup(|app| {
             #[cfg(any(target_os = "windows", target_os = "linux"))]
             if std::env::var_os("TAURI_WEBDRIVER_PORT").is_none() {
@@ -64,71 +69,16 @@ pub fn run() {
                 }
             }
 
-            managed_auth::start_managed_session_sync(app.handle().clone());
-
-            // Ctrl+C / SIGTERM でバックエンドを kill してから終了
             let app_handle_for_signal = app.handle().clone();
-            ctrlc::set_handler(move || {
-                eprintln!("[backend] signal received, shutting down...");
-                let _ = kill_backend(&app_handle_for_signal);
-                app_handle_for_signal.exit(0);
-            })
-            .expect("ctrlc ハンドラ設定失敗");
+            ctrlc::set_handler(move || request_exit(&app_handle_for_signal))
+                .expect("ctrlc ハンドラ設定失敗");
 
-            let app_handle = app.handle().clone();
-            std::thread::spawn(move || {
-                let _ = set_bootstrap_status(
-                    &app_handle,
-                    "syncing",
-                    "Setting up Python dependencies (first launch may take time)...",
-                );
-                match ensure_python_environment(&app_handle) {
-                    Ok(_) => {
-                        let _ = set_bootstrap_status(
-                            &app_handle,
-                            "starting",
-                            "Starting backend service...",
-                        );
-                        match start_backend(&app_handle) {
-                            Ok(backend) => {
-                                let running_port = backend.port;
-                                {
-                                    let state = app_handle.state::<BackendState>();
-                                    let mut guard = state.lock().unwrap_or_else(|e| e.into_inner());
-                                    *guard = backend;
-                                }
-                                let _ = managed_auth::sync_current_python_session(&app_handle);
-                                if let Some(port) = running_port {
-                                    println!(
-                                        "[backend] FastAPI is running on http://127.0.0.1:{port}"
-                                    );
-                                }
-                                let _ = set_bootstrap_status(
-                                    &app_handle,
-                                    "running",
-                                    "Backend is ready.",
-                                );
-                            }
-                            Err(e) => {
-                                eprintln!("[backend] ERROR: {e}");
-                                let _ = set_bootstrap_status(
-                                    &app_handle,
-                                    "failed",
-                                    format!("Backend failed to start: {e}"),
-                                );
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("[backend] setup ERROR: {e}");
-                        let _ = set_bootstrap_status(
-                            &app_handle,
-                            "failed",
-                            format!("Python setup failed: {e}"),
-                        );
-                    }
-                }
-            });
+            if cfg!(feature = "native-speech") {
+                set_bootstrap_status(app.handle(), "running", "Local speech controls are ready.")?;
+            } else {
+                set_bootstrap_status(app.handle(), "starting", "Starting Rust backend...")?;
+                desktop_runtime::start(app.handle().clone());
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -138,9 +88,7 @@ pub fn run() {
             match native_close_policy(window.label()) {
                 NativeClosePolicy::ExitApplication => {
                     api.prevent_close();
-                    let app_handle = window.app_handle();
-                    let _ = kill_backend(app_handle);
-                    app_handle.exit(0);
+                    request_exit(window.app_handle());
                 }
                 NativeClosePolicy::HideWindow => {
                     api.prevent_close();
@@ -152,11 +100,17 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            native_speech::get_runtime_mode,
+            native_speech::native_speech_defaults,
+            native_speech::native_speech_snapshot,
+            native_speech::native_speech_start,
+            native_speech::native_speech_stop,
+            native_speech::native_speech_clear,
+            native_speech::native_speech_export,
             commands::get_api_port,
             commands::get_api_auth_token,
             commands::is_backend_running,
             commands::get_backend_bootstrap_status,
-            commands::get_backend_crash_info,
             commands::set_assistant_window_visible,
             managed_auth::managed_auth_start,
             managed_auth::managed_auth_status,
@@ -169,9 +123,11 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                // ウィンドウ閉じる・アプリ終了時にプロセスツリーを kill
-                let _ = kill_backend(app_handle);
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                if !desktop_runtime::exit_ready(app_handle) {
+                    api.prevent_exit();
+                    request_exit(app_handle);
+                }
             }
         });
 }

@@ -1,9 +1,9 @@
+generated/
 .direnv
 
 # uv / venv (downloaded binaries and generated environments)
 src-tauri/resources/uv
 src-tauri/resources/uv.exe
-generated/tauri/python/
 
 # Logs
 logs
@@ -251,9 +251,18 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 /.claude/worktrees/
+/.claude/settings.local.json
 
 # Playwright CLI
 .playwright-cli/
 
 # Metrics output (generated, not committed)
 metrics/out/
+
+# Shared frozen Python worker (generated per target platform)
+generated/python-worker/
+generated/native-runtime/
+generated/rust-resources/
+
+# Machine-specific native worker build selection
+/.rust-workers.local.json

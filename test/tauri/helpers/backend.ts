@@ -12,6 +12,15 @@ export interface WaitOptions {
   timeoutMsg?: string;
 }
 
+// Rust receives synthetic PCM through its real worker protocol.
+export async function syntheticSpeechSettings(): Promise<{ backend: string }> {
+  const health = await localBackendRequest<{ runtime?: string }>({
+    path: "/health",
+  });
+  if (health.runtime !== "rust") throw new Error("Expected Rust desktop runtime");
+  return { backend: "reazonspeech" };
+}
+
 export async function localBackendRequest<T>(
   request: BackendRequest,
 ): Promise<T> {

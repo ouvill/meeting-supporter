@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MainMeetingControlScreen } from "./MainMeetingControlScreen";
 import type { SendFn, SocketState, Turn } from "../types";
-import type { AiUseCaseRouteStatus } from "../hooks/useAiRoutes";
 
 function meetingState(overrides: Partial<SocketState> = {}): SocketState {
   return {
@@ -17,7 +16,6 @@ function meetingState(overrides: Partial<SocketState> = {}): SocketState {
       replyEnabled: true,
       replyAutoGenerate: false,
       replyAgents: [],
-      infoEnabled: true,
     },
     devices: [
       { index: 1, name: "会議室スピーカー", is_monitor: true },
@@ -34,7 +32,6 @@ function meetingState(overrides: Partial<SocketState> = {}): SocketState {
     lastReplyCancelResult: null,
     cancelledSuggestionIds: [],
     discardedGenerationIds: [],
-    isResearchingInfo: false,
     interimOther: "",
     interimSelf: "",
     levelOther: 0.1,
@@ -53,12 +50,6 @@ function activeSession(turns: Turn[]): NonNullable<SocketState["session"]> {
   };
 }
 
-const READY_INFO_ROUTE: AiUseCaseRouteStatus = {
-  readiness: "ready",
-  canGenerate: true,
-  message: null,
-};
-
 describe("MainMeetingControlScreen", () => {
   it("keeps audio health compact and exposes detailed input meters on demand", () => {
     render(
@@ -73,6 +64,13 @@ describe("MainMeetingControlScreen", () => {
       screen.getByRole("main", { name: "会話ワークスペース" }),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("main")).toHaveLength(1);
+    expect(
+      screen.getByRole("region", { name: "返答の候補" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("AIによる会話メモ")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "今すぐ整理" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText(/経過時間/)).toBeInTheDocument();
     expect(screen.queryByRole("meter")).not.toBeInTheDocument();
 
@@ -166,6 +164,16 @@ describe("MainMeetingControlScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "会議を終了" }));
     fireEvent.click(screen.getByRole("button", { name: "終了する" }));
     expect(send).toHaveBeenCalledWith({ type: "stop_meeting" });
+    expect(
+      screen.getByRole("button", { name: "会議の終了処理中" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "会議を終了しています。残りの音声認識と保存を処理しています。",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "会議の終了処理中" }));
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it("shows an empty conversation history without requiring another action", () => {
@@ -320,168 +328,5 @@ describe("MainMeetingControlScreen", () => {
     expect(historyReply).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("以前の返答案です。")).toBeInTheDocument();
     expect(screen.getByText("現在の返答案です。")).toBeInTheDocument();
-  });
-
-  it("renders stable AI-note sections and supports an immediate refresh", () => {
-    const send = vi.fn<SendFn>();
-    render(
-      <MainMeetingControlScreen
-        state={meetingState({
-          session: {
-            ...activeSession([
-              {
-                id: "note-source",
-                speaker: "other",
-                text: "火曜日に共有します。",
-              },
-            ]),
-            aiNote:
-              "## 決まったこと\n- 火曜日に共有\n\n## 未確認・懸念\n- 適用日は未確認\n\n## 次にすること\n- 法務へ確認",
-          },
-        })}
-        send={send}
-        onSettings={() => {}}
-        infoRouteStatus={READY_INFO_ROUTE}
-      />,
-    );
-
-    expect(screen.getByText("決まったこと")).toBeInTheDocument();
-    expect(screen.getByText("- 火曜日に共有")).toBeInTheDocument();
-    expect(screen.getByText("未確認・懸念")).toBeInTheDocument();
-    expect(screen.getByText("- 適用日は未確認")).toBeInTheDocument();
-    expect(screen.getByText("次にすること")).toBeInTheDocument();
-    expect(screen.getByText("- 法務へ確認")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "今すぐ整理" }));
-    expect(send).toHaveBeenCalledWith({ type: "run_info" });
-  });
-
-  it("disables AI-note refresh until a confirmed turn exists", () => {
-    const send = vi.fn<SendFn>();
-    render(
-      <MainMeetingControlScreen
-        state={meetingState({ session: activeSession([]) })}
-        send={send}
-        onSettings={() => {}}
-        infoRouteStatus={READY_INFO_ROUTE}
-      />,
-    );
-
-    const refresh = screen.getByRole("button", { name: "今すぐ整理" });
-    expect(refresh).toBeDisabled();
-    fireEvent.click(refresh);
-    expect(send).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    {
-      name: "unassigned",
-      status: {
-        readiness: "setup_required",
-        canGenerate: false,
-        message: "会話メモを利用する支援方法を設定してください。",
-      } satisfies AiUseCaseRouteStatus,
-    },
-    {
-      name: "not ready",
-      status: {
-        readiness: "setup_required",
-        canGenerate: false,
-        message: "Codexへログインしてください。",
-      } satisfies AiUseCaseRouteStatus,
-    },
-    {
-      name: "capability mismatch",
-      status: {
-        readiness: "unavailable",
-        canGenerate: false,
-        message: "選択した支援方法では会話メモを利用できません。",
-      } satisfies AiUseCaseRouteStatus,
-    },
-    {
-      name: "catalog error",
-      status: {
-        readiness: "error",
-        canGenerate: false,
-        message:
-          "支援方法の状態を確認できませんでした。しばらくしてから再度お試しください。",
-      } satisfies AiUseCaseRouteStatus,
-    },
-  ])(
-    "blocks info requests for $name while preserving the note and offering settings",
-    ({ status }) => {
-      const send = vi.fn<SendFn>();
-      const onSettings = vi.fn();
-      const session = {
-        ...activeSession([
-          { id: "note-source", speaker: "other" as const, text: "確認します。" },
-        ]),
-        aiNote: "## 決まったこと\n- 保存済みの内容",
-      };
-      render(
-        <MainMeetingControlScreen
-          state={meetingState({ session })}
-          send={send}
-          onSettings={onSettings}
-          infoRouteStatus={status}
-        />,
-      );
-
-      expect(screen.getByText("- 保存済みの内容")).toBeInTheDocument();
-      expect(screen.getByText(status.message!)).toBeInTheDocument();
-      const run = screen.getByRole("button", { name: "今すぐ整理" });
-      expect(run).toBeDisabled();
-      fireEvent.click(run);
-      expect(send).not.toHaveBeenCalledWith({ type: "run_info" });
-      fireEvent.click(screen.getByRole("button", { name: "設定を確認" }));
-      expect(onSettings).toHaveBeenCalledOnce();
-    },
-  );
-
-  it("distinguishes route loading from the advanced info kill switch", () => {
-    const session = activeSession([
-      { id: "note-source", speaker: "other", text: "確認します。" },
-    ]);
-    const { rerender } = render(
-      <MainMeetingControlScreen
-        state={meetingState({ session })}
-        send={vi.fn<SendFn>()}
-        onSettings={vi.fn()}
-        infoRouteStatus={{
-          readiness: "unknown",
-          canGenerate: false,
-          message: null,
-        }}
-      />,
-    );
-
-    expect(screen.getByText("会話メモの支援方法を確認しています。")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "設定を確認" }),
-    ).not.toBeInTheDocument();
-
-    rerender(
-      <MainMeetingControlScreen
-        state={meetingState({
-          session,
-          agentSettings: {
-            replyEnabled: true,
-            replyAutoGenerate: false,
-            replyAgents: [],
-            infoEnabled: false,
-          },
-        })}
-        send={vi.fn<SendFn>()}
-        onSettings={vi.fn()}
-        infoRouteStatus={READY_INFO_ROUTE}
-      />,
-    );
-
-    expect(
-      screen.getByText("設定ファイルで会話メモAIが無効になっています。"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "設定を確認" }),
-    ).not.toBeInTheDocument();
   });
 });

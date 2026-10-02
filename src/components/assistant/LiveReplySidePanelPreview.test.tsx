@@ -17,28 +17,16 @@ vi.mock("../../hooks/useAlwaysOnTop", () => ({
 vi.mock("../../hooks/useAiRoutes", () => ({
   useAiRoutes: () => ({
     routes: [],
-    assignments: { reply: "preview", info: null, minutes: null },
+    assignments: { reply: "preview" },
     assignedRoutes: {
       reply: {
         id: "preview",
         readiness: "ready",
         selectable: true,
       },
-      info: null,
-      minutes: null,
-    },
-    infoRouteStatus: {
-      readiness: "setup_required",
-      canGenerate: false,
-      message: "会話メモを利用する支援方法を設定してください。",
-    },
-    minutesRouteStatus: {
-      readiness: "setup_required",
-      canGenerate: false,
-      message: "議事録を利用する支援方法を設定してください。",
     },
     replyStatus: { readiness: "ready", canGenerate: true, message: null },
-    draftAssignments: { reply: "preview", info: null, minutes: null },
+    draftAssignments: { reply: "preview" },
     assignmentDirty: false,
     setDraftAssignment: vi.fn(),
     resetDraftAssignments: vi.fn(),
@@ -89,14 +77,14 @@ describe("LiveReplySidePanelPreview", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the actionable Codex failure in the failed scenario", () => {
+  it("shows the actionable AI failure in the failed scenario", () => {
     render(<LiveReplySidePanelPreview />);
 
     fireEvent.click(screen.getByRole("button", { name: /^生成失敗/ }));
 
     expect(
       screen.getByText(
-        "Codex との通信が途中で切れました。接続を確認してもう一度お試しください。",
+        "AI との通信が途中で切れました。接続を確認してもう一度お試しください。",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "再試行" })).toBeEnabled();

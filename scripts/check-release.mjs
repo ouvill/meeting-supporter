@@ -34,8 +34,8 @@ const versions = new Map([
     await readTomlField("src-tauri/Cargo.toml", "version"),
   ],
   [
-    "python/pyproject.toml",
-    await readTomlField("python/pyproject.toml", "version"),
+    "python-worker/pyproject.toml",
+    await readTomlField("python-worker/pyproject.toml", "version"),
   ],
   ["openapi.json", openapi.info?.version],
 ]);
@@ -56,8 +56,8 @@ const licenses = new Map([
     await readTomlField("src-tauri/Cargo.toml", "license"),
   ],
   [
-    "python/pyproject.toml",
-    await readTomlField("python/pyproject.toml", "license"),
+    "python-worker/pyproject.toml",
+    await readTomlField("python-worker/pyproject.toml", "license"),
   ],
 ]);
 for (const [path, license] of licenses) {

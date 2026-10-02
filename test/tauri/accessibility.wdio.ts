@@ -1,6 +1,10 @@
 import { AxeBuilder } from "@axe-core/webdriverio";
 import { $, browser, expect } from "@wdio/globals";
-import { localBackendRequest, waitForBackendReady } from "./helpers/backend";
+import {
+  localBackendRequest,
+  syntheticSpeechSettings,
+  waitForBackendReady,
+} from "./helpers/backend";
 import { expectDisplayedSurface } from "./helpers/displayedSurface";
 import {
   finishMeeting,
@@ -122,7 +126,7 @@ describe("Native shell accessibility", () => {
     await localBackendRequest({
       path: "/api/settings",
       method: "POST",
-      body: { stt: { backend: "dummy" } },
+      body: { stt: await syntheticSpeechSettings() },
     });
     await browser.refresh();
     await waitForBackendReady(backendWaitOptions);
@@ -135,7 +139,7 @@ describe("Native shell accessibility", () => {
     await localBackendRequest({
       path: "/api/settings",
       method: "POST",
-      body: { stt: { backend: "dummy" } },
+      body: { stt: await syntheticSpeechSettings() },
     });
     await browser.refresh();
     await waitForBackendReady(backendWaitOptions);

@@ -27,6 +27,7 @@
 
 - 保存された会議を一覧・詳細で確認する
 - 会話ログ、保存された返答提案、利用可能な録音を確認する
+- 保存済みの議事録を閲覧する
 - 会議タイトルを変更する
 - 確認ダイアログから会議を削除する
 
@@ -36,18 +37,11 @@
 
 - Whisper（local。アプリ設定からmodelを準備可能）
 - ReazonSpeech K2-v2 int8（local・日本語専用。アプリ設定からmodelを準備可能）
-- Vosk（local。アプリ設定からmodelを準備可能）
-- Deepgram（cloud。credentialが必要）
-- OpenAI（cloud。`OPENAI_API_KEY`が必要。発話単位で音声を転送）
-- Grok / xAI（cloud。`XAI_API_KEY`が必要。ストリーミング音声を転送）
-- Remote STT server
-- Dummy（development/smoke用）
 
-既定はWhisperです。modelの利用規約は各backendの提供元に従い、cloud backendの利用料金は各提供元で確認してください。
+既定はReazonSpeechです。モデルの利用規約は各提供元に従います。
 
-VADエンジンはSTT backendとは独立して、Silero VADまたはWebRTC VADから選択します。
+VAD は Silero を使用します。
 
-OpenAI、Grok / xAI、Deepgramは「音声」の「聞き取り方法」から選択します。クラウド方式を選ぶと、同じ画面のprovider固有controlでAPIキーの入力、保存状態、接続確認、変更、削除予定の指定を行えます。provider固有modelは詳細設定に残ります。OpenAIのcredential draftと状態は音声認識と返答支援で共有し、保存済みAPIキーの値は再表示しません。
 
 ## AIの利用方法
 
@@ -56,36 +50,39 @@ OpenAI、Grok / xAI、Deepgramは「音声」の「聞き取り方法」から�
 - Gemini、OpenAI、Anthropicのcloud inferenceを利用者自身のcredentialで使う。APIキーは「支援方法」の対応するroute card内で入力・確認する。
 - Ollamaのlocal/OpenAI-compatible endpointを使う。
 
-保存済みcredentialの値は表示しません。provider固有model、endpoint、command、runtime診断の詳細は上級者向け設定です。Ollamaの接続先がloopback以外の場合、処理がこのPC内だけで完結するとは限りません。
+保存済みcredentialの値は表示しません。provider固有model、endpointの詳細は上級者向け設定です。Ollamaの接続先がloopback以外の場合、処理がこのPC内だけで完結するとは限りません。
 
 ### Experimental
 
-- **Codex App Server直接経路**: 利用者環境の公式`codex`とChatGPT loginを使うAPIキー不要の試験提供経路です。generic ACPとは別の専用runtimeとして扱います。`codex-cli 0.144.0`を最低版とし、それ以降の安定版は起動時のprotocol検証を通れば利用できます。0.144.0 / 0.144.1はschema互換性を追跡する基準版で、未検証の新版は警告を表示します。利用者環境での実Codex turnとdesktop E2Eは未検証であり、一般提供済みとはみなしません。
-- **Generic ACP経路**: 上級者向け設定だけで構成する別のexperimental runtimeです。Codex App Server経路のtransportとしては使わず、一般向けのCodex cardにACPを混在させません。
-
-Experimental経路は環境、version、接続先により利用できない場合があります。Codex経路には、GUIプロセスの`PATH`から実行できる公式Codex CLIが必要です。Meeting SupporterはCodex CLIをインストールせず、未導入時は公式の案内ページを表示します。initialize、ChatGPT認証、モデル一覧のtyped検証が`ready`のときだけ選択できます。返答開始とstream中にもthread/turn/notificationを検証し、非互換なら応答を終了してprocessを停止します。version probeがtimeoutした場合もその子processを停止します。未導入・最低版未満・未ログイン・モデル未提供は理由と復旧操作を区別し、インストールまたは更新後はアプリの再起動が必要です。これは実装上の境界であり、外部Codexを使った生成品質・対応OS・desktop E2Eの検証結果ではありません。
-
+Rust 構成では、設定の「支援方法」から ACP Registry のエージェントを追加・認証し、返答案へ割り当てられます。
+Codex、Claude、Antigravity を共通の ACP client で扱います。配布形式の条件と未検証事項は
+[Rust バックエンドの直接接続](doc/development/rust-desktop-backend.md#acp-エージェント)を参照してください。
 ### Hosted service の境界
 
-Meeting Supporterが運営するhosted serviceのserver実装・運用文書は、このOSSリポジトリに含まれません。通常のOSS buildではhosted serviceは未設定で利用できず、`not_offered`かつ`selectable = false`としてfail closedします。local STT、利用者自身のAPI credential、Ollama、Codex、ACPはhosted accountなしで利用できます。
+Meeting Supporterが運営するhosted serviceのserver実装・運用文書は、このOSSリポジトリに含まれません。通常のOSS buildではhosted serviceは未設定で利用できず、`not_offered`かつ`selectable = false`としてfail closedします。local STT、利用者自身のAPI credential、Ollama、ACPエージェントはhosted accountなしで利用できます。
 
 ## セットアップ
 
 ### 前提条件
 
-- Node.js 20+
-- Python 3.12–3.14（`.python-version`は検証済み最新の3.14を指定）
+- Node.js 20.19+
+- Python 3.12.12（MarkItDown worker のビルド・検証用。uv で取得可能）
 - Rust toolchain（Tauri desktop開発時）
-- `uv`（ローカル開発時。配布版は初回起動時に公式配布物を取得）
+- `uv`（DOCX worker のビルド・検証とライセンス通知の生成用）
 
-選択するcloud STT/AI経路には各サービスのcredentialが必要です。local STT/AI経路には対応modelまたはlocal serviceが必要です。
+Linux / Windows / macOS の標準構成は Rust を使用します。配布版には必要な worker を同梱し、利用者環境の Python / uv は使いません。
+ビルド環境と CI の検証範囲は [Rust のインストーラー](doc/development/rust-desktop-backend.md#インストーラー)を参照してください。
+macOS は 14.6 以降の Apple Silicon / Intel に対応します。
+
+返答生成のcloud AI経路には各サービスのcredentialが必要です。ローカル音声認識には対応モデル、ローカルAIにはサービスの準備が必要です。
 
 ### 依存関係
 
 ```bash
-npm install
-cd python && uv sync --locked
+npm ci
 ```
+
+文書変換ワーカーの開発依存は `uv sync --project python-worker --locked` で準備します。
 
 ### Desktop development
 
@@ -99,11 +96,13 @@ frontendだけを起動する場合:
 npm run dev
 ```
 
-Python backendだけを起動する場合:
+### Rust ローカル文字起こし
 
-```bash
-npm run dev:python
-```
+`npm run dev:rust` で、既存画面から Tauri 内の Rust バックエンドを直接利用できます。
+起動前に音声取得・推論 worker を差分ビルドするため、個別のビルド操作は不要です。
+Python を起動しない経路の手順と制約は [Rust バックエンドの直接接続](doc/development/rust-desktop-backend.md)を参照してください。
+
+独立した `dev:native` 画面は音声処理の検証用です。手順は [Rust ローカル文字起こし](doc/development/rust-local-speech.md)を参照してください。
 
 ### 紹介サイト
 
@@ -118,7 +117,7 @@ production buildは`dist-website/`へ出力されます。
 
 ### ローカル backend の境界
 
-Tauri launcherがdesktop backendごとに生成するcapability tokenは、同一端末上のそのprocessへ届いた呼出しを確認するためだけのものです。これはhosted serviceの利用者認証ではありません。`npm run dev:python`で直接起動するPython backendと`python-server`は、ローカル開発・動作確認用であり、そのまま公開serviceとして運用することを想定していません。
+Tauri launcherがdesktop backendごとに生成するcapability tokenは、同一端末上のそのprocessへ届いた呼出しを確認するためだけのものです。これはhosted serviceの利用者認証ではありません。API は loopback に限定し、外部公開用のサーバーとしては扱いません。
 
 ### Build
 
@@ -134,7 +133,7 @@ npm run tauri build
 npm run check:release -- --tag v0.1.0
 ```
 
-`package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`、`python/pyproject.toml`、`openapi.json`のversionは同じ値にします。`v<version>`タグのpush、またはGitHub Actionsから`Release draft`を手動実行すると、Linux x64、Windows x64、macOS Apple Silicon / Intelのinstaller候補がdraft releaseへ追加されます。各artifactには`LICENSE`と`THIRD-PARTY-NOTICES.txt`を収録し、`uv`バイナリ自体は再配布しません。配布版は必要な場合だけ、初回起動時に`uv 0.11.7`を公式配布元から取得し、対象OS・architectureごとに固定したSHA-256を検証してからAppData配下へ展開します。
+`package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`、`python-worker/pyproject.toml`、`openapi.json`のversionは同じ値にします。`v<version>`タグのpush、またはGitHub Actionsから`Release draft`を手動実行すると、Linux x64、Windows x64、macOS Apple Silicon / Intelのinstaller候補がdraft releaseへ追加されます。各artifactには`LICENSE`と`THIRD-PARTY-NOTICES.txt`を収録し、`uv`バイナリ自体は再配布しません。標準配布版は Rust と同梱 worker を使い、初回起動時の Python / uv の取得は不要です。
 
 第三者ライセンス通知はlockfileから再生成し、差分と許可ポリシーをCIで検査します。
 
@@ -149,23 +148,25 @@ workflowは公開を自動化しません。draftを公開する前に対象OS�
 
 ## 設定とcredential
 
-既定値は`python/config.default.toml`を参照してください。利用者設定はAppData配下の`config.toml`へ保存されます。
+Rust 構成は AppData 配下の `settings.toml` を使用し、ファイル全体に `schema_version = 1` を持たせます。旧設定からは自動移行しません。設定の例と再設定手順は [Rust の設定手順](doc/development/rust-desktop-backend.md#設定の保存と反映)を参照してください。
 
-アプリ設定から保存したcredentialはPython `keyring`経由のOS credential storeを優先します。開発・CIでfile backendを明示する場合は`SECRET_STORE_BACKEND=file`を使用できます。credentialをissue、log、screenshot、文書へ記録しないでください。
+Rust 構成の API キーは OS の認証情報ストアへ保存します。credential を issue、log、screenshot、文書へ記録しないでください。
 
-「端末内・高精度」のWhisper modelは、アプリの音声設定からダウンロードできます。進捗表示と失敗時の再試行に対応し、保存先にはHugging Faceの標準共有cacheを使用するため、アプリ専用フォルダへmodelを重複保存しません。Whisperのダウンロードは途中キャンセルできません。
+「端末内・高精度」のWhisper modelは、アプリの音声設定からダウンロードできます。進捗表示と失敗時の再試行に対応し、保存先にはHugging Faceの標準共有cacheを使用するため、アプリ専用フォルダへmodelを重複保存しません。取得のキャンセルにも対応します。
 
-「端末内・日本語高精度」のReazonSpeech K2-v2 int8を音声認識の既定方式として使用します。modelは同じ画面からダウンロードでき、約153MBを使用してHugging Faceの標準共有cacheへ保存します。日本語の音声だけに対応し、1回の認識区間をmodelの上限である約30秒未満に分割します。ダウンロードは途中キャンセルできません。modelとReazonSpeechの利用条件はApache License 2.0です。
+「端末内・日本語高精度」のReazonSpeech K2-v2 int8を音声認識の既定方式として使用します。modelは同じ画面からダウンロードでき、約153MBを使用してHugging Faceの標準共有cacheへ保存します。日本語の音声だけに対応し、1回の認識区間をmodelの上限である約30秒未満に分割します。取得のキャンセルにも対応します。modelとReazonSpeechの利用条件はApache License 2.0です。
 
-「端末内・軽量」のVosk音声認識データは、同じ画面から日本語（約48MB）または英語（約40MB）をダウンロードできます。進捗表示、キャンセル、失敗時の再試行に対応し、取得したデータはAppData配下の`models/speech`へ保存されます。既存のVosk modelを使う上級者は、詳細設定の`vosk_model_path`で展開済みディレクトリを指定できます。Ollamaの既定endpointは`http://localhost:11434/v1`です。
+Ollamaの既定endpointは`http://localhost:11434/v1`です。
 
-声の検出は既定でSilero VADを使用します。Torchは導入せず、同梱した約208KBのint8 ONNX modelをONNX Runtimeで直接実行します。処理は端末内で完結し、最小負荷を優先する場合は音声設定からWebRTC VADへ切り替えられます。Silero VAD modelの利用条件はMIT Licenseです。
+声の検出は既定でSilero VADを使用します。Torchは導入せず、同梱した約208KBのint8 ONNX modelをONNX Runtimeで直接実行します。処理は端末内で完結します。Silero VAD modelの利用条件はMIT Licenseです。
 
 音声デバイス、VAD、音声認識方式の設定は会議中には変更できず、進行中の会議は開始時のaudio runtimeを使い続けます。会議停止中にこれらの変更を保存すると、アプリ本体を再起動せずに音声subsystem全体を新設定で再生成します。stage単位のhot-swapは行わず、再生成に失敗した場合は変更前のaudio runtimeへ戻します。会議中に外部からconfig変更通知を受けた場合も、その会議の終了後まで再読み込みを保留します。
 
 ## Architecture and product authority
 
 - [Documentation index](./doc/README.md)
+- [Rust 音声コアの試作・移行検討](./test/rust-audio-core/README.md)（音声ワーカーが利用する区間処理ライブラリ）
+- [Rust 音声バックエンドの移行試作](./test/rust-native-backend/README.md)（Silero + ReazonSpeech / Whisper の推論ワーカー）
 - [Product Vision](./doc/product/vision.md)
 - [Product Requirements and availability](./doc/product/prd.md)
 - [Product Surfaces](./doc/ui/product-surfaces.md)
@@ -175,6 +176,7 @@ workflowは公開を自動化しません。draftを公開する前に対象OS�
 - [ADR-012: native window chrome and pin preference](./doc/adr/012-native-window-chrome-and-pin-preference.md)
 - [ADR-013: contextual API credential controls](./doc/adr/013-contextual-api-credential-controls.md)
 - [ADR-015: localized UI message contract](./doc/adr/015-localized-ui-message-contract.md)
+- [ADR-016: Rust runtime and ownership boundaries](./doc/adr/016-rust-runtime-and-ownership-boundaries.md)（Proposed）
 
 実装進捗と公開可能なbug・featureは[GitHub Issues](https://github.com/ouvill/meeting-supporter/issues)で管理します。
 
@@ -184,9 +186,10 @@ workflowは公開を自動化しません。draftを公開する前に対象OS�
 | --------- | ------------------------------------------ |
 | UI        | React 19, TypeScript, Vite, Tailwind CSS   |
 | Desktop   | Tauri 2                                    |
-| Backend   | Python 3.12–3.14, FastAPI, WebSocket       |
-| Audio     | soundcard / Silero VAD / WebRTC VAD        |
-| Local STT | faster-whisper / ReazonSpeech K2-v2 / Vosk |
+| Backend   | Rust, Poem, HTTP / WebSocket |
+| Audio     | CPAL / Silero VAD / ONNX Runtime |
+| Local STT | whisper.cpp / ReazonSpeech K2-v2 |
+| Documents | 同梱 Python worker / MarkItDown |
 
 ## Contributing
 

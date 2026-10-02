@@ -38,7 +38,6 @@ function idleState(overrides: Partial<SocketState> = {}): SocketState {
       replyEnabled: true,
       replyAutoGenerate: false,
       replyAgents: [],
-      infoEnabled: true,
     },
     devices: [],
     deviceOther: null,
@@ -52,7 +51,6 @@ function idleState(overrides: Partial<SocketState> = {}): SocketState {
     lastReplyCancelResult: null,
     cancelledSuggestionIds: [],
     discardedGenerationIds: [],
-    isResearchingInfo: false,
     interimOther: "",
     interimSelf: "",
     levelOther: 0,
@@ -107,6 +105,48 @@ afterEach(() => {
 });
 
 describe("SetupScreen", () => {
+  it.each([
+    ["interrupted", "会議を中断しました", false],
+    ["unsaved", "一部の記録を保存できませんでした", false],
+    ["stop_failed", "音声処理の停止を確認できませんでした", true],
+  ] as const)(
+    "handles %s without a recovery dialog",
+    (endStatus, title, blocked) => {
+      const send = vi.fn<SendFn>();
+      const onHistory = vi.fn();
+      render(
+        <SetupScreen
+          {...replyRouteProps}
+          showFirstRunGuidance={false}
+          state={idleState({
+            sttInitialized: true,
+            meetingEndStatus: endStatus,
+          })}
+          send={send}
+          onSettings={vi.fn()}
+          onHistory={onHistory}
+        />,
+      );
+      expect(screen.getByText(title)).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "履歴を確認" }));
+      expect(onHistory).toHaveBeenCalledOnce();
+      const start = screen.getByRole("button", { name: "会議を開始" });
+      if (blocked) {
+        expect(start).toBeDisabled();
+        expect(
+          screen.getByText(/アプリを再起動してください/),
+        ).toBeInTheDocument();
+      } else {
+        expect(start).toBeEnabled();
+        fireEvent.click(start);
+        expect(send).toHaveBeenCalledWith(
+          expect.objectContaining({ type: "start_meeting" }),
+        );
+      }
+    },
+  );
+
   it("guides a first meeting through audio before optional context", () => {
     const onSettings = vi.fn();
     render(
@@ -318,7 +358,7 @@ describe("SetupScreen", () => {
     render(
       <SetupScreen
         {...replyRouteProps}
-        state={idleState({ sttBackend: "vosk" })}
+        state={idleState({ sttBackend: "whisper" })}
         send={vi.fn<SendFn>()}
         onSettings={noopVoid}
       />,
@@ -457,7 +497,6 @@ describe("SetupScreen", () => {
               replyEnabled: false,
               replyAutoGenerate: false,
               replyAgents: [],
-              infoEnabled: true,
             },
           })}
           send={vi.fn<SendFn>()}

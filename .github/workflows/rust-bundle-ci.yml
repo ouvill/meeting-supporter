@@ -1,0 +1,192 @@
+name: Rust installers
+
+on:
+  pull_request:
+  push:
+    branches: [main, "ci/rust-desktop-*"]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Installer platform to verify
+        type: choice
+        default: all
+        options: [all, macos-15, macos-15-intel, windows-2022, ubuntu-22.04]
+      tests_only:
+        description: Run backend and desktop tests without rebuilding installers (ignores platform)
+        type: boolean
+        default: false
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-installers-${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform || 'all' }}${{ inputs.tests_only && '-tests' || '' }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    if: ${{ inputs.tests_only || !inputs.platform || inputs.platform == 'all' }}
+    name: Verify Rust backend and desktop
+    uses: ./.github/workflows/rust-backend-ci.yml
+
+  bundle:
+    if: ${{ !inputs.tests_only }}
+    name: CPU installer (${{ matrix.platform }})
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ inputs.platform && inputs.platform != 'all' && fromJSON(format('["{0}"]', inputs.platform)) || fromJSON('["windows-2022", "ubuntu-22.04", "macos-15", "macos-15-intel"]') }}
+    env:
+      MANAGED_API_BASE_URL: ""
+      CARGO_TERM_COLOR: always
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            build-essential clang cmake pkg-config libssl-dev libpulse-dev libasound2-dev \
+            libayatana-appindicator3-dev libgtk-3-dev librsvg2-dev libwebkit2gtk-4.1-dev \
+            libxdo-dev patchelf xdg-utils
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          cache-dependency-glob: python-worker/uv.lock
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          workspaces: |
+            src-tauri -> target
+            crates/meeting-audio-runtime -> ../../target/bundle/audio
+            test/rust-native-backend -> ../../target/bundle/speech
+            crates/meeting-desktop-runtime -> ../../target/macos-tests
+          key: cpu-installer
+          cache-on-failure: true
+      - run: npm ci
+      - run: node --test scripts/test-native-runtime.mjs
+      - name: Prepare the verified native runtime
+        timeout-minutes: 5
+        run: node --input-type=module -e "import { prepareRuntime } from './scripts/native-runtime.mjs'; await prepareRuntime();"
+      - name: Build the standard Rust installer with native and DOCX workers
+        if: runner.os != 'macOS'
+        # The standard config prepares native and document-conversion resources.
+        run: npm run tauri -- build --ci --verbose
+      - name: Build the macOS installer with bounded disk-image detach retries
+        if: runner.os == 'macOS'
+        env:
+          # Local ad-hoc signature, never a production Developer ID credential.
+          APPLE_SIGNING_IDENTITY: "-"
+        run: |
+          chmod +x scripts/macos-ci/hdiutil
+          export PATH="$GITHUB_WORKSPACE/scripts/macos-ci:$PATH"
+          npm run tauri -- build --ci --verbose
+      - name: Load the bundled runtime and real speech models after relocation
+        run: npm run test:rust-bundle -- --models
+      - name: Verify the frozen DOCX worker without Python on PATH
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then suffix=.exe; else suffix=; fi
+          export MEETING_TEST_PYTHON_WORKER="$GITHUB_WORKSPACE/generated/python-worker/dist/meeting-python-worker/meeting-python-worker$suffix"
+          npm run test:python-worker
+      - name: Install the Windows candidate and verify startup and workers
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer is missing' }
+          $destination = Join-Path $env:RUNNER_TEMP 'Meeting Supporter 日本語'
+          $installation = Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/D=$destination") -PassThru -Wait
+          if ($installation.ExitCode -ne 0) { throw 'NSIS installation failed' }
+          if (-not (Test-Path (Join-Path $destination 'meeting-supporter.exe'))) { throw 'Installed application is missing' }
+          if (Test-Path (Join-Path $destination 'python')) { throw 'Legacy backend was bundled' }
+          $previousLocalAppData = $env:LOCALAPPDATA
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'installed-app-profile'
+          New-Item -ItemType Directory -Force $env:LOCALAPPDATA | Out-Null
+          $application = $null
+          try {
+            $application = Start-Process -FilePath (Join-Path $destination 'meeting-supporter.exe') -PassThru
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              Start-Sleep -Seconds 1
+              $application.Refresh()
+              if ($application.HasExited) { throw 'Installed application exited during startup' }
+              if ($application.MainWindowHandle -ne [IntPtr]::Zero) { break }
+            }
+            if ($application.MainWindowHandle -eq [IntPtr]::Zero) { throw 'Installed application did not open a window' }
+          } finally {
+            if ($application -and -not $application.HasExited) {
+              Stop-Process -Id $application.Id -Force -ErrorAction SilentlyContinue
+            }
+            $env:LOCALAPPDATA = $previousLocalAppData
+          }
+          $env:MEETING_TEST_NATIVE_BUNDLE = Join-Path $destination 'native'
+          npm run test:rust-bundle -- --models
+          if ($LASTEXITCODE -ne 0) { throw 'Installed speech worker failed' }
+          $env:MEETING_TEST_PYTHON_WORKER = Join-Path $destination 'python-worker/meeting-python-worker.exe'
+          npm run test:python-worker
+          if ($LASTEXITCODE -ne 0) { throw 'Installed DOCX worker failed' }
+      - name: Install the macOS DMG and verify startup and workers
+        if: runner.os == 'macOS'
+        run: python3 scripts/test-macos-installer.py
+      - name: Test macOS capture conversion and desktop integration
+        if: runner.os == 'macOS'
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "14.6"
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target/macos-tests
+        run: |
+          cargo test --locked --manifest-path crates/meeting-audio-runtime/Cargo.toml
+          cargo test --locked --manifest-path crates/meeting-media-runtime/Cargo.toml
+          cargo test --locked --manifest-path crates/meeting-desktop-runtime/Cargo.toml --features test-fixtures
+      - name: Upload installer candidates
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rust-installer-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/dmg/*.dmg
+
+  windows-desktop:
+    if: ${{ inputs.tests_only || !inputs.platform || inputs.platform == 'all' || inputs.platform == 'windows-2022' }}
+    name: Rust desktop E2E (Windows)
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      MANAGED_API_BASE_URL: ""
+      HF_HUB_OFFLINE: "1"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          workspaces: src-tauri -> ../target/rust-e2e
+          key: windows-rust-e2e
+      - run: npm ci
+      - run: npm run test:tauri:types
+      - name: Run isolated Rust desktop without Python or audio devices
+        run: npm run test:tauri:rust
+      - name: Upload synthetic failure logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-rust-e2e-${{ github.sha }}
+          path: logs/
+          if-no-files-found: ignore
+          retention-days: 3

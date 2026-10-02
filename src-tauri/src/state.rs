@@ -13,7 +13,7 @@ impl BootstrapStateData {
     pub fn new() -> Self {
         Self {
             phase: "initializing".into(),
-            message: "Preparing Python environment...".into(),
+            message: "Preparing backend...".into(),
         }
     }
 }

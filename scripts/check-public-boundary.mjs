@@ -17,6 +17,7 @@ const ALLOWED_TOP_LEVEL = new Set([
   "README.md",
   "SECURITY.md",
   "THIRD-PARTY-NOTICES.txt",
+  "crates",
   "doc",
   "flake.lock",
   "flake.nix",
@@ -27,8 +28,7 @@ const ALLOWED_TOP_LEVEL = new Set([
   "package.json",
   "package-lock.json",
   "public",
-  "python",
-  "python-server",
+  "python-worker",
   "renovate.json",
   "scripts",
   "src",
@@ -39,12 +39,13 @@ const ALLOWED_TOP_LEVEL = new Set([
   "vite.config.ts",
   "vitest.config.ts",
   "website",
-  "wdio.live-codex.conf.ts",
   "wdio.tauri.conf.ts",
 ]);
 
 const ALLOWED_DOCS = new Set([
   "doc/README.md",
+  "doc/development/rust-local-speech.md",
+  "doc/development/rust-desktop-backend.md",
   "doc/product/vision.md",
   "doc/product/prd.md",
   "doc/ui/README.md",
@@ -53,12 +54,18 @@ const ALLOWED_DOCS = new Set([
   "doc/adr/001-python-server-directory-structure.md",
   "doc/adr/002-stt-pipeline-architecture.md",
   "doc/adr/003-meeting-recording-history-architecture.md",
+  "doc/adr/018-interrupted-meeting-history.md",
+  "doc/adr/019-local-speech-and-saved-history.md",
+  "doc/adr/020-versioned-rust-settings.md",
+  "doc/adr/021-retire-python-backend.md",
   "doc/adr/009-live-reply-llm-usecase-runtime-provider-architecture.md",
   "doc/adr/010-ai-route-strategy.md",
   "doc/adr/011-general-route-card-visibility.md",
   "doc/adr/012-native-window-chrome-and-pin-preference.md",
   "doc/adr/013-contextual-api-credential-controls.md",
   "doc/adr/015-localized-ui-message-contract.md",
+  "doc/adr/016-rust-runtime-and-ownership-boundaries.md",
+  "doc/adr/017-acp-registry-and-shared-rust-client.md",
 ]);
 
 const PATH_RULES = [

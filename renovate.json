@@ -16,43 +16,6 @@
   },
   "packageRules": [
     {
-      "description": "Group Python AI/LLM stack updates (main backend only)",
-      "matchManagers": [
-        "pep621"
-      ],
-      "matchFileNames": [
-        "python/pyproject.toml"
-      ],
-      "matchPackageNames": [
-        "pydantic-ai",
-        "openai",
-        "anthropic",
-        "google-genai",
-        "httpx",
-        "httpcore",
-        "fastmcp"
-      ],
-      "groupName": "python-ai-llm"
-    },
-    {
-      "description": "Group Python audio/STT/native-sensitive stack (main backend only)",
-      "matchManagers": [
-        "pep621"
-      ],
-      "matchFileNames": [
-        "python/pyproject.toml"
-      ],
-      "matchPackageNames": [
-        "faster-whisper",
-        "webrtcvad",
-        "av",
-        "soundcard",
-        "numpy",
-        "uvloop"
-      ],
-      "groupName": "python-audio-stt-native"
-    },
-    {
       "description": "Group Tauri npm packages",
       "matchManagers": [
         "npm"

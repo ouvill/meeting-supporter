@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { CircleAlert } from "lucide-react";
 import type { AiRoutesController } from "../hooks/useAiRoutes";
 import { useManagedSttAvailability } from "../hooks/useManagedService";
@@ -31,13 +31,6 @@ const CATEGORY_LABELS: Record<SettingsCategory, string> = {
   about: "このアプリについて",
 };
 
-const CONNECTION_PROVIDER_BY_STT_BACKEND: Partial<
-  Record<string, ConnectionProvider>
-> = {
-  deepgram: "deepgram",
-  openai: "openai",
-  xai: "xai",
-};
 export function SettingsModal({
   onClose,
   routes,
@@ -88,15 +81,9 @@ export function SettingsModal({
     routes.reload,
   );
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
-  const lockedConnectionProviders = useMemo(() => {
-    const providers = new Set<ConnectionProvider>();
-    const provider = CONNECTION_PROVIDER_BY_STT_BACKEND[currentSttBackend];
-    if (audioSettingsLocked && provider) providers.add(provider);
-    return providers;
-  }, [audioSettingsLocked, currentSttBackend]);
+  const lockedConnectionProviders = new Set<ConnectionProvider>();
   const managedActionsLocked =
-    audioSettingsLocked &&
-    (!loaded || currentSttBackend === "managed");
+    audioSettingsLocked && (!loaded || currentSttBackend === "managed");
   const speechModelBlocksSave =
     speechModel.blocksSettingsSave && !audioSettingsLocked;
 
@@ -181,6 +168,7 @@ export function SettingsModal({
                 />
               ) : activeCategory === "support" ? (
                 <SupportMethodPanel
+                  agentsLocked={audioSettingsLocked}
                   routes={routes.routes}
                   lockedConnectionProviders={lockedConnectionProviders}
                   managedRouteActionsLocked={
@@ -228,22 +216,6 @@ export function SettingsModal({
                   speechModel={speechModel}
                   speechModelActionsDisabled={busy}
                   audioSettingsLocked={audioSettingsLocked}
-                  connectionStates={connectionStates}
-                  secretsStatus={form.secretsStatus}
-                  secretInputs={form.secretInputs}
-                  connectionEditingProvider={connectionEditingProvider}
-                  managedStt={managedStt}
-                  onManageAccount={() => setActiveCategory("account")}
-                  connectionTestingProvider={connectionTestingProvider}
-                  connectionTestMessages={connectionTestMessages}
-                  onBeginConnectionEdit={beginConnectionEdit}
-                  onCancelConnectionEdit={cancelConnectionEdit}
-                  onSecretChange={updateSecret}
-                  onTestConnection={(provider) => {
-                    void testConnection(provider);
-                  }}
-                  onRequestSecretDelete={scheduleSecretDeletion}
-                  onCancelSecretDelete={cancelSecretDeletion}
                   update={updateForm}
                 />
               ) : activeCategory === "privacy" ? (
@@ -260,10 +232,8 @@ export function SettingsModal({
                 <AdvancedSettingsPanel
                   error={fieldErrors.advanced}
                   form={form}
-                  acpRoute={routes.routes.find((route) => route.id === "acp")}
                   ollamaTesting={ollamaTesting}
                   ollamaMessage={ollamaMessage}
-                  audioSettingsLocked={audioSettingsLocked}
                   ollamaMessageIsError={ollamaMessageIsError}
                   update={updateForm}
                   onTestOllama={() => {
@@ -328,9 +298,7 @@ export function SettingsModal({
                   onClick={() => {
                     void save();
                   }}
-                  disabled={
-                    !loaded || routes.loading || speechModelBlocksSave
-                  }
+                  disabled={!loaded || routes.loading || speechModelBlocksSave}
                 >
                   保存
                 </Button>

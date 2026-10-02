@@ -1,0 +1,100 @@
+{
+  "model": {
+    "repository": "reazon-research/reazonspeech-k2-v2",
+    "revision": "291488c8151be24d7da4bf7af26e533fad96e407",
+    "files": {
+      "tokens.txt": "2c3ac659818a48a0c04010e0593bbc4d7c8a24a054340b01131499c05fd52def",
+      "encoder-epoch-99-avg-1.int8.onnx": "2c7bd08a8a99f9ddd0d9e458456577b1f6279214e51426f114f9eced44c54e1d",
+      "decoder-epoch-99-avg-1.int8.onnx": "8f0bff94d38797b03b762634ed03211a8e303d06cc4603cdd0cf4199d6eb1485",
+      "joiner-epoch-99-avg-1.int8.onnx": "49cc7ea1d3d35a40a27442db5e89996da64bf0e683a903dce76e99e57a12e4de"
+    }
+  },
+  "linux_x86_64_runtime": {
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-shared-lib.tar.bz2",
+    "sha256": "3892d184be41027e18165e67f549cd4e4cdd8dcd73ac5579e97afd55e14e30b6",
+    "directory": "sherpa-onnx-v1.13.8-linux-x64-shared-lib",
+    "onnxruntime_version": "1.28.2",
+    "files": {
+      "libonnxruntime.so": "4b3607aebd1784b26b6f9b20e4bd974c7ab8287043e4d095cb7d2cb40b5e566e",
+      "libsherpa-onnx-c-api.so": "b8351ca1632571ac108adbb317bcc4bf7cfe84b72690e3017316b0da3e1e344f",
+      "libsherpa-onnx-cxx-api.so": "5d8d510368554b767d7cd8d024fa6ea439b63b66bb4c23d9d285fb7ed74f3880"
+    }
+  },
+  "punctuation_sources": [
+    {
+      "repository": "bobfromjapan/bert_japanese_punctuation",
+      "revision": "a27168ee3eeac72a2993cad56e21b7b97f9b98b7",
+      "files": {
+        "weight/punctuation_position_model.pth": {
+          "destination": "weights.pth",
+          "sha256": "3f6bf455e4aa72ee9f46701559d666dc844ecc59910a0e83d66d8a0d810f29de"
+        },
+        "README.md": {
+          "destination": "README.md",
+          "sha256": "6c48279e56f1c3d5a6493598865b10e01693902a329883182d7bf4827480bf00"
+        }
+      }
+    },
+    {
+      "repository": "tohoku-nlp/bert-base-japanese-char-v3",
+      "revision": "ccddee593a9e03a589ae1feedcd4d1eb06d6ba02",
+      "files": {
+        "config.json": {
+          "destination": "config.json",
+          "sha256": "555245f0e3c4fc2362fc39026d665f605be28aa03a47b2ea99d6f5aeb9bebabf"
+        },
+        "vocab.txt": {
+          "destination": "vocab.txt",
+          "sha256": "57411bcac5e9559f2aa4d316a2217289048cb40fe23187b02a81aeb3e5d61cf3"
+        },
+        "README.md": {
+          "destination": "BASE_README.md",
+          "sha256": "0f1a671d6f9c7836af8576c3a262c33f0de55e4fc8b9a990c6b6083a8c82f0ea"
+        }
+      }
+    }
+  ],
+  "windows_x86_64_runtime": {
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-Release-lib.tar.bz2",
+    "sha256": "b8eedf41bd6d3779218887b48367bb7a3ece5aaa7667f01f69ee823a12b0a9e7",
+    "directory": "sherpa-onnx-v1.13.8-win-x64-shared-MT-Release-lib",
+    "onnxruntime_version": "1.28.2",
+    "files": {
+      "onnxruntime.dll": "7f66f939a881baf4f46a2216496798edf4a1429878b646d12674aa62f27d8a25",
+      "onnxruntime.lib": "b9fc3cd678257d88a111b0773ede4bfceaf0fe95daab4379f2b2b37348a68781",
+      "onnxruntime_providers_shared.dll": "551d0e1fe4c227d8542314ba718d52f4379e0c7bfe729a37c59833a884e27b4d",
+      "sherpa-onnx-c-api.dll": "300e0c88400903fc4cfc88be88a8ae587a24cc658653e0e1fd1c2b8dbbc68557",
+      "sherpa-onnx-c-api.lib": "ff29efcc1af67ecdd860905025cde2c48915d6c1060ca1a43cc2e442a138e401",
+      "sherpa-onnx-cxx-api.dll": "02ca46060f65d7d50f3448e7e67e608b0547c9acb274cba2f5cc6936521352b0",
+      "sherpa-onnx-cxx-api.lib": "fbad731250ed1c688c76da5ea92c67c2b26cac07d87dd0478c4dcb96f864feee"
+    }
+  },
+  "whisper_smoke": {
+    "repository": "ggerganov/whisper.cpp",
+    "revision": "5359861c739e955e79d9a303bcbc70fb988958b1",
+    "file": "ggml-tiny-q8_0.bin",
+    "sha256": "c2085835d3f50733e2ff6e4b41ae8a2b8d8110461e18821b09a15c40c42d1cca"
+  },
+  "macos_aarch64_runtime": {
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-shared-lib.tar.bz2",
+    "sha256": "ae77050cdae565496059d96f5ab33d77b397a0864282a4e4a26e3b3b3effb948",
+    "directory": "sherpa-onnx-v1.13.8-osx-arm64-shared-lib",
+    "onnxruntime_version": "1.28.2",
+    "files": {
+      "libonnxruntime.dylib": "3567d114f7299d559993e536d605a6f46d7bc9d2542004accc80ee9bf5457f0b",
+      "libsherpa-onnx-c-api.dylib": "ee098d8b419d49b92101cde3c970a333b361066eb2d79a11ab480a116552b908",
+      "libsherpa-onnx-cxx-api.dylib": "7d9529551bea7e63d795a6c8d02b746bca06c1ab3080f2f14698d945b6810c8d"
+    }
+  },
+  "macos_x86_64_runtime": {
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x64-shared-lib.tar.bz2",
+    "sha256": "0f88371565a06372889c76266e253abd1b415fcc6f98232cabd968933efb0711",
+    "directory": "sherpa-onnx-v1.13.8-osx-x64-shared-lib",
+    "onnxruntime_version": "1.28.2",
+    "files": {
+      "libonnxruntime.dylib": "2bf27180c09e6fd3f407c9ab25205ebf1ff95f2d53bfa35e35409b5849e0ac70",
+      "libsherpa-onnx-c-api.dylib": "d32eb199b94c076afef9cfc42e445c581c0326a72fb2cfdfdc177ebacf9bf38f",
+      "libsherpa-onnx-cxx-api.dylib": "f6d8606fdaaf945b224da155b887cf552215c29bc66e8d2bf1115932a1443c59"
+    }
+  }
+}

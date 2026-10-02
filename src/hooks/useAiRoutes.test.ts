@@ -26,10 +26,10 @@ let visibilityState: DocumentVisibilityState;
 
 function route(overrides: Partial<RouteReadModel> = {}): RouteReadModel {
   return {
-    id: "codex",
-    kind: "subscription_app",
-    label: "Codex",
-    description: "ChatGPT subscription",
+    id: "ollama",
+    kind: "local",
+    label: "Ollama",
+    description: "Local model",
     availability: "experimental",
     readiness: "ready",
     selectable: true,
@@ -49,7 +49,7 @@ function catalog(
 ): RouteCatalogResponse {
   return {
     routes: [route()],
-    assignments: { reply: "codex", info: null, minutes: null },
+    assignments: { reply: "ollama" },
     ...overrides,
   };
 }
@@ -68,7 +68,7 @@ describe("resolveUseCaseRouteStatus", () => {
       resolveUseCaseRouteStatus("reply", {
         loading: false,
         error: null,
-        assignedRouteId: "codex",
+        assignedRouteId: "ollama",
         selectedRoute: route(),
       }),
     ).toEqual({ readiness: "ready", canGenerate: true, message: null });
@@ -114,7 +114,7 @@ describe("resolveUseCaseRouteStatus", () => {
       input: {
         loading: false,
         error: null,
-        assignedRouteId: "codex",
+        assignedRouteId: "ollama",
         selectedRoute: route({ capabilities: [] }),
       },
       expected: {
@@ -128,7 +128,7 @@ describe("resolveUseCaseRouteStatus", () => {
       input: {
         loading: false,
         error: null,
-        assignedRouteId: "codex",
+        assignedRouteId: "ollama",
         selectedRoute: route({ selectable: false }),
       },
       expected: {
@@ -142,7 +142,7 @@ describe("resolveUseCaseRouteStatus", () => {
       input: {
         loading: false,
         error: null,
-        assignedRouteId: "codex",
+        assignedRouteId: "ollama",
         selectedRoute: route({
           readiness: "setup_required",
           message: "ログインしてください",
@@ -157,47 +157,6 @@ describe("resolveUseCaseRouteStatus", () => {
   ])("resolves $name without overstating readiness", ({ input, expected }) => {
     expect(resolveUseCaseRouteStatus("reply", input)).toEqual(expected);
   });
-
-  it.each([
-    {
-      capability: "info" as const,
-      label: "会話メモ",
-      unsupported: "選択した支援方法では会話メモを利用できません。",
-    },
-    {
-      capability: "minutes" as const,
-      label: "議事録",
-      unsupported: "選択した支援方法では議事録を利用できません。",
-    },
-  ])(
-    "uses fixed $capability messages for missing and incompatible routes",
-    ({ capability, label, unsupported }) => {
-      expect(
-        resolveUseCaseRouteStatus(capability, {
-          loading: false,
-          error: null,
-          assignedRouteId: null,
-          selectedRoute: null,
-        }),
-      ).toEqual({
-        readiness: "setup_required",
-        canGenerate: false,
-        message: `${label}を利用する支援方法を設定してください。`,
-      });
-      expect(
-        resolveUseCaseRouteStatus(capability, {
-          loading: false,
-          error: null,
-          assignedRouteId: "codex",
-          selectedRoute: route({ capabilities: ["reply"] }),
-        }),
-      ).toEqual({
-        readiness: "unavailable",
-        canGenerate: false,
-        message: unsupported,
-      });
-    },
-  );
 });
 
 describe("useAiRoutes", () => {
@@ -224,63 +183,13 @@ describe("useAiRoutes", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.assignments).toEqual({
-      reply: "codex",
-      info: null,
-      minutes: null,
+      reply: "ollama",
     });
     expect(result.current.assignedRoutes.reply).toMatchObject({
-      id: "codex",
+      id: "ollama",
       readiness: "ready",
     });
     expect(result.current.assignmentDirty).toBe(false);
-  });
-
-  it("derives independent reply, info, and minutes statuses from one catalog", async () => {
-    sdkMocks.getAiRoutes.mockResolvedValue(
-      apiResult(
-        catalog({
-          routes: [
-            route({ id: "reply", capabilities: ["reply"] }),
-            route({ id: "info", capabilities: ["info"] }),
-            route({
-              id: "minutes",
-              capabilities: ["minutes"],
-              readiness: "setup_required",
-              message: "議事録の準備が必要です",
-            }),
-          ],
-          assignments: {
-            reply: "reply",
-            info: "info",
-            minutes: "minutes",
-          },
-        }),
-      ),
-    );
-
-    const { result } = renderHook(() => useAiRoutes());
-
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.assignedRoutes).toMatchObject({
-      reply: { id: "reply" },
-      info: { id: "info" },
-      minutes: { id: "minutes" },
-    });
-    expect(result.current.replyStatus).toEqual({
-      readiness: "ready",
-      canGenerate: true,
-      message: null,
-    });
-    expect(result.current.infoRouteStatus).toEqual({
-      readiness: "ready",
-      canGenerate: true,
-      message: null,
-    });
-    expect(result.current.minutesRouteStatus).toEqual({
-      readiness: "setup_required",
-      canGenerate: false,
-      message: "議事録の準備が必要です",
-    });
   });
 
   it("normalizes omitted assignments into a complete nullable draft", async () => {
@@ -293,8 +202,6 @@ describe("useAiRoutes", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.draftAssignments).toEqual({
       reply: null,
-      info: null,
-      minutes: null,
     });
     expect(result.current.assignmentDirty).toBe(false);
   });
@@ -302,13 +209,13 @@ describe("useAiRoutes", () => {
   it("refreshes the catalog and selected route when its window regains focus", async () => {
     const staleCatalog = catalog({
       routes: [route({ id: "stale", readiness: "setup_required" })],
-      assignments: { reply: "stale", info: null, minutes: null },
+      assignments: { reply: "stale" },
     });
     const refreshedCatalog = catalog({
       routes: [
-        route({ id: "codex", readiness: "ready", message: "Codex is ready" }),
+        route({ id: "ollama", readiness: "ready", message: "Ollama is ready" }),
       ],
-      assignments: { reply: "codex", info: null, minutes: null },
+      assignments: { reply: "ollama" },
     });
     sdkMocks.getAiRoutes
       .mockResolvedValueOnce(apiResult(staleCatalog))
@@ -316,28 +223,30 @@ describe("useAiRoutes", () => {
 
     const { result } = renderHook(() => useAiRoutes());
 
-    await waitFor(() => expect(result.current.assignedRoutes.reply?.id).toBe("stale"));
+    await waitFor(() =>
+      expect(result.current.assignedRoutes.reply?.id).toBe("stale"),
+    );
     await act(async () => {
       window.dispatchEvent(new Event("focus"));
     });
 
     await waitFor(() => expect(sdkMocks.getAiRoutes).toHaveBeenCalledTimes(2));
-    expect(result.current.assignments?.reply).toBe("codex");
+    expect(result.current.assignments?.reply).toBe("ollama");
     expect(result.current.assignedRoutes.reply).toMatchObject({
-      id: "codex",
+      id: "ollama",
       readiness: "ready",
-      message: "Codex is ready",
+      message: "Ollama is ready",
     });
   });
 
   it("ignores hidden visibility changes and refreshes when the document becomes visible", async () => {
     const initialCatalog = catalog({
       routes: [route({ id: "before" })],
-      assignments: { reply: "before", info: null, minutes: null },
+      assignments: { reply: "before" },
     });
     const visibleCatalog = catalog({
       routes: [route({ id: "after" })],
-      assignments: { reply: "after", info: null, minutes: null },
+      assignments: { reply: "after" },
     });
     sdkMocks.getAiRoutes
       .mockResolvedValueOnce(apiResult(initialCatalog))
@@ -369,16 +278,18 @@ describe("useAiRoutes", () => {
       apiResult(
         catalog({
           routes: [route({ id: "saved", readiness: "ready" })],
-          assignments: { reply: "saved", info: null, minutes: null },
+          assignments: { reply: "saved" },
         }),
       ),
     );
 
     const { result } = renderHook(() => useAiRoutes());
 
-    await waitFor(() => expect(result.current.assignedRoutes.reply?.id).toBe("saved"));
+    await waitFor(() =>
+      expect(result.current.assignedRoutes.reply?.id).toBe("saved"),
+    );
     act(() => {
-      result.current.setDraftAssignment("info", "saved");
+      result.current.setDraftAssignment("reply", "draft");
     });
 
     expect(result.current.assignmentDirty).toBe(true);
@@ -388,9 +299,7 @@ describe("useAiRoutes", () => {
 
     expect(sdkMocks.getAiRoutes).toHaveBeenCalledTimes(1);
     expect(result.current.draftAssignments).toEqual({
-      reply: "saved",
-      info: "saved",
-      minutes: null,
+      reply: "draft",
     });
     expect(result.current.assignedRoutes.reply?.id).toBe("saved");
     expect(result.current.replyStatus).toMatchObject({
@@ -402,8 +311,6 @@ describe("useAiRoutes", () => {
     });
     expect(result.current.draftAssignments).toEqual({
       reply: "saved",
-      info: null,
-      minutes: null,
     });
     expect(result.current.assignmentDirty).toBe(false);
   });
@@ -427,11 +334,11 @@ describe("useAiRoutes", () => {
   it("keeps explicit reload available after the initial load", async () => {
     const initialCatalog = catalog({
       routes: [route({ id: "first" })],
-      assignments: { reply: "first", info: null, minutes: null },
+      assignments: { reply: "first" },
     });
     const reloadedCatalog = catalog({
       routes: [route({ id: "second" })],
-      assignments: { reply: "second", info: null, minutes: null },
+      assignments: { reply: "second" },
     });
     sdkMocks.getAiRoutes
       .mockResolvedValueOnce(apiResult(initialCatalog))
@@ -464,14 +371,14 @@ describe("useAiRoutes", () => {
           message: "Set up first",
         }),
       ],
-      assignments: { reply: "saved", info: null, minutes: null },
+      assignments: { reply: "saved" },
     });
     const refreshedCatalog = catalog({
       routes: [
         route({ id: "saved", readiness: "ready" }),
         route({ id: "draft", readiness: "ready", message: "Ready now" }),
       ],
-      assignments: { reply: "saved", info: null, minutes: null },
+      assignments: { reply: "saved" },
     });
     sdkMocks.getAiRoutes
       .mockResolvedValueOnce(apiResult(initialCatalog))
@@ -479,10 +386,11 @@ describe("useAiRoutes", () => {
 
     const { result } = renderHook(() => useAiRoutes());
 
-    await waitFor(() => expect(result.current.assignedRoutes.reply?.id).toBe("saved"));
+    await waitFor(() =>
+      expect(result.current.assignedRoutes.reply?.id).toBe("saved"),
+    );
     act(() => {
-      result.current.setDraftAssignment("info", "draft");
-      result.current.setDraftAssignment("minutes", "draft");
+      result.current.setDraftAssignment("reply", "draft");
     });
     await act(async () => {
       await result.current.reload();
@@ -490,16 +398,14 @@ describe("useAiRoutes", () => {
 
     expect(result.current.assignments).toEqual({
       reply: "saved",
-      info: null,
-      minutes: null,
     });
     expect(result.current.draftAssignments).toEqual({
-      reply: "saved",
-      info: "draft",
-      minutes: "draft",
+      reply: "draft",
     });
     expect(result.current.assignmentDirty).toBe(true);
-    expect(result.current.routes.find((route) => route.id === "draft")).toMatchObject({
+    expect(
+      result.current.routes.find((route) => route.id === "draft"),
+    ).toMatchObject({
       readiness: "ready",
       message: "Ready now",
     });
@@ -568,7 +474,7 @@ describe("useAiRoutes", () => {
         apiResult(
           catalog({
             routes: [route({ id: "initial" })],
-            assignments: { reply: "initial", info: null, minutes: null },
+            assignments: { reply: "initial" },
           }),
         ),
       )
@@ -593,7 +499,7 @@ describe("useAiRoutes", () => {
         apiResult(
           catalog({
             routes: [route({ id: "manual" })],
-            assignments: { reply: "manual", info: null, minutes: null },
+            assignments: { reply: "manual" },
           }),
         ),
       );
@@ -606,7 +512,7 @@ describe("useAiRoutes", () => {
         apiResult(
           catalog({
             routes: [route({ id: "automatic" })],
-            assignments: { reply: "automatic", info: null, minutes: null },
+            assignments: { reply: "automatic" },
           }),
         ),
       );
@@ -619,7 +525,7 @@ describe("useAiRoutes", () => {
   it("reports a manual reload failure without discarding the existing catalog", async () => {
     const initialCatalog = catalog({
       routes: [route({ id: "saved" })],
-      assignments: { reply: "saved", info: null, minutes: null },
+      assignments: { reply: "saved" },
     });
     sdkMocks.getAiRoutes
       .mockResolvedValueOnce(apiResult(initialCatalog))
@@ -627,7 +533,9 @@ describe("useAiRoutes", () => {
 
     const { result } = renderHook(() => useAiRoutes());
 
-    await waitFor(() => expect(result.current.assignedRoutes.reply?.id).toBe("saved"));
+    await waitFor(() =>
+      expect(result.current.assignedRoutes.reply?.id).toBe("saved"),
+    );
     await act(async () => {
       await result.current.reload();
     });
@@ -640,7 +548,7 @@ describe("useAiRoutes", () => {
   it("saves all changed assignments atomically and adopts the returned catalog", async () => {
     const savedCatalog = catalog({
       routes: [route({ id: "other" })],
-      assignments: { reply: null, info: "other", minutes: "other" },
+      assignments: { reply: "other" },
     });
     sdkMocks.getAiRoutes.mockResolvedValue(apiResult(catalog()));
     sdkMocks.replaceAiRouteAssignments.mockResolvedValue(
@@ -652,8 +560,7 @@ describe("useAiRoutes", () => {
     await waitForInitialCatalog();
     act(() => {
       result.current.setDraftAssignment("reply", null);
-      result.current.setDraftAssignment("info", "other");
-      result.current.setDraftAssignment("minutes", "other");
+      result.current.setDraftAssignment("reply", "other");
     });
 
     let saved = false;
@@ -663,17 +570,13 @@ describe("useAiRoutes", () => {
 
     expect(saved).toBe(true);
     expect(sdkMocks.replaceAiRouteAssignments).toHaveBeenCalledWith({
-      body: { reply: null, info: "other", minutes: "other" },
+      body: { reply: "other" },
     });
     expect(result.current.assignments).toEqual({
-      reply: null,
-      info: "other",
-      minutes: "other",
+      reply: "other",
     });
     expect(result.current.draftAssignments).toEqual({
-      reply: null,
-      info: "other",
-      minutes: "other",
+      reply: "other",
     });
     expect(result.current.assignmentDirty).toBe(false);
   });
@@ -695,8 +598,7 @@ describe("useAiRoutes", () => {
     });
     act(() => {
       result.current.setDraftAssignment("reply", null);
-      result.current.setDraftAssignment("info", "other");
-      result.current.setDraftAssignment("minutes", "other");
+      result.current.setDraftAssignment("reply", "other");
     });
     sdkMocks.replaceAiRouteAssignments.mockResolvedValue({
       data: undefined,
@@ -711,9 +613,7 @@ describe("useAiRoutes", () => {
     expect(saved).toBe(false);
     expect(result.current.error).toBe(SAVE_ERROR);
     expect(result.current.draftAssignments).toEqual({
-      reply: null,
-      info: "other",
-      minutes: "other",
+      reply: "other",
     });
     expect(result.current.assignmentDirty).toBe(true);
   });

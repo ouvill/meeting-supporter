@@ -6,9 +6,8 @@ mod token_store;
 mod tests;
 
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::process::BackendState;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
@@ -113,77 +112,6 @@ fn install_tokens(state: &ManagedAuthState, tokens: TokenResponse) -> Result<(),
     Ok(())
 }
 
-fn local_http_agent() -> ureq::Agent {
-    ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(5)))
-        .build()
-        .new_agent()
-}
-
-fn sync_python_session(app: &AppHandle, session: Option<&AccessSession>) -> Result<(), AppError> {
-    let (port, backend_token, capability) = {
-        let backend = app.state::<BackendState>();
-        let backend = backend
-            .lock()
-            .map_err(|error| AppError::MutexPoison(error.to_string()))?;
-        (
-            backend.port,
-            backend.auth_token.clone(),
-            backend.managed_session_capability.clone(),
-        )
-    };
-    let (Some(port), Some(backend_token), Some(capability)) = (port, backend_token, capability)
-    else {
-        return Err(AppError::Other("managed session bridge unavailable".into()));
-    };
-    let url = format!("http://127.0.0.1:{port}/internal/managed-session");
-    let agent = local_http_agent();
-    let request = if let Some(session) = session {
-        let api_base_url = managed_api_base_url()?
-            .as_str()
-            .trim_end_matches('/')
-            .to_owned();
-        agent
-            .put(&url)
-            .header("authorization", &format!("Bearer {backend_token}"))
-            .header("x-managed-session-capability", &capability)
-            .send_json(serde_json::json!({
-                "access_token": session.token,
-                "expires_at": session.expires_at,
-                "api_base_url": api_base_url,
-            }))
-    } else {
-        agent
-            .delete(&url)
-            .header("authorization", &format!("Bearer {backend_token}"))
-            .header("x-managed-session-capability", &capability)
-            .call()
-    };
-    request
-        .map(|_| ())
-        .map_err(|_| AppError::Other("managed session bridge unavailable".into()))
-}
-
-pub fn sync_current_python_session(app: &AppHandle) -> Result<(), AppError> {
-    let state = app.state::<ManagedAuthState>();
-    let _ = access_token(&state)?;
-    let session = state
-        .data
-        .lock()
-        .map_err(|error| AppError::MutexPoison(error.to_string()))?
-        .session
-        .clone()
-        .ok_or_else(|| AppError::Other("access token missing".into()))?;
-    sync_python_session(app, Some(&session))
-}
-
-pub fn start_managed_session_sync(app: AppHandle) {
-    std::thread::spawn(move || loop {
-        let _ = sync_current_python_session(&app);
-        std::thread::sleep(Duration::from_secs(30));
-    });
-}
-
 fn emit_auth_changed(app: &AppHandle, status: &ManagedAuthStatus) {
     let _ = app.emit("managed-auth-changed", status);
 }
@@ -222,15 +150,7 @@ pub fn handle_deep_link(app: AppHandle, url: Url) {
                     return Err(AppError::Other("authorization superseded".into()));
                 }
             }
-            install_tokens(&state, tokens)?;
-            let session = state
-                .data
-                .lock()
-                .map_err(|error| AppError::MutexPoison(error.to_string()))?
-                .session
-                .clone()
-                .ok_or_else(|| AppError::Other("access token missing".into()))?;
-            sync_python_session(&app, Some(&session))
+            install_tokens(&state, tokens)
         });
         let status = {
             let state = app.state::<ManagedAuthState>();
@@ -322,7 +242,6 @@ pub fn managed_auth_logout(
     auth.pending = None;
     auth.session = None;
     auth.generation = auth.generation.wrapping_add(1);
-    let _ = sync_python_session(&app, None);
     auth.last_reason = None;
     let status = ManagedAuthStatus {
         authenticated: false,
@@ -399,7 +318,6 @@ pub fn managed_delete_account(
     auth.session = None;
     auth.pending = None;
     auth.generation = auth.generation.wrapping_add(1);
-    let _ = sync_python_session(&app, None);
     auth.last_reason = Some("account_deleting".into());
     let status = ManagedAuthStatus {
         authenticated: false,

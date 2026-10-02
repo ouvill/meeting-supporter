@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getSettingsApiSettingsGet,
   saveSettingsApiSettingsPost,
@@ -7,10 +7,6 @@ import type {
   AiRouteReadModel,
   AiRoutesController,
 } from "../../hooks/useAiRoutes";
-import {
-  getManagedAuthStatus,
-  getManagedEntitlement,
-} from "../../platform/managedServiceClient";
 import { useMeetingStore } from "../../store/meetingStore";
 import type {
   ConnectionProvider,
@@ -22,7 +18,6 @@ import {
   mapSettingsFormToPayload,
   mapSettingsResponseToForm,
   type SettingsResponseWithRetention,
-  type SettingsSaveRequestWithRetention,
 } from "./settingsFormMapping";
 import {
   firstSettingsErrorCategory,
@@ -42,11 +37,26 @@ export type SettingsSectionError = {
 
 interface SaveSettingsContext {
   blocksSettingsSave: boolean;
-  speechModelBackend: string | null;
   selectedRoutes: AiRouteReadModel[];
   connectionStates: Record<ConnectionProvider, ConnectionUiState>;
   pendingDeleteSecrets: ConnectionSecretKey[];
   resetConnectionsAfterSave: () => void;
+}
+
+function settingsErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error !== null && "detail" in error) {
+    const detail = error.detail;
+    if (typeof detail === "string") return detail;
+    if (
+      typeof detail === "object" &&
+      detail !== null &&
+      "message" in detail &&
+      typeof detail.message === "string"
+    ) {
+      return detail.message;
+    }
+  }
+  return "この項目を保存できませんでした。内容を確認して再度お試しください。";
 }
 
 export function useSettingsPersistence({
@@ -67,8 +77,6 @@ export function useSettingsPersistence({
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const previousAudioSettingsLocked = useRef(audioSettingsLocked);
-  const preparedSpeechModelPathRef = useRef<string | null>(null);
-  const lastSyncedSpeechModelPathRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -110,13 +118,10 @@ export function useSettingsPersistence({
       ...previous,
       sttBackend: savedBaseline.sttBackend,
       sttWhisperModel: savedBaseline.sttWhisperModel,
-      sttDeepgramModel: savedBaseline.sttDeepgramModel,
-      sttOpenaiModel: savedBaseline.sttOpenaiModel,
-      sttVoskModelPath: savedBaseline.sttVoskModelPath,
+      sttDevice: savedBaseline.sttDevice,
       sttLang: savedBaseline.sttLang,
       sttVadEngine: savedBaseline.sttVadEngine,
       sttVadSensitivity: savedBaseline.sttVadSensitivity,
-      sttVad: savedBaseline.sttVad,
       sttSilence: savedBaseline.sttSilence,
     }));
   }, [audioSettingsLocked, savedBaseline]);
@@ -164,32 +169,8 @@ export function useSettingsPersistence({
     }
   };
 
-  const trackPreparedSpeechModelPath = (path: string | null) => {
-    preparedSpeechModelPathRef.current = path;
-  };
-
-  const synchronizePreparedSpeechModelPath = useCallback(
-    (preparedSpeechModelPath: string | null) => {
-      if (!preparedSpeechModelPath) return;
-      lastSyncedSpeechModelPathRef.current = preparedSpeechModelPath;
-      setForm((previous) =>
-        previous.sttVoskModelPath === preparedSpeechModelPath
-          ? previous
-          : { ...previous, sttVoskModelPath: preparedSpeechModelPath },
-      );
-      setSavedBaseline((previous) =>
-        previous === null ||
-        previous.sttVoskModelPath === preparedSpeechModelPath
-          ? previous
-          : { ...previous, sttVoskModelPath: preparedSpeechModelPath },
-      );
-    },
-    [],
-  );
-
   const save = async ({
     blocksSettingsSave,
-    speechModelBackend,
     selectedRoutes,
     connectionStates,
     pendingDeleteSecrets,
@@ -201,29 +182,6 @@ export function useSettingsPersistence({
       savedBaseline,
       pendingDeleteSecrets,
     );
-    if (settingsPayload.stt && form.sttBackend === "managed") {
-      try {
-        const auth = await getManagedAuthStatus();
-        const entitlement = auth.authenticated
-          ? await getManagedEntitlement()
-          : null;
-        if (
-          !entitlement ||
-          entitlement.managed.readiness !== "ready" ||
-          !entitlement.managed.speech_recognition.selectable
-        ) {
-          throw new Error("managed speech recognition unavailable");
-        }
-      } catch {
-        const message =
-          "Meeting Supporter 音声認識を利用できません。アカウントとプランを確認してください。";
-        setFieldErrors({ audio: message });
-        setSectionError({ category: "audio", message });
-        setSaveMessage(null);
-        setActiveCategory("audio");
-        return;
-      }
-    }
     const errors = validateSettingsForm(form, selectedRoutes, connectionStates);
     setFieldErrors(errors);
     setSaveMessage(null);
@@ -238,33 +196,15 @@ export function useSettingsPersistence({
       return;
     }
 
-    const preparedPathAtSaveStart =
-      speechModelBackend === "vosk" ? preparedSpeechModelPathRef.current : null;
-    const speechModelPathForSave =
-      preparedPathAtSaveStart &&
-      lastSyncedSpeechModelPathRef.current !== preparedPathAtSaveStart
-        ? preparedPathAtSaveStart
-        : form.sttVoskModelPath;
-    const settingsPayloadForSave: SettingsSaveRequestWithRetention =
-      settingsPayload.stt
-        ? {
-            ...settingsPayload,
-            stt: {
-              ...settingsPayload.stt,
-              vosk_model_path: speechModelPathForSave,
-            },
-          }
-        : settingsPayload;
     setSavingSettings(true);
     try {
       const { data, error } = await saveSettingsApiSettingsPost({
-        body: settingsPayloadForSave,
+        body: settingsPayload,
       });
       if (error || !data?.ok) {
         setSectionError({
           category: activeCategory,
-          message:
-            "この項目を保存できませんでした。内容を確認して再度お試しください。",
+          message: settingsErrorMessage(error),
         });
         return;
       }
@@ -272,20 +212,8 @@ export function useSettingsPersistence({
       const savedForm = mapSettingsResponseToForm(
         data.settings as SettingsResponseWithRetention,
       );
-      const latestPreparedPath =
-        speechModelBackend === "vosk"
-          ? preparedSpeechModelPathRef.current
-          : null;
-      const synchronizedPath =
-        latestPreparedPath && latestPreparedPath !== preparedPathAtSaveStart
-          ? latestPreparedPath
-          : speechModelPathForSave;
-      const nextForm =
-        speechModelBackend === "vosk"
-          ? { ...savedForm, sttVoskModelPath: synchronizedPath }
-          : savedForm;
-      setForm(nextForm);
-      setSavedBaseline(nextForm);
+      setForm(savedForm);
+      setSavedBaseline(savedForm);
       resetConnectionsAfterSave();
       const savedBackend = getTomlString(data.settings.stt, "backend");
       if (savedBackend) useMeetingStore.setState({ sttBackend: savedBackend });
@@ -338,8 +266,6 @@ export function useSettingsPersistence({
     savingSettings,
     formDirty,
     updateForm,
-    trackPreparedSpeechModelPath,
-    synchronizePreparedSpeechModelPath,
     save,
     discardChanges,
   };

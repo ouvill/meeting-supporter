@@ -25,22 +25,13 @@ const BootstrapStatusSchema = z.object({
 
 export type BootstrapStatus = z.infer<typeof BootstrapStatusSchema>;
 
-const BackendCrashInfoSchema = z.object({
-  unexpected: z.boolean(),
-  exit_code: z.number().nullable(),
-  signal: z.number().nullable(),
-  message: z.string(),
-});
-
-export type BackendCrashInfo = z.infer<typeof BackendCrashInfoSchema>;
-
 // ---------------------------------------------------------------------------
 // Fallback
 // ---------------------------------------------------------------------------
 
 const FALLBACK_BOOTSTRAP_STATUS: BootstrapStatus = {
   phase: "initializing",
-  message: "Pythonバックエンドを起動しています...",
+  message: "バックエンドを起動しています...",
 };
 
 // ---------------------------------------------------------------------------
@@ -67,7 +58,7 @@ export async function getBackendBootstrapStatus(): Promise<BootstrapStatus> {
 }
 
 /**
- * Check whether the Python backend process is confirmed running.
+ * Check whether the desktop backend is confirmed running.
  */
 export async function isBackendRunning(): Promise<boolean> {
   const raw = await invoke<unknown>("is_backend_running");
@@ -109,21 +100,6 @@ export async function getApiAuthToken(): Promise<string | null> {
     typeof raw,
   );
   return null;
-}
-
-/**
- * Retrieve the latest backend crash diagnostic info.
- * Returns `null` when no crash has been detected.
- */
-export async function getBackendCrashInfo(): Promise<BackendCrashInfo | null> {
-  const raw = await invoke<unknown>("get_backend_crash_info");
-  if (raw === null) return null;
-  const parsed = BackendCrashInfoSchema.safeParse(raw);
-  if (!parsed.success) {
-    console.warn("[BootstrapClient] Invalid crash info shape:", parsed.error);
-    return null;
-  }
-  return parsed.data;
 }
 
 // ---------------------------------------------------------------------------

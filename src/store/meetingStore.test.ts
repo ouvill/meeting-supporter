@@ -19,6 +19,25 @@ describe("meetingStore", () => {
     expect(useMeetingStore.getState().statusText).toBe("Ready");
   });
 
+  it("retains the server end status across UI updates and clears it on a new meeting", () => {
+    const store = useMeetingStore.getState();
+    store.dispatch({
+      type: "meeting_state",
+      running: false,
+      saved: false,
+      end_status: "unsaved",
+    });
+    store.dispatch({ type: "status", text: "ready" });
+    expect(useMeetingStore.getState().meetingEndStatus).toBe("unsaved");
+    store.dispatch({
+      type: "meeting_state",
+      running: true,
+      saved: false,
+      end_status: null,
+    });
+    expect(useMeetingStore.getState().meetingEndStatus).toBeNull();
+  });
+
   it("dispatches meeting_state running", () => {
     useMeetingStore
       .getState()
@@ -36,24 +55,6 @@ describe("meetingStore", () => {
     expect(s.isRunning).toBe(false);
     expect(s.interimOther).toBe("");
     expect(s.levelOther).toBe(0);
-  });
-
-  it("clears the info research state without replacing the note", () => {
-    const store = useMeetingStore.getState();
-    store.dispatch({
-      type: "session_info",
-      id: "session-info",
-      started_at: "2026-07-19T09:00:00.000Z",
-      is_active: true,
-    });
-    store.dispatch({ type: "ai_note_updated", text: "保持するメモ" });
-    store.dispatch({ type: "info_researching" });
-
-    store.dispatch({ type: "info_researching_finished" });
-
-    const state = useMeetingStore.getState();
-    expect(state.isResearchingInfo).toBe(false);
-    expect(state.session?.aiNote).toBe("保持するメモ");
   });
 
   it("clears completed proposals at meeting end and when switching sessions", () => {
@@ -532,7 +533,6 @@ describe("meetingStore", () => {
           model: null,
         },
       ],
-      info_enabled: true,
     });
 
     const s = useMeetingStore.getState();

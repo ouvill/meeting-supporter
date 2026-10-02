@@ -1,3 +1,5 @@
+import { isTauri } from "@tauri-apps/api/core";
+import { runtimeMode } from "./platform/nativeSpeechClient";
 import {
   Suspense,
   lazy,
@@ -20,6 +22,7 @@ import { useMeetingSocket } from "./hooks/useMeetingSocket";
 import { useAiRoutes } from "./hooks/useAiRoutes";
 import {
   isAssistantPanelPreviewEnabled,
+  isConversationSupportPreviewEnabled,
   isMeetingWorkspacePreviewEnabled,
 } from "./platform/previewMode";
 import {
@@ -56,6 +59,11 @@ const MeetingWorkspacePreview = lazy(() =>
   import("./components/MainMeetingControlScreenPreview").then((module) => ({
     default: module.MainMeetingControlScreenPreview,
   })),
+);
+const ConversationSupportPreview = lazy(() =>
+  import("./components/conversation/ConversationSupportPreview").then(
+    (module) => ({ default: module.ConversationSupportPreview }),
+  ),
 );
 const LiveReplySidePanel = lazy(() =>
   import("./components/assistant/LiveReplySidePanel").then((module) => ({
@@ -134,7 +142,70 @@ function ConfiguredClientBoundary({
   return configured ? children : fallback;
 }
 
+const NativeSpeechScreen = lazy(() =>
+  import("./components/native/NativeSpeechScreen").then((module) => ({
+    default: module.NativeSpeechScreen,
+  })),
+);
+
 export default function App() {
+  const [mode, setMode] = useState<"rust" | "rust-backend" | null>(() =>
+    isTauri() ? null : "rust-backend",
+  );
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!isTauri()) return;
+    let alive = true;
+    void runtimeMode()
+      .then((value) => {
+        if (alive) setMode(value);
+      })
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (mode === null)
+    return (
+      <main role={failed ? "alert" : "status"} className="p-6">
+        {failed
+          ? "起動状態を取得できませんでした。アプリを再起動してください。"
+          : "準備しています…"}
+      </main>
+    );
+  if (mode === "rust") {
+    if (getCurrentAppWindowLabel() === "assistant")
+      return (
+        <main className="p-6">
+          ローカル文字起こしはメイン画面で操作してください。
+        </main>
+      );
+    return (
+      <Suspense fallback={<ScreenLoadingState />}>
+        <NativeSpeechScreen />
+      </Suspense>
+    );
+  }
+  return <DesktopApp />;
+}
+
+function DesktopApp() {
+  if (
+    import.meta.env.DEV &&
+    isConversationSupportPreviewEnabled(
+      window.location.search,
+      import.meta.env.DEV,
+    )
+  ) {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-paper text-ink" />}>
+        <ConversationSupportPreview />
+      </Suspense>
+    );
+  }
+
   if (
     import.meta.env.DEV &&
     isAssistantPanelPreviewEnabled(window.location.search, import.meta.env.DEV)
@@ -252,14 +323,11 @@ function MainWindowContent({
               send={send}
               onSettings={onOpenSettings}
               replyReadiness={routes.replyStatus.readiness}
-              infoRouteStatus={routes.infoRouteStatus}
             />
           ) : screen === "reflection" ? (
             <MeetingHistoryScreen
               key="history"
               onBack={() => onNavigate("home")}
-              minutesRouteStatus={routes.minutesRouteStatus}
-              onSettings={onOpenSettings}
             />
           ) : (
             <SetupScreen
@@ -302,8 +370,7 @@ function MainWindowContent({
 
 function MainWindowApp() {
   const settingsReturnFocusRef = useRef<HTMLElement | null>(null);
-  const { apiPort, apiAuthToken, bootstrap, crashInfo } =
-    useBackendBootstrapStatus();
+  const { apiPort, apiAuthToken, bootstrap } = useBackendBootstrapStatus();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => {
     settingsReturnFocusRef.current =
@@ -333,12 +400,12 @@ function MainWindowApp() {
 
   useEffect(() => {
     if (prevRunningRef.current && !state.isRunning && state.connected) {
-      setSavedToastVisible(true);
+      setSavedToastVisible(state.meetingSaved !== false);
     } else if (!prevRunningRef.current && state.isRunning) {
       setSavedToastVisible(false);
     }
     prevRunningRef.current = state.isRunning;
-  }, [state.isRunning, state.connected]);
+  }, [state.isRunning, state.connected, state.meetingSaved]);
 
   useEffect(() => {
     if (!state.isRunning || !showFirstRunGuidance) return;
@@ -353,7 +420,6 @@ function MainWindowApp() {
           <BootstrapScreen
             phase={bootstrap.phase}
             message={bootstrap.message}
-            crashInfo={crashInfo}
           />
         ) : (
           <ConfiguredClientBoundary
@@ -363,7 +429,6 @@ function MainWindowApp() {
               <BootstrapScreen
                 phase={bootstrap.phase}
                 message={bootstrap.message}
-                crashInfo={crashInfo}
               />
             }
           >

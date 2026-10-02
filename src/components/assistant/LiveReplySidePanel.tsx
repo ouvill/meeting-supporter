@@ -18,7 +18,10 @@ import type {
   Turn,
 } from "../../types";
 import { hideCurrentWindow } from "../../platform/tauriWindow";
-import { useAiRoutes, type AiUseCaseRouteStatus } from "../../hooks/useAiRoutes";
+import {
+  useAiRoutes,
+  type AiUseCaseRouteStatus,
+} from "../../hooks/useAiRoutes";
 import {
   ASSISTANT_ALWAYS_ON_TOP_KEY,
   useAlwaysOnTop,
@@ -437,7 +440,7 @@ function LiveReplySurface({
                 id="cue-card-heading"
                 className="font-display text-sm font-bold tracking-[0.08em] text-cue"
               >
-                {embedded ? "現在の返答案" : "次に話すこと"}
+                返答の候補
               </h2>
             </div>
             {state.isGeneratingReply && (

@@ -237,7 +237,7 @@ export const DialogContent = forwardRef<HTMLDialogElement, DialogContentProps>(
               </p>
             )}
           </header>
-          <div className={cn("min-h-0 flex-1 overflow-y-auto", bodyClassName)}>
+          <div className={cn("min-h-0 flex-auto overflow-y-auto", bodyClassName)}>
             {children}
           </div>
           {showClose && (

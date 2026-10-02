@@ -16,7 +16,7 @@ Install the project dependencies:
 
 ```bash
 npm install
-uv sync --directory python --locked
+uv sync --project python-worker --locked
 ```
 
 Run checks relevant to the change. The complete public checks include:
@@ -26,8 +26,8 @@ npm run check:public
 npm run licenses:check
 npm run build
 npm run test
-uv run --directory python poe check
-uv run --directory python poe test
+uv run --locked --project python-worker ruff check python-worker
+npm run test:python-worker
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 npm run test:tauri
 ```

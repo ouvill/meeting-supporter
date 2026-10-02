@@ -8,8 +8,8 @@ function status(
   overrides: Partial<SpeechModelStatusResponse> = {},
 ): SpeechModelStatusResponse {
   return {
-    backend: "vosk",
-    model_id: "vosk-small-ja",
+    backend: "whisper",
+    model_id: "large-v3-turbo",
     state: "missing",
     phase: "idle",
     language: "ja",
@@ -30,7 +30,7 @@ function controller(
   overrides: Partial<SpeechModelController> = {},
 ): SpeechModelController {
   return {
-    backend: "vosk",
+    backend: "whisper",
     model: null,
     language: "ja",
     status: status(),
@@ -55,21 +55,25 @@ describe("SpeechModelPreparationCard", () => {
         model={controller({
           status: status({
             storage_path: "/app-data/speech/japanese",
-            model_path: "/app-data/vosk-model-small-ja-0.22",
+            model_path: "/app-data/synthetic-model",
           }),
         })}
       />,
     );
 
-    expect(screen.getByText("軽量な音声認識データ")).toBeInTheDocument();
-    expect(screen.getByText(/約48 MBのデータを使用します/)).toBeInTheDocument();
+    expect(screen.getByText("高精度な音声認識モデル")).toBeInTheDocument();
+    expect(
+      screen.getByText(/選択した精度モデルを端末内で使えるように準備します/),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         /取得を始めたときだけインターネット通信を行います。会議の音声は送信しません。/,
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("保存先")).toBeInTheDocument();
-    expect(screen.getByText("/app-data/speech/japanese")).toBeInTheDocument();
+    expect(
+      screen.getByText("Hugging Face の共有キャッシュ"),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/vosk|model-small/i)).not.toBeInTheDocument();
   });
 
@@ -93,7 +97,7 @@ describe("SpeechModelPreparationCard", () => {
 
     expect(
       screen.getByRole("progressbar", {
-        name: "軽量な音声認識データの準備進捗",
+        name: "高精度な音声認識モデルの準備進捗",
       }),
     ).toHaveAttribute("aria-valuenow", "25");
     expect(screen.getByRole("progressbar")).toHaveAttribute(
@@ -125,7 +129,7 @@ describe("SpeechModelPreparationCard", () => {
     );
 
     const progress = screen.getByRole("progressbar", {
-      name: "軽量な音声認識データの準備進捗",
+      name: "高精度な音声認識モデルの準備進捗",
     });
     expect(progress).not.toHaveAttribute("aria-valuenow");
     expect(progress).toHaveAttribute(
@@ -181,7 +185,7 @@ describe("SpeechModelPreparationCard", () => {
     );
 
     expect(screen.getByText("会議の言語を選んでください")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "データを取得" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "モデルを取得" })).toBeDisabled();
 
     rerender(
       <SpeechModelPreparationCard
@@ -189,13 +193,13 @@ describe("SpeechModelPreparationCard", () => {
           status: status({
             state: "ready",
             phase: "ready",
-            model_path: "/private/vosk-model-small-ja-0.22",
+            model_path: "/private/synthetic-model",
           }),
         })}
       />,
     );
     expect(
-      screen.getByText("軽量な音声認識データの準備ができました"),
+      screen.getByText("高精度な音声認識モデルの準備ができました"),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /取得/ }),

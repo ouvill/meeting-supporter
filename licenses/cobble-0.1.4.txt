@@ -1,0 +1,22 @@
+Cobble 0.1.4 license supplement
+
+Upstream author: Michael Williamson (setup.py at the commit below).
+Upstream README explicitly declares 2-Clause BSD:
+https://raw.githubusercontent.com/mwilliamson/python-cobble/a4f92a3462303c1402c8c55e3b5a45fa3bc2fa37/README.rst
+
+"`2-Clause BSD <http://opensource.org/licenses/BSD-2-Clause>`_"
+
+The distribution does not include the license text or a copyright notice.
+The standard terms below reproduce the license linked by upstream. The
+copyright placeholders are retained; no copyright year is inferred.
+Standard text source: https://raw.githubusercontent.com/spdx/license-list-data/v3.26.0/text/BSD-2-Clause.txt
+
+Copyright (c) <year> <owner> 
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

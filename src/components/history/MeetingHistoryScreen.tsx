@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMeetingHistoryStore } from "../../store/meetingHistoryStore";
 import { MeetingHistoryList } from "./MeetingHistoryList";
 import { MeetingHistoryDetail } from "./MeetingHistoryDetail";
-import type { AiUseCaseRouteStatus } from "../../hooks/useAiRoutes";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -12,15 +11,9 @@ import {
 
 interface Props {
   onBack: () => void;
-  minutesRouteStatus: AiUseCaseRouteStatus;
-  onSettings: () => void;
 }
 
-export function MeetingHistoryScreen({
-  onBack,
-  minutesRouteStatus,
-  onSettings,
-}: Props) {
+export function MeetingHistoryScreen({ onBack }: Props) {
   const {
     meetings,
     selectedMeetingId,
@@ -32,16 +25,11 @@ export function MeetingHistoryScreen({
     loadingMore,
     saving,
     deleting,
-    minutesStatus,
-    minutesProgress,
-    minutesError,
     loadMeetings,
     loadMore,
     selectMeeting,
     updateTitle,
     deleteMeeting,
-    generateMinutes,
-    cancelMinutes,
   } = useMeetingHistoryStore();
   const [compactDetailOpen, setCompactDetailOpen] = useState(false);
   const listContainerRef = useRef<HTMLElement>(null);
@@ -101,18 +89,9 @@ export function MeetingHistoryScreen({
     [deleteMeeting],
   );
 
-  const handleGenerateMinutes = useCallback(
-    async (id: string) => {
-      if (!minutesRouteStatus.canGenerate) return;
-      await generateMinutes(id);
-    },
-    [generateMinutes, minutesRouteStatus.canGenerate],
-  );
-
   useEffect(() => {
     void loadMeetings();
   }, [loadMeetings]);
-
 
   const listError = error?.startsWith("履歴") ? error : null;
 
@@ -247,13 +226,6 @@ export function MeetingHistoryScreen({
               onRetry={() => void selectMeeting(selectedMeeting.id)}
               onUpdateTitle={updateTitle}
               onDelete={handleDelete}
-              minutesStatus={minutesStatus}
-              minutesProgress={minutesProgress}
-              minutesError={minutesError}
-              minutesRouteStatus={minutesRouteStatus}
-              onGenerateMinutes={handleGenerateMinutes}
-              onCancelMinutes={cancelMinutes}
-              onSettings={onSettings}
             />
           )}
         </main>

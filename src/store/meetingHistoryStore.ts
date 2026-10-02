@@ -9,7 +9,6 @@ import type {
   MeetingDetail,
   MeetingListItem,
 } from "../api/generated/types.gen";
-import { streamMeetingMinutes } from "../api/meetingMinutesStream";
 
 const MEETING_HISTORY_PAGE_SIZE = 50;
 // ── Public types ─────────────────────────────────────────────────
@@ -26,9 +25,6 @@ export interface MeetingHistoryState {
   error: string | null;
   saving: boolean;
   deleting: boolean;
-  minutesStatus: "idle" | "generating" | "cancelled" | "error";
-  minutesProgress: string;
-  minutesError: string | null;
 }
 
 export interface MeetingHistoryActions {
@@ -38,8 +34,6 @@ export interface MeetingHistoryActions {
   updateTitle: (id: string, title: string) => Promise<void>;
   deleteMeeting: (id: string) => Promise<void>;
   reset: () => void;
-  generateMinutes: (id: string) => Promise<void>;
-  cancelMinutes: () => void;
 }
 
 export type MeetingHistoryStore = MeetingHistoryState & MeetingHistoryActions;
@@ -58,9 +52,6 @@ const INITIAL: MeetingHistoryState = {
   error: null,
   saving: false,
   deleting: false,
-  minutesStatus: "idle",
-  minutesProgress: "",
-  minutesError: null,
 };
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -103,8 +94,6 @@ function toUserError(err: unknown): string {
 let meetingListRequestGeneration = 0;
 let loadMoreRequestGeneration = 0;
 let meetingDetailRequestGeneration = 0;
-let minutesRequestGeneration = 0;
-let minutesAbortController: AbortController | null = null;
 
 // ── Store ────────────────────────────────────────────────────────
 
@@ -299,84 +288,6 @@ export const useMeetingHistoryStore = create<MeetingHistoryStore>(
       }
     },
 
-
-    generateMinutes: async (id: string) => {
-      const requestGeneration = ++minutesRequestGeneration;
-      const previousController = minutesAbortController;
-      minutesAbortController = null;
-      previousController?.abort();
-
-      const controller = new AbortController();
-      minutesAbortController = controller;
-      const isCurrentRequest = () =>
-        requestGeneration === minutesRequestGeneration &&
-        minutesAbortController === controller;
-
-      set({
-        minutesStatus: "generating",
-        minutesProgress: "",
-        minutesError: null,
-        error: null,
-      });
-      try {
-        const response = await streamMeetingMinutes(id, controller.signal);
-        if (!isCurrentRequest()) return;
-        if (!response.ok || !response.body) {
-          throw new Error("minutes request failed");
-        }
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (!isCurrentRequest()) return;
-          if (done) break;
-          if (value) {
-            set({
-              minutesProgress:
-                get().minutesProgress + decoder.decode(value, { stream: true }),
-            });
-          }
-        }
-        const tail = decoder.decode();
-        if (!isCurrentRequest()) return;
-        if (tail) set({ minutesProgress: get().minutesProgress + tail });
-
-        // Do not navigate back to a meeting the user has since left.
-        if (get().selectedMeetingId === id) {
-          await get().selectMeeting(id);
-        }
-        if (isCurrentRequest()) {
-          set({ minutesStatus: "idle", minutesError: null });
-        }
-      } catch (err) {
-        if (!isCurrentRequest()) return;
-
-        if (
-          controller.signal.aborted ||
-          (err instanceof DOMException && err.name === "AbortError")
-        ) {
-          set({ minutesStatus: "cancelled" });
-        } else {
-          set({
-            minutesStatus: "error",
-            minutesError: "要約・議事録を作成できませんでした。",
-          });
-        }
-      } finally {
-        if (isCurrentRequest()) minutesAbortController = null;
-      }
-    },
-
-    cancelMinutes: () => {
-      const controller = minutesAbortController;
-      if (!controller) return;
-
-      ++minutesRequestGeneration;
-      minutesAbortController = null;
-      controller.abort();
-      set({ minutesStatus: "cancelled", minutesError: null });
-    },
-
     deleteMeeting: async (id: string) => {
       set({ deleting: true, error: null });
       try {
@@ -417,9 +328,6 @@ export const useMeetingHistoryStore = create<MeetingHistoryStore>(
       ++meetingListRequestGeneration;
       ++loadMoreRequestGeneration;
       ++meetingDetailRequestGeneration;
-      ++minutesRequestGeneration;
-      minutesAbortController?.abort();
-      minutesAbortController = null;
       set(INITIAL);
     },
   }),

@@ -1,8 +1,10 @@
 # ADR-010: AI route strategyとしてCodex直接経路と正直なavailabilityを採用する
 
+- **Supersession**: 議事録生成とクラウド音声認識の提供範囲は [ADR-019](./019-local-speech-and-saved-history.md) で部分置換する。
 - **Status**: Accepted
+- **Partially superseded by**: [ADR-017](./017-acp-registry-and-shared-rust-client.md)（外部エージェント接続・導入、旧専用経路の廃止）
 - **Date**: 2026-07-10
-- **Updated**: 2026-07-19（Codex情報AIのcomplete-note検証・CAS境界を追加）
+- **Updated**: 2026-09-30（情報 AI の経路・実行機能を削除）
 - **Builds on**: ADR-009
 
 ## Context
@@ -45,24 +47,15 @@ availability、readiness、selectableを独立させる。UIはこれらを再�
 - transportはApp Serverのstdio JSON-RPCを扱う。
 - Codex固有のinitialize、thread/turn lifecycle、stream event、cancel、process lifecycleを専用adapter内へ閉じ込める。
 - generic ACP clientを経由しない。Codex App ServerをACP serverとして設定しない。
-- product use-caseはCodex protocolを知らず、reply、info、minutesの専用runtime protocolだけに依存する。
-- capabilityは `reply`、会議中の `info`、会議後に利用者が明示実行する `minutes`、`stream`、`cancel` に限定する。
+- product use-caseはCodex protocolを知らず、reply、minutesの専用runtime protocolだけに依存する。
+- capabilityは `reply`、会議後に利用者が明示実行する `minutes`、`stream`、`cancel` に限定する。
 - coding tool、approval、filesystem操作、workspace write、任意command実行をMeeting Supporterの機能として公開しない。`security_boundary_verified=false` は維持する。
 - PATH検出、version、login probeが`ready`を返した場合だけ選択・生成可能にする。`unknown`、`setup_required`、`unavailable`、`error`をreadyとして扱わず、安全な`action`だけを示す。
 - experimental表示と制約を常に示し、一般提供を主張しない。
 
-#### Codex情報AIのcomplete-note境界
-
-Codexの `info` runtimeは、現在の会話メモと確定済み会話をtextとして受け取り、完全なMarkdownをtextとして返す。`context.md`、任意path読取、filesystem tool、workspace write、MCPは使わない。
-
-- App Server turnはreply/minutesと同じ `approvalPolicy=never`、`sandbox=read-only`、tool/Web/MCP無効境界で開始する。
-- hostは出力を20,000文字までに制限し、`# 会話メモ`、`## 決まったこと`、`## 未確認・懸念`、`## 次にすること` が各1回・この順で存在し、余分なH1/H2、コードfence、NUL、前後の説明がない場合だけ受理する。
-- hostはturn開始時のmeeting IDと現在メモをsnapshotし、完了時に両方が一致する場合だけshared lock内でCAS更新する。invalid、empty、oversize、cancel、runtime error、meeting切替、同時更新conflictはcommitしない。
-- Pydantic AIの `info` runtimeは既存のhost-owned `str_replace` toolによる部分更新を維持し、Codexのcomplete-note経路とfallbackまたはtool契約を共有しない。
-
 #### Codex ephemeral turn subscription lifecycle
 
-通常のCodex要求は、1要求につき1つの`ephemeral` threadと1つのturnを作成し、threadを継続・再利用しない。`thread/start`によって生じる通知購読は、そのthread IDを所有する`CodexTurn`が管理する。reply、info、minutesはuse-case別runtime adapterから同じread-only/tool-disabled turn開始境界を使う。
+通常のCodex要求は、1要求につき1つの`ephemeral` threadと1つのturnを作成し、threadを継続・再利用しない。`thread/start`によって生じる通知購読は、そのthread IDを所有する`CodexTurn`が管理する。reply、minutesはuse-case別runtime adapterから同じread-only/tool-disabled turn開始境界を使う。
 
 - `turn/completed`またはinterrupt要求の完了を処理してから、対象threadへ`thread/unsubscribe`を最大1回送る。
 - user cancel、stream consumer cancellation、turn開始後のmodel rerouteまたはprotocol errorも同じ所有者がcleanupする。別threadや後続requestのlifecycleへ介入しない。

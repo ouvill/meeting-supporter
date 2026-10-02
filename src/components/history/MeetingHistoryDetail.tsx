@@ -18,7 +18,6 @@ import type {
   ReplySuggestionItem,
   TurnItem,
 } from "../../api/generated/types.gen";
-import type { AiUseCaseRouteStatus } from "../../hooks/useAiRoutes";
 import { RecordingPlayer } from "./RecordingPlayer";
 
 interface Props {
@@ -30,13 +29,6 @@ interface Props {
   onRetry?: () => void;
   onUpdateTitle: (id: string, title: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  minutesStatus?: "idle" | "generating" | "cancelled" | "error";
-  minutesProgress?: string;
-  minutesError?: string | null;
-  minutesRouteStatus?: AiUseCaseRouteStatus;
-  onGenerateMinutes?: (id: string) => Promise<void>;
-  onCancelMinutes?: () => void;
-  onSettings?: () => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -451,132 +443,22 @@ function ConversationTimeline({
   );
 }
 
-function MinutesSection({
-  meeting,
-  routeStatus,
-  status = "idle",
-  progress = "",
-  error = null,
-  onGenerate,
-  onCancel,
-  onSettings,
-}: {
-  meeting: MeetingDetail;
-  routeStatus: AiUseCaseRouteStatus;
-  status?: "idle" | "generating" | "cancelled" | "error";
-  progress?: string;
-  error?: string | null;
-  onGenerate?: (id: string) => Promise<void>;
-  onCancel?: () => void;
-  onSettings?: () => void;
-}) {
-  const eligible =
-    meeting.status === "completed" && (meeting.turns?.length ?? 0) > 0;
-  if (!eligible) return null;
-
-  const generating = status === "generating";
-  const ready = routeStatus.canGenerate;
-  const routeStatusLoading =
-    routeStatus.readiness === "unknown" && routeStatus.message === null;
+function MinutesSection({ meeting }: { meeting: MeetingDetail }) {
+  if (!meeting.minutes) return null;
   return (
     <section
       aria-labelledby="minutes-heading"
       className="rounded-2xl border border-line bg-surface p-5 shadow-card"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold tracking-[0.14em] text-primary">
-            POST-MEETING
-          </p>
-          <h3
-            id="minutes-heading"
-            className="font-display text-lg font-semibold text-ink"
-          >
-            要約・議事録
-          </h3>
-          {!ready && !generating && (
-            <div className="mt-1 space-y-1 text-xs leading-5 text-ink-muted">
-              <p>AIの準備を確認してから作成できます。</p>
-              <p role="status">
-                {routeStatus.message ??
-                  (routeStatusLoading
-                    ? "支援方法の状態を確認しています。"
-                    : "議事録を利用する支援方法を確認してください。")}
-              </p>
-              {!routeStatusLoading && onSettings && (
-                <button
-                  type="button"
-                  onClick={onSettings}
-                  className="font-semibold text-primary underline underline-offset-2"
-                >
-                  設定を確認
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-        {generating ? (
-          <button
-            type="button"
-            onClick={onCancel}
-            aria-label="生成を中止"
-            className="min-h-10 rounded-full border border-danger/30 bg-surface px-4 py-2 text-xs font-semibold text-danger"
-          >
-            生成を中止
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled={!ready}
-            onClick={() => {
-              if (ready && onGenerate) void onGenerate(meeting.id);
-            }}
-            aria-label="議事録を生成"
-            className="min-h-10 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {meeting.minutes ? "要約・議事録を作り直す" : "要約・議事録を作成"}
-          </button>
-        )}
+      <h3
+        id="minutes-heading"
+        className="font-display text-lg font-semibold text-ink"
+      >
+        保存済みの議事録
+      </h3>
+      <div className="mt-4 whitespace-pre-wrap rounded-xl bg-paper p-4 text-sm leading-6 text-ink">
+        {meeting.minutes}
       </div>
-      {generating && (
-        <p role="status" className="mt-3 text-xs text-ink-muted">
-          要約・議事録を作成しています…
-        </p>
-      )}
-      {progress && (
-        <div className="mt-3 space-y-1 text-sm leading-6 text-ink">
-          {progress
-            .split("\n")
-            .filter(Boolean)
-            .map((line, index) => (
-              <p key={`${index}-${line}`}>
-                {line.replace(/^(?:#+\s*|-\s*)/, "")}
-              </p>
-            ))}
-        </div>
-      )}
-      {status === "cancelled" && (
-        <p role="status" className="mt-3 text-xs text-ink-muted">
-          生成を停止しました。途中の内容は保存されていません。
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="mt-3 text-xs text-danger">
-          {error}
-        </p>
-      )}
-      {meeting.minutes && !generating && (
-        <div className="mt-4 space-y-1 rounded-xl bg-paper p-4 text-sm leading-6 text-ink">
-          {meeting.minutes
-            .split("\n")
-            .filter(Boolean)
-            .map((line, index) => (
-              <p key={`${index}-${line}`}>
-                {line.replace(/^(?:#+\s*|-\s*)/, "")}
-              </p>
-            ))}
-        </div>
-      )}
     </section>
   );
 }
@@ -592,17 +474,6 @@ export function MeetingHistoryDetail({
   onRetry,
   onUpdateTitle,
   onDelete,
-  minutesStatus = "idle",
-  minutesProgress = "",
-  minutesError = null,
-  minutesRouteStatus = {
-    readiness: "setup_required",
-    canGenerate: false,
-    message: "議事録を利用する支援方法を設定してください。",
-  },
-  onGenerateMinutes,
-  onCancelMinutes,
-  onSettings,
 }: Props) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
@@ -672,6 +543,16 @@ export function MeetingHistoryDetail({
         </div>
       </header>
 
+      {meeting.status === "aborted" && (
+        <div
+          role="status"
+          className="rounded-xl border border-warning/25 bg-warning-soft px-4 py-3 text-sm text-ink"
+        >
+          この会議は正常に終了しませんでした。保存できた記録を表示しています。
+          文字起こしや録音が欠けている可能性があります。
+        </div>
+      )}
+
       <DeleteDialog
         open={deleteOpen}
         onConfirm={() => {
@@ -725,16 +606,7 @@ export function MeetingHistoryDetail({
         />
       </section>
 
-      <MinutesSection
-        meeting={meeting}
-        routeStatus={minutesRouteStatus}
-        status={minutesStatus}
-        progress={minutesProgress}
-        error={minutesError}
-        onGenerate={onGenerateMinutes}
-        onCancel={onCancelMinutes}
-        onSettings={onSettings}
-      />
+      <MinutesSection meeting={meeting} />
 
       <section aria-labelledby="recording-heading">
         <div className="mb-3 flex items-center gap-2">

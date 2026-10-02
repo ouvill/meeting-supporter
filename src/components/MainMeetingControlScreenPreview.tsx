@@ -2,19 +2,6 @@ import { useState } from "react";
 import type { SendFn, SocketState, SuggestionCard } from "../types";
 import { MainMeetingControlScreen } from "./MainMeetingControlScreen";
 
-const INITIAL_NOTE = `# 会話メモ
-
-## 決まったこと
-- 料金改定の説明資料は1枚にまとめる
-- 初稿は来週火曜日までに共有する
-
-## 未確認・懸念
-- 既存顧客への適用開始日は未確認
-
-## 次にすること
-- 自分：料金改定の背景を2点に整理する
-- 相手：適用開始日を法務へ確認する`;
-
 const SUGGESTIONS: SuggestionCard[] = [
   {
     generationId: "preview-generation-1",
@@ -67,7 +54,6 @@ function createPreviewState(): SocketState {
       replyEnabled: true,
       replyAutoGenerate: false,
       replyAgents: [],
-      infoEnabled: true,
     },
     devices: [
       { index: 1, name: "会議アプリの音声", is_monitor: true },
@@ -109,7 +95,7 @@ function createPreviewState(): SocketState {
           text: "既存のお客様へいつから適用するかも、合わせて確認したいです。",
         },
       ],
-      aiNote: INITIAL_NOTE,
+      aiNote: "",
     },
     activeSuggestionTargetId: "turn-5",
     activeSuggestionGenerationId: "preview-generation-current",
@@ -119,7 +105,6 @@ function createPreviewState(): SocketState {
     lastReplyCancelResult: null,
     cancelledSuggestionIds: [],
     discardedGenerationIds: [],
-    isResearchingInfo: false,
     interimOther: "",
     interimSelf: "",
     levelOther: 0.16,
@@ -128,15 +113,9 @@ function createPreviewState(): SocketState {
 }
 
 export function MainMeetingControlScreenPreview() {
-  const [state, setState] = useState<SocketState>(createPreviewState);
+  const [state] = useState<SocketState>(createPreviewState);
 
-  const send: SendFn = (message) => {
-    if (message.type !== "run_info") return;
-    setState((current) => ({ ...current, isResearchingInfo: true }));
-    window.setTimeout(() => {
-      setState((current) => ({ ...current, isResearchingInfo: false }));
-    }, 900);
-  };
+  const send: SendFn = () => undefined;
 
   return (
     <div className="flex h-screen min-w-[720px] flex-col overflow-hidden bg-paper">
@@ -145,11 +124,6 @@ export function MainMeetingControlScreenPreview() {
         send={send}
         onSettings={() => undefined}
         replyReadiness="ready"
-        infoRouteStatus={{
-          readiness: "ready",
-          canGenerate: true,
-          message: null,
-        }}
       />
     </div>
   );

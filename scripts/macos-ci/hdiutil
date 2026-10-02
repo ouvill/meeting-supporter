@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Tauri's DMG builder retries EBUSY for only six seconds. macOS CI can keep
+# freshly written images busy longer, so allow bounded additional detach time.
+# Other operations and errors keep the system tool's original behavior.
+set -u
+
+attempt=0
+while true; do
+  /usr/bin/hdiutil "$@"
+  result=$?
+  if [[ "${1:-}" != detach || "$result" -ne 16 || "$attempt" -ge 5 ]]; then
+    exit "$result"
+  fi
+  delay=$((2 ** attempt))
+  printf 'DMG detach is busy; retrying in %s seconds.\n' "$delay" >&2
+  sync
+  sleep "$delay"
+  attempt=$((attempt + 1))
+done

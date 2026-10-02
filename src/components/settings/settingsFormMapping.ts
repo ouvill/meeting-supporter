@@ -1,10 +1,8 @@
 import type {
-  AgentSettingsPayload,
   ReplyStyleEnabledPatch,
   SecretsPayload,
   SettingsResponse,
   SettingsSaveRequest,
-  TomlTable,
 } from "../../api/generated/types.gen";
 import type { ConnectionSecretKey } from "./ApiConnectionControl";
 import {
@@ -37,29 +35,22 @@ const SECRET_KEYS = [
   "GEMINI_API_KEY",
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
-  "DEEPGRAM_API_KEY",
-  "XAI_API_KEY",
 ] as const;
 
 export const INITIAL_SETTINGS_FORM: SettingsForm = {
   secretsStatus: {},
   secretInputs: {},
   ollamaBaseUrl: "http://localhost:11434/v1",
-  acpCommand: "",
   sttBackend: "reazonspeech",
   sttWhisperModel: "large-v3-turbo",
-  sttDeepgramModel: "nova-2",
-  sttOpenaiModel: "gpt-4o-transcribe",
-  sttVoskModelPath: "vosk-model-small-ja-0.22",
+  sttDevice: "auto",
   sttLang: "ja",
   sttVadEngine: "silero",
   sttVadSensitivity: 0.4,
-  sttVad: 2,
   sttSilence: 0.8,
   replyFeatureEnabled: true,
   replyAutoGenerate: false,
   replyStyles: DEFAULT_REPLY_STYLES,
-  infoFeatureEnabled: true,
   usageMeetingLimitJpy: 0,
   usageMonthlyLimitJpy: 0,
   dataDir: "",
@@ -69,7 +60,7 @@ export const INITIAL_SETTINGS_FORM: SettingsForm = {
 };
 
 export function getTomlString(
-  table: TomlTable | undefined,
+  table: Readonly<Record<string, unknown>> | undefined,
   key: string,
 ): string | undefined {
   const value = table?.[key];
@@ -77,7 +68,7 @@ export function getTomlString(
 }
 
 function getTomlNumber(
-  table: TomlTable | undefined,
+  table: Readonly<Record<string, unknown>> | undefined,
   key: string,
 ): number | undefined {
   const value = table?.[key];
@@ -87,9 +78,7 @@ function getTomlNumber(
 export function mapSettingsResponseToForm(
   settings: SettingsResponseWithRetention,
 ): SettingsForm {
-  const secretsStatus = settings.secrets as typeof settings.secrets & {
-    XAI_API_KEY?: boolean;
-  };
+  const secretsStatus = settings.secrets;
   const replyStyles = (
     settings.reply?.styles?.length
       ? settings.reply.styles
@@ -115,25 +104,17 @@ export function mapSettingsResponseToForm(
     ),
     secretInputs: {},
     ollamaBaseUrl: settings.ollama?.base_url ?? "http://localhost:11434/v1",
-    acpCommand: settings.acp?.command.join("\n") ?? "",
     sttBackend,
+    sttDevice: getTomlString(settings.stt, "device") ?? "auto",
     sttWhisperModel:
       getTomlString(settings.stt, "whisper_model") ?? "large-v3-turbo",
-    sttDeepgramModel: getTomlString(settings.stt, "deepgram_model") ?? "nova-2",
-    sttOpenaiModel:
-      getTomlString(settings.stt, "openai_model") ?? "gpt-4o-transcribe",
-    sttVoskModelPath:
-      getTomlString(settings.stt, "vosk_model_path") ??
-      "vosk-model-small-ja-0.22",
     sttLang: sttBackend === "reazonspeech" ? "ja" : sttLanguage,
     sttVadEngine: isVadEngine(sttVadEngine) ? sttVadEngine : "silero",
     sttVadSensitivity: getTomlNumber(settings.stt, "vad_sensitivity") ?? 0.4,
-    sttVad: getTomlNumber(settings.stt, "vad_aggressiveness") ?? 2,
     sttSilence: getTomlNumber(settings.stt, "silence_duration") ?? 0.8,
     replyFeatureEnabled: settings.reply?.enabled ?? true,
     replyAutoGenerate: settings.reply?.auto_generate ?? false,
     replyStyles,
-    infoFeatureEnabled: settings.agents.info_enabled ?? true,
     usageMeetingLimitJpy: settings.usage?.budget?.meeting_limit_jpy ?? 0,
     usageMonthlyLimitJpy: settings.usage?.budget?.monthly_limit_jpy ?? 0,
     dataDir: settings.data_dir ?? "",
@@ -152,7 +133,7 @@ export function mapSettingsFormToPayload(
 ): SettingsSaveRequestWithRetention {
   const secrets = Object.fromEntries(
     Object.entries(form.secretInputs).filter(([, value]) => value.trim()),
-  ) as SecretsPayload & { XAI_API_KEY?: string };
+  ) as SecretsPayload;
   const replyStyles =
     form.replyFeatureEnabled && !form.replyStyles.some((style) => style.enabled)
       ? form.replyStyles.map((style, index) => ({
@@ -160,16 +141,12 @@ export function mapSettingsFormToPayload(
           enabled: index === 0,
         }))
       : form.replyStyles;
-  const agents: AgentSettingsPayload = {
-    info_enabled: form.infoFeatureEnabled,
-  };
 
   return {
     ...(Object.keys(secrets).length ? { secrets } : {}),
     ...(pendingDeleteSecrets.length
       ? { delete_secrets: pendingDeleteSecrets }
       : {}),
-    agents,
     reply: {
       enabled: form.replyFeatureEnabled,
       auto_generate: form.replyAutoGenerate,
@@ -183,24 +160,20 @@ export function mapSettingsFormToPayload(
       })),
     },
     ollama: { base_url: form.ollamaBaseUrl },
-    acp: {
-      command: form.acpCommand
-        .split(/\r?\n/)
-        .filter((argument) => argument.trim()),
-    },
     ...(savedBaseline === null ||
     STT_FORM_FIELDS.some((field) => form[field] !== savedBaseline[field])
       ? {
           stt: {
-            backend: form.sttBackend,
+            backend:
+              form.sttBackend === "whisper" ||
+              form.sttBackend === "reazonspeech"
+                ? form.sttBackend
+                : undefined,
             whisper_model: form.sttWhisperModel,
-            deepgram_model: form.sttDeepgramModel,
-            openai_model: form.sttOpenaiModel,
-            vosk_model_path: form.sttVoskModelPath,
+            device: form.sttDevice,
             language: form.sttLang,
             vad_engine: form.sttVadEngine,
             vad_sensitivity: form.sttVadSensitivity,
-            vad_aggressiveness: form.sttVad,
             silence_duration: form.sttSilence,
           },
         }

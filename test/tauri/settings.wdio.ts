@@ -1,6 +1,7 @@
 import { $, browser, expect } from "@wdio/globals";
 import {
   localBackendRequest,
+  syntheticSpeechSettings,
   waitForBackendReady,
 } from "./helpers/backend";
 import { expectDisplayedSurface } from "./helpers/displayedSurface";
@@ -13,7 +14,7 @@ import { closeSettingsIfOpen, openSettings } from "./helpers/settings";
 
 type SttSnapshot = Record<string, unknown> & {
   backend: string;
-  vad_engine: "silero" | "webrtc";
+  vad_engine: "silero";
 };
 
 interface SettingsSnapshot {
@@ -86,7 +87,8 @@ async function cleanupState(): Promise<void> {
     },
     async () => {
       if (!sttSettingsMutated) return;
-      if (!settingsSnapshot) throw new Error("STT settings snapshot is missing");
+      if (!settingsSnapshot)
+        throw new Error("STT settings snapshot is missing");
       await localBackendRequest({
         path: "/api/settings",
         method: "POST",
@@ -137,45 +139,34 @@ describe("Contextual settings credentials", () => {
     }
   });
 
-  it("shows managed pricing", async () => {
+  it("does not allow selecting an unavailable hosted route", async () => {
     await openSettings(waitOptions);
-    const managedCard = await $('[data-route-id="managed"]');
-    await managedCard.waitForDisplayed(waitOptions);
-    expect(await managedCard.getText()).toContain(
-      "提供時に料金をご案内（無料ではありません）",
+    const card = await $('[data-route-id="managed"]');
+    await card.waitForDisplayed(waitOptions);
+    const reply = await card.$('.//button[normalize-space()="返答案"]');
+    expect(!(await reply.isExisting()) || !(await reply.isEnabled())).toBe(
+      true,
     );
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 
-  it("shows and toggles three AI use cases independently", async () => {
+  it("toggles the reply route without offering retired minutes generation", async () => {
     await openSettings(waitOptions);
-
-    const codexCard = await $('[data-route-id="codex"]');
-    await codexCard.waitForDisplayed(waitOptions);
-    for (const label of ["返答案", "会話メモ", "要約・議事録"]) {
-      await expect(
-        codexCard.$(`.//button[normalize-space()="${label}"]`),
-      ).toBeDisplayed();
-    }
 
     const geminiCard = await $('[data-route-id="gemini"]');
     const reply = await geminiCard.$('.//button[normalize-space()="返答案"]');
-    const info = await geminiCard.$('.//button[normalize-space()="会話メモ"]');
     const minutes = await geminiCard.$(
       './/button[normalize-space()="要約・議事録"]',
     );
     await reply.waitForClickable(waitOptions);
     const initialReply = await reply.getAttribute("aria-pressed");
-    const initialInfo = await info.getAttribute("aria-pressed");
-    const initialMinutes = await minutes.getAttribute("aria-pressed");
+    expect(await minutes.isExisting()).toBe(false);
 
     await reply.click();
 
     expect(await reply.getAttribute("aria-pressed")).toBe(
       initialReply === "true" ? "false" : "true",
     );
-    expect(await info.getAttribute("aria-pressed")).toBe(initialInfo);
-    expect(await minutes.getAttribute("aria-pressed")).toBe(initialMinutes);
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 
@@ -245,7 +236,7 @@ describe("Contextual settings credentials", () => {
     }
   });
 
-  it("offers Torch-free Silero controls when selected", async () => {
+  it("offers Torch-free Silero controls without the retired VAD selector", async () => {
     await persistSttPatch({ vad_engine: "silero" });
     await browser.refresh();
     await waitForBackendReady();
@@ -257,13 +248,10 @@ describe("Contextual settings credentials", () => {
     await audioCategory.waitForClickable(waitOptions);
     await audioCategory.click();
 
-    const vadEngine = await $('select[aria-label="声の検出方法"]');
-    await vadEngine.waitForDisplayed(waitOptions);
-    expect(await vadEngine.getValue()).toBe("silero");
-    const sileroOption = await $(
-      'select[aria-label="声の検出方法"] option[value="silero"]',
+    await $('//p[normalize-space()="Silero VAD"]').waitForDisplayed(
+      waitOptions,
     );
-    expect(await sileroOption.getText()).toBe("Silero VAD（高精度・おすすめ）");
+    expect(await $('option[value="webrtc"]').isExisting()).toBe(false);
     await expect(
       $('input[aria-label="Silero音声判定しきい値"]'),
     ).toBeDisplayed();
@@ -272,7 +260,7 @@ describe("Contextual settings credentials", () => {
   });
 
   it("locks audio settings while a meeting is active", async () => {
-    await persistSttPatch({ backend: "dummy" });
+    await persistSttPatch(await syntheticSpeechSettings());
     await browser.refresh();
     await waitForBackendReady();
     await expectDisplayedSurface('[data-testid="setup-screen"]', waitOptions);
@@ -288,11 +276,11 @@ describe("Contextual settings credentials", () => {
       '//*[contains(normalize-space(.), "会議中は音声認識の設定を変更できません")]',
     );
     await lockNotice.waitForDisplayed(waitOptions);
+    expect(await $('select[aria-label="音声認識方式"]').isEnabled()).toBe(
+      false,
+    );
     expect(
-      await $('select[aria-label="音声認識方式"]').isEnabled(),
-    ).toBe(false);
-    expect(
-      await $('select[aria-label="声の検出方法"]').isEnabled(),
+      await $('input[aria-label="Silero音声判定しきい値"]').isEnabled(),
     ).toBe(false);
 
     await closeSettingsIfOpen({ discard: true, waitOptions });

@@ -9,24 +9,23 @@ import type {
 } from "./client";
 import { client } from "./client.gen";
 import type {
-  CancelActiveTurnApiAiRuntimesCodexCancelPostData,
-  CancelActiveTurnApiAiRuntimesCodexCancelPostResponses,
-  CancelLoginApiAiRuntimesCodexLoginCancelPostData,
-  CancelLoginApiAiRuntimesCodexLoginCancelPostErrors,
-  CancelLoginApiAiRuntimesCodexLoginCancelPostResponses,
   CancelSpeechModelDownloadApiSttModelCancelPostData,
   CancelSpeechModelDownloadApiSttModelCancelPostErrors,
   CancelSpeechModelDownloadApiSttModelCancelPostResponses,
+  ConnectAgentData,
+  ConnectAgentErrors,
+  ConnectAgentResponses,
   DeleteMeetingMeetingsMeetingIdDeleteData,
   DeleteMeetingMeetingsMeetingIdDeleteErrors,
   DeleteMeetingMeetingsMeetingIdDeleteResponses,
   ExecuteRecordingCleanupMeetingsRecordingsCleanupPostData,
   ExecuteRecordingCleanupMeetingsRecordingsCleanupPostErrors,
   ExecuteRecordingCleanupMeetingsRecordingsCleanupPostResponses,
-  GenerateMinutesMeetingsMeetingIdMinutesPostData,
-  GenerateMinutesMeetingsMeetingIdMinutesPostErrors,
-  GenerateMinutesMeetingsMeetingIdMinutesPostResponses,
+  GetAgentCatalogData,
+  GetAgentCatalogErrors,
+  GetAgentCatalogResponses,
   GetAiRoutesApiAiRoutesGetData,
+  GetAiRoutesApiAiRoutesGetErrors,
   GetAiRoutesApiAiRoutesGetResponses,
   GetMeetingMeetingsMeetingIdGetData,
   GetMeetingMeetingsMeetingIdGetErrors,
@@ -35,50 +34,50 @@ import type {
   GetOllamaModelsApiSettingsOllamaModelsGetErrors,
   GetOllamaModelsApiSettingsOllamaModelsGetResponses,
   GetSettingsApiSettingsGetData,
+  GetSettingsApiSettingsGetErrors,
   GetSettingsApiSettingsGetResponses,
+  GetSpeechCapabilitiesData,
+  GetSpeechCapabilitiesErrors,
+  GetSpeechCapabilitiesResponses,
   GetSpeechModelStatusApiSttModelGetData,
   GetSpeechModelStatusApiSttModelGetErrors,
   GetSpeechModelStatusApiSttModelGetResponses,
   HealthHealthGetData,
+  HealthHealthGetErrors,
   HealthHealthGetResponses,
-  ListDevicesDevicesGetData,
-  ListDevicesDevicesGetResponses,
+  InstallAgentData,
+  InstallAgentErrors,
+  InstallAgentResponses,
   ListMeetingsMeetingsGetData,
   ListMeetingsMeetingsGetErrors,
   ListMeetingsMeetingsGetResponses,
   ListRecordingsMeetingsMeetingIdRecordingsGetData,
   ListRecordingsMeetingsMeetingIdRecordingsGetErrors,
   ListRecordingsMeetingsMeetingIdRecordingsGetResponses,
-  LogoutApiAiRuntimesCodexLogoutPostData,
-  LogoutApiAiRuntimesCodexLogoutPostResponses,
   PreviewRecordingCleanupMeetingsRecordingsCleanupPreviewPostData,
   PreviewRecordingCleanupMeetingsRecordingsCleanupPreviewPostErrors,
   PreviewRecordingCleanupMeetingsRecordingsCleanupPreviewPostResponses,
-  RateLimitsApiAiRuntimesCodexRateLimitsGetData,
-  RateLimitsApiAiRuntimesCodexRateLimitsGetResponses,
+  RemoveAgentData,
+  RemoveAgentErrors,
+  RemoveAgentResponses,
   ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutData,
   ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutErrors,
   ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutResponses,
-  RootGetData,
-  RootGetResponses,
   SaveSettingsApiSettingsPostData,
   SaveSettingsApiSettingsPostErrors,
   SaveSettingsApiSettingsPostResponses,
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetData,
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetErrors,
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetResponses,
-  StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostData,
-  StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostResponses,
-  StartLoginApiAiRuntimesCodexLoginPostData,
-  StartLoginApiAiRuntimesCodexLoginPostResponses,
   StartSpeechModelDownloadApiSttModelDownloadPostData,
   StartSpeechModelDownloadApiSttModelDownloadPostErrors,
   StartSpeechModelDownloadApiSttModelDownloadPostResponses,
-  StatusApiAiRuntimesCodexStatusGetData,
-  StatusApiAiRuntimesCodexStatusGetResponses,
   TestConnectionApiSettingsConnectionsTestPostData,
   TestConnectionApiSettingsConnectionsTestPostErrors,
   TestConnectionApiSettingsConnectionsTestPostResponses,
+  UpdateAllAgentsData,
+  UpdateAllAgentsErrors,
+  UpdateAllAgentsResponses,
   UpdateMeetingTitleMeetingsMeetingIdPatchData,
   UpdateMeetingTitleMeetingsMeetingIdPatchErrors,
   UpdateMeetingTitleMeetingsMeetingIdPatchResponses,
@@ -102,96 +101,40 @@ export type Options<
   meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
 
-/**
- * Health
- */
 export const healthHealthGet = <ThrowOnError extends boolean = false>(
   options?: Options<HealthHealthGetData, ThrowOnError>,
-): RequestResult<HealthHealthGetResponses, unknown, ThrowOnError> =>
-  (options?.client ?? client).get<
-    HealthHealthGetResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/health", ...options });
-
-/**
- * Root
- */
-export const rootGet = <ThrowOnError extends boolean = false>(
-  options?: Options<RootGetData, ThrowOnError>,
-): RequestResult<RootGetResponses, unknown, ThrowOnError> =>
-  (options?.client ?? client).get<RootGetResponses, unknown, ThrowOnError>({
-    url: "/",
-    ...options,
-  });
-
-/**
- * List Devices
- */
-export const listDevicesDevicesGet = <ThrowOnError extends boolean = false>(
-  options?: Options<ListDevicesDevicesGetData, ThrowOnError>,
-): RequestResult<ListDevicesDevicesGetResponses, unknown, ThrowOnError> =>
-  (options?.client ?? client).get<
-    ListDevicesDevicesGetResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/devices", ...options });
-
-/**
- * Get Ai Routes
- */
-export const getAiRoutesApiAiRoutesGet = <ThrowOnError extends boolean = false>(
-  options?: Options<GetAiRoutesApiAiRoutesGetData, ThrowOnError>,
-): RequestResult<GetAiRoutesApiAiRoutesGetResponses, unknown, ThrowOnError> =>
-  (options?.client ?? client).get<
-    GetAiRoutesApiAiRoutesGetResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai/routes", ...options });
-
-/**
- * Replace Ai Route Assignments
- */
-export const replaceAiRouteAssignmentsApiAiRoutesAssignmentsPut = <
-  ThrowOnError extends boolean = false,
->(
-  options: Options<
-    ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutData,
-    ThrowOnError
-  >,
 ): RequestResult<
-  ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutResponses,
-  ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutErrors,
+  HealthHealthGetResponses,
+  HealthHealthGetErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).put<
-    ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutResponses,
-    ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutErrors,
+  (options?.client ?? client).get<
+    HealthHealthGetResponses,
+    HealthHealthGetErrors,
     ThrowOnError
   >({
-    url: "/api/ai/routes/assignments",
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/health",
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
   });
 
-/**
- * Get Settings
- */
 export const getSettingsApiSettingsGet = <ThrowOnError extends boolean = false>(
   options?: Options<GetSettingsApiSettingsGetData, ThrowOnError>,
-): RequestResult<GetSettingsApiSettingsGetResponses, unknown, ThrowOnError> =>
+): RequestResult<
+  GetSettingsApiSettingsGetResponses,
+  GetSettingsApiSettingsGetErrors,
+  ThrowOnError
+> =>
   (options?.client ?? client).get<
     GetSettingsApiSettingsGetResponses,
-    unknown,
+    GetSettingsApiSettingsGetErrors,
     ThrowOnError
-  >({ url: "/api/settings", ...options });
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/settings",
+    ...options,
+  });
 
-/**
- * Save Settings
- */
 export const saveSettingsApiSettingsPost = <
   ThrowOnError extends boolean = false,
 >(
@@ -206,78 +149,32 @@ export const saveSettingsApiSettingsPost = <
     SaveSettingsApiSettingsPostErrors,
     ThrowOnError
   >({
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/settings",
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/json; charset=utf-8",
       ...options.headers,
     },
   });
 
-/**
- * Test Connection
- *
- * Test an unsaved draft key, or a configured credential, without persisting it.
- */
-export const testConnectionApiSettingsConnectionsTestPost = <
-  ThrowOnError extends boolean = false,
->(
-  options: Options<
-    TestConnectionApiSettingsConnectionsTestPostData,
-    ThrowOnError
-  >,
+export const getSpeechCapabilities = <ThrowOnError extends boolean = false>(
+  options?: Options<GetSpeechCapabilitiesData, ThrowOnError>,
 ): RequestResult<
-  TestConnectionApiSettingsConnectionsTestPostResponses,
-  TestConnectionApiSettingsConnectionsTestPostErrors,
-  ThrowOnError
-> =>
-  (options.client ?? client).post<
-    TestConnectionApiSettingsConnectionsTestPostResponses,
-    TestConnectionApiSettingsConnectionsTestPostErrors,
-    ThrowOnError
-  >({
-    url: "/api/settings/connections/test",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
-
-/**
- * Get Ollama Models
- *
- * Fetch available models from an Ollama server.
- *
- * Calls ``GET {base_url}/models`` which for the default base_url
- * ``http://localhost:11434/v1`` becomes ``http://localhost:11434/v1/models``.
- *
- * Returns a typed response with ok: bool, base_url, models: list[str], message: str | None.
- * On connection failure, returns 200 with ok=false and a user-friendly Japanese message.
- *
- * Query parameter ``base_url`` overrides the configured Ollama base URL.
- */
-export const getOllamaModelsApiSettingsOllamaModelsGet = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<
-    GetOllamaModelsApiSettingsOllamaModelsGetData,
-    ThrowOnError
-  >,
-): RequestResult<
-  GetOllamaModelsApiSettingsOllamaModelsGetResponses,
-  GetOllamaModelsApiSettingsOllamaModelsGetErrors,
+  GetSpeechCapabilitiesResponses,
+  GetSpeechCapabilitiesErrors,
   ThrowOnError
 > =>
   (options?.client ?? client).get<
-    GetOllamaModelsApiSettingsOllamaModelsGetResponses,
-    GetOllamaModelsApiSettingsOllamaModelsGetErrors,
+    GetSpeechCapabilitiesResponses,
+    GetSpeechCapabilitiesErrors,
     ThrowOnError
-  >({ url: "/api/settings/ollama/models", ...options });
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/stt/capabilities",
+    ...options,
+  });
 
-/**
- * Get Speech Model Status
- */
 export const getSpeechModelStatusApiSttModelGet = <
   ThrowOnError extends boolean = false,
 >(
@@ -291,11 +188,12 @@ export const getSpeechModelStatusApiSttModelGet = <
     GetSpeechModelStatusApiSttModelGetResponses,
     GetSpeechModelStatusApiSttModelGetErrors,
     ThrowOnError
-  >({ url: "/api/stt/model", ...options });
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/stt/model",
+    ...options,
+  });
 
-/**
- * Start Speech Model Download
- */
 export const startSpeechModelDownloadApiSttModelDownloadPost = <
   ThrowOnError extends boolean = false,
 >(
@@ -313,17 +211,15 @@ export const startSpeechModelDownloadApiSttModelDownloadPost = <
     StartSpeechModelDownloadApiSttModelDownloadPostErrors,
     ThrowOnError
   >({
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/api/stt/model/download",
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/json; charset=utf-8",
       ...options.headers,
     },
   });
 
-/**
- * Cancel Speech Model Download
- */
 export const cancelSpeechModelDownloadApiSttModelCancelPost = <
   ThrowOnError extends boolean = false,
 >(
@@ -340,177 +236,12 @@ export const cancelSpeechModelDownloadApiSttModelCancelPost = <
     CancelSpeechModelDownloadApiSttModelCancelPostResponses,
     CancelSpeechModelDownloadApiSttModelCancelPostErrors,
     ThrowOnError
-  >({ url: "/api/stt/model/cancel", ...options });
-
-/**
- * Status
- */
-export const statusApiAiRuntimesCodexStatusGet = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<StatusApiAiRuntimesCodexStatusGetData, ThrowOnError>,
-): RequestResult<
-  StatusApiAiRuntimesCodexStatusGetResponses,
-  unknown,
-  ThrowOnError
-> =>
-  (options?.client ?? client).get<
-    StatusApiAiRuntimesCodexStatusGetResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/status", ...options });
-
-/**
- * Start Login
- */
-export const startLoginApiAiRuntimesCodexLoginPost = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<StartLoginApiAiRuntimesCodexLoginPostData, ThrowOnError>,
-): RequestResult<
-  StartLoginApiAiRuntimesCodexLoginPostResponses,
-  unknown,
-  ThrowOnError
-> =>
-  (options?.client ?? client).post<
-    StartLoginApiAiRuntimesCodexLoginPostResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/login", ...options });
-
-/**
- * Start Device Code Login
- */
-export const startDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePost = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<
-    StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostData,
-    ThrowOnError
-  >,
-): RequestResult<
-  StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostResponses,
-  unknown,
-  ThrowOnError
-> =>
-  (options?.client ?? client).post<
-    StartDeviceCodeLoginApiAiRuntimesCodexLoginDeviceCodePostResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/login/device-code", ...options });
-
-/**
- * Cancel Login
- */
-export const cancelLoginApiAiRuntimesCodexLoginCancelPost = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<
-    CancelLoginApiAiRuntimesCodexLoginCancelPostData,
-    ThrowOnError
-  >,
-): RequestResult<
-  CancelLoginApiAiRuntimesCodexLoginCancelPostResponses,
-  CancelLoginApiAiRuntimesCodexLoginCancelPostErrors,
-  ThrowOnError
-> =>
-  (options?.client ?? client).post<
-    CancelLoginApiAiRuntimesCodexLoginCancelPostResponses,
-    CancelLoginApiAiRuntimesCodexLoginCancelPostErrors,
-    ThrowOnError
   >({
-    url: "/api/ai-runtimes/codex/login/cancel",
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/stt/model/cancel",
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
   });
 
-/**
- * Logout
- */
-export const logoutApiAiRuntimesCodexLogoutPost = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<LogoutApiAiRuntimesCodexLogoutPostData, ThrowOnError>,
-): RequestResult<
-  LogoutApiAiRuntimesCodexLogoutPostResponses,
-  unknown,
-  ThrowOnError
-> =>
-  (options?.client ?? client).post<
-    LogoutApiAiRuntimesCodexLogoutPostResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/logout", ...options });
-
-/**
- * Rate Limits
- */
-export const rateLimitsApiAiRuntimesCodexRateLimitsGet = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<
-    RateLimitsApiAiRuntimesCodexRateLimitsGetData,
-    ThrowOnError
-  >,
-): RequestResult<
-  RateLimitsApiAiRuntimesCodexRateLimitsGetResponses,
-  unknown,
-  ThrowOnError
-> =>
-  (options?.client ?? client).get<
-    RateLimitsApiAiRuntimesCodexRateLimitsGetResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/rate-limits", ...options });
-
-/**
- * Cancel Active Turn
- */
-export const cancelActiveTurnApiAiRuntimesCodexCancelPost = <
-  ThrowOnError extends boolean = false,
->(
-  options?: Options<
-    CancelActiveTurnApiAiRuntimesCodexCancelPostData,
-    ThrowOnError
-  >,
-): RequestResult<
-  CancelActiveTurnApiAiRuntimesCodexCancelPostResponses,
-  unknown,
-  ThrowOnError
-> =>
-  (options?.client ?? client).post<
-    CancelActiveTurnApiAiRuntimesCodexCancelPostResponses,
-    unknown,
-    ThrowOnError
-  >({ url: "/api/ai-runtimes/codex/cancel", ...options });
-
-/**
- * Generate Minutes
- */
-export const generateMinutesMeetingsMeetingIdMinutesPost = <
-  ThrowOnError extends boolean = false,
->(
-  options: Options<
-    GenerateMinutesMeetingsMeetingIdMinutesPostData,
-    ThrowOnError
-  >,
-): RequestResult<
-  GenerateMinutesMeetingsMeetingIdMinutesPostResponses,
-  GenerateMinutesMeetingsMeetingIdMinutesPostErrors,
-  ThrowOnError
-> =>
-  (options.client ?? client).post<
-    GenerateMinutesMeetingsMeetingIdMinutesPostResponses,
-    GenerateMinutesMeetingsMeetingIdMinutesPostErrors,
-    ThrowOnError
-  >({ url: "/meetings/{meeting_id}/minutes", ...options });
-
-/**
- * List Meetings
- */
 export const listMeetingsMeetingsGet = <ThrowOnError extends boolean = false>(
   options?: Options<ListMeetingsMeetingsGetData, ThrowOnError>,
 ): RequestResult<
@@ -522,11 +253,95 @@ export const listMeetingsMeetingsGet = <ThrowOnError extends boolean = false>(
     ListMeetingsMeetingsGetResponses,
     ListMeetingsMeetingsGetErrors,
     ThrowOnError
-  >({ url: "/meetings", ...options });
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/meetings",
+    ...options,
+  });
 
-/**
- * Preview Recording Cleanup
- */
+export const deleteMeetingMeetingsMeetingIdDelete = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<DeleteMeetingMeetingsMeetingIdDeleteData, ThrowOnError>,
+): RequestResult<
+  DeleteMeetingMeetingsMeetingIdDeleteResponses,
+  DeleteMeetingMeetingsMeetingIdDeleteErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).delete<
+    DeleteMeetingMeetingsMeetingIdDeleteResponses,
+    DeleteMeetingMeetingsMeetingIdDeleteErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/meetings/{meeting_id}",
+    ...options,
+  });
+
+export const getMeetingMeetingsMeetingIdGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<GetMeetingMeetingsMeetingIdGetData, ThrowOnError>,
+): RequestResult<
+  GetMeetingMeetingsMeetingIdGetResponses,
+  GetMeetingMeetingsMeetingIdGetErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    GetMeetingMeetingsMeetingIdGetResponses,
+    GetMeetingMeetingsMeetingIdGetErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/meetings/{meeting_id}",
+    ...options,
+  });
+
+export const updateMeetingTitleMeetingsMeetingIdPatch = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<UpdateMeetingTitleMeetingsMeetingIdPatchData, ThrowOnError>,
+): RequestResult<
+  UpdateMeetingTitleMeetingsMeetingIdPatchResponses,
+  UpdateMeetingTitleMeetingsMeetingIdPatchErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).patch<
+    UpdateMeetingTitleMeetingsMeetingIdPatchResponses,
+    UpdateMeetingTitleMeetingsMeetingIdPatchErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/meetings/{meeting_id}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...options.headers,
+    },
+  });
+
+export const listRecordingsMeetingsMeetingIdRecordingsGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ListRecordingsMeetingsMeetingIdRecordingsGetData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ListRecordingsMeetingsMeetingIdRecordingsGetResponses,
+  ListRecordingsMeetingsMeetingIdRecordingsGetErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ListRecordingsMeetingsMeetingIdRecordingsGetResponses,
+    ListRecordingsMeetingsMeetingIdRecordingsGetErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/meetings/{meeting_id}/recordings",
+    ...options,
+  });
+
 export const previewRecordingCleanupMeetingsRecordingsCleanupPreviewPost = <
   ThrowOnError extends boolean = false,
 >(
@@ -544,17 +359,15 @@ export const previewRecordingCleanupMeetingsRecordingsCleanupPreviewPost = <
     PreviewRecordingCleanupMeetingsRecordingsCleanupPreviewPostErrors,
     ThrowOnError
   >({
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/meetings/recordings/cleanup/preview",
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/json; charset=utf-8",
       ...options.headers,
     },
   });
 
-/**
- * Execute Recording Cleanup
- */
 export const executeRecordingCleanupMeetingsRecordingsCleanupPost = <
   ThrowOnError extends boolean = false,
 >(
@@ -572,99 +385,183 @@ export const executeRecordingCleanupMeetingsRecordingsCleanupPost = <
     ExecuteRecordingCleanupMeetingsRecordingsCleanupPostErrors,
     ThrowOnError
   >({
+    security: [{ scheme: "bearer", type: "http" }],
     url: "/meetings/recordings/cleanup",
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/json; charset=utf-8",
       ...options.headers,
     },
   });
 
-/**
- * Delete Meeting
- */
-export const deleteMeetingMeetingsMeetingIdDelete = <
-  ThrowOnError extends boolean = false,
->(
-  options: Options<DeleteMeetingMeetingsMeetingIdDeleteData, ThrowOnError>,
+export const getAiRoutesApiAiRoutesGet = <ThrowOnError extends boolean = false>(
+  options?: Options<GetAiRoutesApiAiRoutesGetData, ThrowOnError>,
 ): RequestResult<
-  DeleteMeetingMeetingsMeetingIdDeleteResponses,
-  DeleteMeetingMeetingsMeetingIdDeleteErrors,
+  GetAiRoutesApiAiRoutesGetResponses,
+  GetAiRoutesApiAiRoutesGetErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).delete<
-    DeleteMeetingMeetingsMeetingIdDeleteResponses,
-    DeleteMeetingMeetingsMeetingIdDeleteErrors,
-    ThrowOnError
-  >({ url: "/meetings/{meeting_id}", ...options });
-
-/**
- * Get Meeting
- */
-export const getMeetingMeetingsMeetingIdGet = <
-  ThrowOnError extends boolean = false,
->(
-  options: Options<GetMeetingMeetingsMeetingIdGetData, ThrowOnError>,
-): RequestResult<
-  GetMeetingMeetingsMeetingIdGetResponses,
-  GetMeetingMeetingsMeetingIdGetErrors,
-  ThrowOnError
-> =>
-  (options.client ?? client).get<
-    GetMeetingMeetingsMeetingIdGetResponses,
-    GetMeetingMeetingsMeetingIdGetErrors,
-    ThrowOnError
-  >({ url: "/meetings/{meeting_id}", ...options });
-
-/**
- * Update Meeting Title
- */
-export const updateMeetingTitleMeetingsMeetingIdPatch = <
-  ThrowOnError extends boolean = false,
->(
-  options: Options<UpdateMeetingTitleMeetingsMeetingIdPatchData, ThrowOnError>,
-): RequestResult<
-  UpdateMeetingTitleMeetingsMeetingIdPatchResponses,
-  UpdateMeetingTitleMeetingsMeetingIdPatchErrors,
-  ThrowOnError
-> =>
-  (options.client ?? client).patch<
-    UpdateMeetingTitleMeetingsMeetingIdPatchResponses,
-    UpdateMeetingTitleMeetingsMeetingIdPatchErrors,
+  (options?.client ?? client).get<
+    GetAiRoutesApiAiRoutesGetResponses,
+    GetAiRoutesApiAiRoutesGetErrors,
     ThrowOnError
   >({
-    url: "/meetings/{meeting_id}",
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/ai/routes",
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
   });
 
-/**
- * List Recordings
- */
-export const listRecordingsMeetingsMeetingIdRecordingsGet = <
+export const replaceAiRouteAssignmentsApiAiRoutesAssignmentsPut = <
   ThrowOnError extends boolean = false,
 >(
   options: Options<
-    ListRecordingsMeetingsMeetingIdRecordingsGetData,
+    ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutData,
     ThrowOnError
   >,
 ): RequestResult<
-  ListRecordingsMeetingsMeetingIdRecordingsGetResponses,
-  ListRecordingsMeetingsMeetingIdRecordingsGetErrors,
+  ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutResponses,
+  ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
-    ListRecordingsMeetingsMeetingIdRecordingsGetResponses,
-    ListRecordingsMeetingsMeetingIdRecordingsGetErrors,
+  (options.client ?? client).put<
+    ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutResponses,
+    ReplaceAiRouteAssignmentsApiAiRoutesAssignmentsPutErrors,
     ThrowOnError
-  >({ url: "/meetings/{meeting_id}/recordings", ...options });
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/ai/routes/assignments",
+    ...options,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...options.headers,
+    },
+  });
 
-/**
- * Serve Recording
- */
+export const getOllamaModelsApiSettingsOllamaModelsGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<
+    GetOllamaModelsApiSettingsOllamaModelsGetData,
+    ThrowOnError
+  >,
+): RequestResult<
+  GetOllamaModelsApiSettingsOllamaModelsGetResponses,
+  GetOllamaModelsApiSettingsOllamaModelsGetErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    GetOllamaModelsApiSettingsOllamaModelsGetResponses,
+    GetOllamaModelsApiSettingsOllamaModelsGetErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/settings/ollama/models",
+    ...options,
+  });
+
+export const testConnectionApiSettingsConnectionsTestPost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    TestConnectionApiSettingsConnectionsTestPostData,
+    ThrowOnError
+  >,
+): RequestResult<
+  TestConnectionApiSettingsConnectionsTestPostResponses,
+  TestConnectionApiSettingsConnectionsTestPostErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    TestConnectionApiSettingsConnectionsTestPostResponses,
+    TestConnectionApiSettingsConnectionsTestPostErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/settings/connections/test",
+    ...options,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...options.headers,
+    },
+  });
+
+export const getAgentCatalog = <ThrowOnError extends boolean = false>(
+  options?: Options<GetAgentCatalogData, ThrowOnError>,
+): RequestResult<
+  GetAgentCatalogResponses,
+  GetAgentCatalogErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    GetAgentCatalogResponses,
+    GetAgentCatalogErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/ai/agents",
+    ...options,
+  });
+
+export const installAgent = <ThrowOnError extends boolean = false>(
+  options: Options<InstallAgentData, ThrowOnError>,
+): RequestResult<InstallAgentResponses, InstallAgentErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    InstallAgentResponses,
+    InstallAgentErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/ai/agents/{id}/install",
+    ...options,
+  });
+
+export const connectAgent = <ThrowOnError extends boolean = false>(
+  options: Options<ConnectAgentData, ThrowOnError>,
+): RequestResult<ConnectAgentResponses, ConnectAgentErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    ConnectAgentResponses,
+    ConnectAgentErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/ai/agents/{id}/connect",
+    ...options,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...options.headers,
+    },
+  });
+
+export const removeAgent = <ThrowOnError extends boolean = false>(
+  options: Options<RemoveAgentData, ThrowOnError>,
+): RequestResult<RemoveAgentResponses, RemoveAgentErrors, ThrowOnError> =>
+  (options.client ?? client).delete<
+    RemoveAgentResponses,
+    RemoveAgentErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/ai/agents/{id}",
+    ...options,
+  });
+
+export const updateAllAgents = <ThrowOnError extends boolean = false>(
+  options?: Options<UpdateAllAgentsData, ThrowOnError>,
+): RequestResult<
+  UpdateAllAgentsResponses,
+  UpdateAllAgentsErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).post<
+    UpdateAllAgentsResponses,
+    UpdateAllAgentsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/ai/agents/update-all",
+    ...options,
+  });
+
 export const serveRecordingMeetingsMeetingIdRecordingsRoleGet = <
   ThrowOnError extends boolean = false,
 >(
@@ -681,4 +578,8 @@ export const serveRecordingMeetingsMeetingIdRecordingsRoleGet = <
     ServeRecordingMeetingsMeetingIdRecordingsRoleGetResponses,
     ServeRecordingMeetingsMeetingIdRecordingsRoleGetErrors,
     ThrowOnError
-  >({ url: "/meetings/{meeting_id}/recordings/{role}", ...options });
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/meetings/{meeting_id}/recordings/{role}",
+    ...options,
+  });

@@ -43,7 +43,15 @@ const SuggestionModeSchema = z.enum([
 
 export const InboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("status"), text: z.string() }),
-  z.object({ type: z.literal("meeting_state"), running: z.boolean() }),
+  z.object({
+    type: z.literal("meeting_state"),
+    running: z.boolean(),
+    saved: z.boolean().optional(),
+    end_status: z
+      .enum(["completed", "interrupted", "unsaved", "stop_failed"])
+      .nullable()
+      .optional(),
+  }),
   z.object({
     type: z.literal("stt_state"),
     backend: z.string(),
@@ -61,13 +69,11 @@ export const InboundMessageSchema = z.discriminatedUnion("type", [
     reply_enabled: z.boolean(),
     reply_auto_generate: z.boolean().optional(),
     reply_agents: z.array(ReplyAgentSettingsSchema),
-    info_enabled: z.boolean(),
   }),
   z.object({
     type: z.literal("history_reset"),
     items: z.array(TurnItemSchema),
   }),
-  z.object({ type: z.literal("ai_note_updated"), text: z.string() }),
   z.object({ type: z.literal("error"), text: z.string() }),
   z.object({
     type: z.literal("audio_level"),
@@ -84,13 +90,6 @@ export const InboundMessageSchema = z.discriminatedUnion("type", [
     role: z.string(),
     device: z.string(),
     rate: z.number(),
-  }),
-  z.object({ type: z.literal("info_researching") }),
-  z.object({ type: z.literal("info_researching_finished") }),
-  z.object({
-    type: z.literal("info_chunk"),
-    text: z.string(),
-    final: z.boolean(),
   }),
   z.object({
     type: z.literal("stt_final"),

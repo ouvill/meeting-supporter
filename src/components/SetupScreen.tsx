@@ -26,7 +26,7 @@ import {
 import { DeviceSelect } from "./setup/DeviceSelect";
 import { ReferenceDocuments } from "./setup/ReferenceDocuments";
 import { contextWithFallback } from "./setup/setupUtils";
-import { Button, StickyActionBar } from "./ui";
+import { Button, InlineNotice, StickyActionBar } from "./ui";
 
 interface Props {
   state: SocketState;
@@ -69,16 +69,14 @@ export function SetupScreen({
   const [references, setReferences] = useState<ReferenceDocumentInput[]>([]);
   const monitors = state.devices.filter((device) => device.is_monitor);
   const mics = state.devices.filter((device) => !device.is_monitor);
-  const needsAudioPreparation = [
-    "local",
-    "whisper",
-    "reazonspeech",
-    "vosk",
-  ].includes(state.sttBackend);
+  const needsAudioPreparation = ["local", "whisper", "reazonspeech"].includes(
+    state.sttBackend,
+  );
   const audioLocked =
     state.sttInitialized || state.sttInitializing || state.sttInitRequested;
   const audioReady = !needsAudioPreparation || state.sttInitialized;
-  const canStart = state.connected && audioReady;
+  const stopFailed = state.meetingEndStatus === "stop_failed";
+  const canStart = state.connected && audioReady && !stopFailed;
   const replyFeatureEnabled = state.agentSettings.replyEnabled;
   const replyFeatureReady = replyFeatureEnabled && replyStatus.canGenerate;
   const replyReadinessLoading =
@@ -91,15 +89,17 @@ export function SetupScreen({
     replyFeatureEnabled &&
     (replyStatus.readiness === "error" ||
       replyStatus.readiness === "unavailable");
-  const startStatus = !state.connected
-    ? "接続を確認しています"
-    : !audioReady
-      ? "音声認識の準備が必要です"
-      : replyFeatureReady
-        ? "開始できます"
-        : replyReadinessLoading
-          ? "AIの準備を確認しています…"
-          : "会話の記録は開始できます。返答案は現在利用できません。";
+  const startStatus = stopFailed
+    ? "アプリの再起動が必要です"
+    : !state.connected
+      ? "接続を確認しています"
+      : !audioReady
+        ? "音声認識の準備が必要です"
+        : replyFeatureReady
+          ? "開始できます"
+          : replyReadinessLoading
+            ? "AIの準備を確認しています…"
+            : "会話の記録は開始できます。返答案は現在利用できません。";
   const startStatusDetail =
     canStart && !replyFeatureReady
       ? !replyFeatureEnabled
@@ -129,6 +129,34 @@ export function SetupScreen({
       className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-paper text-ink"
     >
       <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-8 pt-6 sm:px-7">
+        {state.meetingEndStatus && state.meetingEndStatus !== "completed" && (
+          <InlineNotice
+            className="mb-5"
+            tone={
+              state.meetingEndStatus === "interrupted" ? "warning" : "danger"
+            }
+            title={
+              stopFailed
+                ? "音声処理の停止を確認できませんでした"
+                : state.meetingEndStatus === "unsaved"
+                  ? "一部の記録を保存できませんでした"
+                  : "会議を中断しました"
+            }
+            action={
+              onHistory ? (
+                <Button variant="secondary" onClick={onHistory}>
+                  履歴を確認
+                </Button>
+              ) : undefined
+            }
+          >
+            {stopFailed
+              ? "アプリを再起動してください。保存済みの記録は履歴から確認できます。"
+              : state.meetingEndStatus === "unsaved"
+                ? "保存先の空き容量と状態を確認してください。保存済みの記録は履歴から確認できます。"
+                : "保存できた記録は履歴から確認できます。文字起こしや録音が欠けている可能性があります。"}
+          </InlineNotice>
+        )}
         <div className="mb-6 flex items-start gap-3">
           <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-sm">
             <Sparkles aria-hidden="true" size={18} />

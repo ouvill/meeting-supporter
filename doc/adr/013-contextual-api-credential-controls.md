@@ -1,6 +1,8 @@
 # ADR-013: API credential controlを利用箇所へ配置する
 
+- **Supersession**: 議事録生成とクラウド音声認識の提供範囲は [ADR-019](./019-local-speech-and-saved-history.md) で部分置換する。
 - **Status**: Accepted
+- **Partially superseded by**: [ADR-017](./017-acp-registry-and-shared-rust-client.md)（外部エージェントの command 設定を廃止し Registry へ統一）
 - **Date**: 2026-07-16
 - **Partially supersedes**: ADR-011 §2のAPI key配置
 - **Builds on**: ADR-009、ADR-010、ADR-011
@@ -30,7 +32,7 @@ ADR-011は一般設定へroute cardを表示しつつ、API keyを含む構成�
 
 ### 4. Advancedに残す構成値を限定する
 
-provider固有のmodel、Ollama/OpenAI-compatible endpoint、Vosk model path、ACP command、runtime診断はAdvancedに残す。API credentialの全provider一覧はAdvancedから削除する。一般surfaceへ表示できる構成値は、上記provider固有のSettings controlにある未保存API key入力と接続状態だけであり、保存済み値、model、endpoint、command、runtime診断は表示しない。
+provider固有のmodel、Ollama/OpenAI-compatible endpoint、ACP command、runtime診断はAdvancedに残す。API credentialの全provider一覧はAdvancedから削除する。一般surfaceへ表示できる構成値は、上記provider固有のSettings controlにある未保存API key入力と接続状態だけであり、保存済み値、model、endpoint、command、runtime診断は表示しない。
 
 ## Rejected Alternatives
 

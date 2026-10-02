@@ -18,7 +18,6 @@ vi.mock("../hooks/useBackendBootstrapStatus", () => ({
     apiPort: 8000,
     apiAuthToken: "token",
     bootstrap: { phase: "running", message: "Backend is ready." },
-    crashInfo: null,
   }),
 }));
 

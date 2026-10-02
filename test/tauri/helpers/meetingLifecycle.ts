@@ -5,11 +5,13 @@ import { expectDisplayedSurface } from "./displayedSurface";
 export async function prepareAudioIfNeeded(
   waitOptions: WaitOptions,
 ): Promise<void> {
-  const prepareButton = await $('//button[normalize-space()="音声を準備する"]');
+  const prepareButton = await $(
+    '//button[normalize-space()="音声認識を使えるようにする"]',
+  );
   if (!(await prepareButton.isExisting())) return;
   await prepareButton.waitForClickable(waitOptions);
   await prepareButton.click();
-  await $('//*[normalize-space()="音声の準備ができました"]').waitForExist(
+  await $('//*[normalize-space()="音声認識を使えます"]').waitForExist(
     waitOptions,
   );
 }

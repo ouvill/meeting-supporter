@@ -1,10 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import {
-  getOllamaModelsApiSettingsOllamaModelsGet,
-  startLoginApiAiRuntimesCodexLoginPost,
-} from "../../api/generated/sdk.gen";
+import { getOllamaModelsApiSettingsOllamaModelsGet } from "../../api/generated/sdk.gen";
 import type {
   AiRouteReadModel,
   AiRoutesController,
@@ -41,8 +37,6 @@ export function useSettingsForm({
   const connections = useConnectionSettings({
     form,
     setForm,
-    savedBaseline,
-    audioSettingsLocked,
     setFieldErrors,
     setSectionError,
     setSaveMessage,
@@ -52,45 +46,30 @@ export function useSettingsForm({
   const [ollamaMessageIsError, setOllamaMessageIsError] = useState(false);
 
   const speechModelBackend =
-    form.sttBackend === "vosk" ||
-    form.sttBackend === "whisper" ||
-    form.sttBackend === "reazonspeech"
+    form.sttBackend === "whisper" || form.sttBackend === "reazonspeech"
       ? form.sttBackend
       : null;
+  // Whisper uses the same multilingual model for automatic language detection.
   const speechModelLanguage =
-    form.sttLang === "ja" || form.sttLang === "en" ? form.sttLang : null;
+    form.sttLang === "ja" || form.sttLang === "en"
+      ? form.sttLang
+      : form.sttBackend === "whisper" && form.sttLang === "auto"
+        ? "ja"
+        : null;
   const speechModel = useSpeechModel(
-    speechModelBackend ?? "vosk",
+    speechModelBackend ?? "reazonspeech",
     speechModelBackend === "whisper"
       ? (form.sttWhisperModel as WhisperModelAlias)
       : null,
     speechModelLanguage,
     persistence.loaded && speechModelBackend !== null,
   );
-  const preparedSpeechModelPath =
-    speechModel.backend === "vosk" && speechModel.status?.state === "ready"
-      ? speechModel.status.model_path
-      : null;
-  persistence.trackPreparedSpeechModelPath(preparedSpeechModelPath);
-
-  useEffect(() => {
-    persistence.synchronizePreparedSpeechModelPath(preparedSpeechModelPath);
-  }, [persistence.synchronizePreparedSpeechModelPath, preparedSpeechModelPath]);
-
   const selectedRoutes = useMemo(
     () =>
       routes.routes.filter(
-        (route) =>
-          route.id === routes.draftAssignments.reply ||
-          route.id === routes.draftAssignments.info ||
-          route.id === routes.draftAssignments.minutes,
+        (route) => route.id === routes.draftAssignments.reply,
       ),
-    [
-      routes.draftAssignments.info,
-      routes.draftAssignments.minutes,
-      routes.draftAssignments.reply,
-      routes.routes,
-    ],
+    [routes.draftAssignments.reply, routes.routes],
   );
   const selectedRoute = selectedRoutes[0] ?? null;
   const busy = persistence.savingSettings || routes.saving;
@@ -179,32 +158,6 @@ export function useSettingsForm({
       await routes.reload();
       return;
     }
-    if (route.action === "install") {
-      try {
-        await openUrl("https://developers.openai.com/codex/cli/");
-      } catch {
-        setSectionError({
-          category: "support",
-          message:
-            "ブラウザを開けませんでした。既定のブラウザ設定を確認してください。",
-        });
-      }
-      return;
-    }
-    if (route.action !== "login") return;
-    try {
-      const { data, error } = await startLoginApiAiRuntimesCodexLoginPost();
-      if (error || !data) throw new Error("login unavailable");
-      const authUrl = new URL(data.auth_url);
-      if (authUrl.protocol !== "https:") throw new Error("unsafe login URL");
-      await openUrl(authUrl.href);
-    } catch {
-      setSectionError({
-        category: "support",
-        message:
-          "ログインを開始できませんでした。状態を再確認してからもう一度お試しください。",
-      });
-    }
   };
 
   const testOllamaConnection = async () => {
@@ -246,7 +199,6 @@ export function useSettingsForm({
   const save = () =>
     persistence.save({
       blocksSettingsSave: speechModel.blocksSettingsSave,
-      speechModelBackend: speechModel.backend,
       selectedRoutes,
       connectionStates: connections.connectionStates,
       pendingDeleteSecrets: connections.pendingDeleteSecrets,

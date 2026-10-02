@@ -1,7 +1,7 @@
 # Product Requirements
 
 - **Status**: Active
-- **Updated**: 2026-07-16
+- **Updated**: 2026-10-01
 - **Authority**: 何を提供するか、および現在の availability
 - **Vision**: [Product Vision](./vision.md)
 
@@ -22,10 +22,11 @@
 
 ### Meeting preparation
 
-- 音声認識の準備状態と入力デバイスを確認できる。
+- ローカルの Whisper / ReazonSpeech の準備状態と入力デバイスを確認できる。
 - 会議の場面、利用者の役割、相手の役割、目的、制約を任意で指定できる。
 - 対応する形式の参照資料を会議文脈へ追加できる。
 - 開始できない場合は、理由と復旧操作を示す。
+- Rust 構成で中断した会議は保存済みの記録を履歴から確認・削除できる。記録の欠落と処理の停止失敗を分け、停止・回収と保存先を確認できれば次の会議を開始できる。詳細は [ADR-018](../adr/018-interrupted-meeting-history.md) に従う。
 
 ### Live assistance
 
@@ -46,19 +47,21 @@
 - 保存された会議を一覧・詳細で確認できる。
 - 会話、返答案、利用可能な録音を確認できる。
 - 会議タイトルを変更し、不要な会議を確認付きで削除できる。
-- 会議後の要約はライブ返答の補助成果物として扱う。
+- 保存済みの議事録は閲覧できる。議事録の新規生成・再生成と生成経路の設定は提供しない。
 
 ### Setup and recovery
 
 - 一般設定では「どの方法でAIを使うか」「準備できているか」「データをどこで処理するか」「誰が費用を負担するか」を理解できる。
-- 一般設定ではOpenAI、Gemini、Anthropic、Ollama、Codex、ACPの経路名とroute cardを表示してよい。Gemini、OpenAI、AnthropicのAPIキーは対応する支援方法card、Deepgram、OpenAI、xAIのAPIキーは選択中の音声provider直下にあるprovider固有controlで入力・確認する。
+- 一般設定ではOpenAI、Gemini、Anthropic、Ollama、ACPエージェントの経路名とroute cardを表示してよい。Gemini、OpenAI、AnthropicのAPIキーは返答生成用の対応する支援方法cardで入力・確認する。音声認識用のAPIキー設定は提供しない。
 - provider固有controlは保存済みAPIキーの値を再表示しない。model識別子、endpoint、command、runtime診断は上級者向け設定に置く。
 - 接続テストまたは状態確認が失敗した場合は、同じprovider固有controlに秘密情報を含まない復旧案を示す。
 - 未保存の設定変更がある状態で閉じるときは、`変更を破棄して閉じる`または`設定に戻る`を求める。破棄はform、secret draft/deletion、route選択をsaved baselineへ戻してから一度だけ閉じる。変更がなければ確認を挟まない。
 
+Rust 構成の設定はバージョン付きの専用形式とし、旧設定は自動移行しない。再設定しても会議記録は保持する。詳細は [ADR-020](../adr/020-versioned-rust-settings.md) に従う。
+
 ### Hosted service boundary
 
-Meeting Supporterが運営するhosted serviceのserver実装・運用文書は、このOSSリポジトリに含まれない。通常のOSS buildではhosted serviceは未設定で利用できず、`not_offered`かつ`selectable = false`としてfail closedする。local STT、利用者自身のAPI credential、Ollama、Codex、ACPはhosted accountなしで利用できる。
+Meeting Supporterが運営するhosted serviceのserver実装・運用文書は、このOSSリポジトリに含まれない。通常のOSS buildではhosted serviceは未設定で利用できず、`not_offered`かつ`selectable = false`としてfail closedする。local STT、利用者自身のAPI credential、Ollama、ACPエージェントはhosted accountなしで利用できる。
 
 ## AI Route Availability
 
@@ -68,17 +71,20 @@ Meeting Supporterが運営するhosted serviceのserver実装・運用文書は�
 - `experimental`: 試験提供。明示ラベル、既知の制約、失敗時の復旧手段が必要。
 - `planned`: 方針上の候補だが、現在は利用できない。
 
-readiness は availability と分ける。`ready`、`setup_required`、`unavailable`、`unknown`、`error`、`not_offered` など、現在の利用準備状態を表す。`selectable` はroute policyとして別に返し、UIで推測しない。Codex/ACPは`ready`のときだけ選択可能、BYOK/localは利用箇所で設定へ進むため選択可能とする。hosted serviceが未設定の通常buildは`not_offered/selectable=false`とする。生成実行はrouteにかかわらず`ready`と必要capabilityを要求する。
+readiness は availability と分ける。`ready`、`setup_required`、`unavailable`、`unknown`、`error`、`not_offered` など、現在の利用準備状態を表す。`selectable` はroute policyとして別に返し、UIで推測しない。ACPエージェントは`ready`のときだけ選択可能、BYOK/localは利用箇所で設定へ進むため選択可能とする。hosted serviceが未設定の通常buildは`not_offered/selectable=false`とする。生成実行はrouteにかかわらず`ready`と必要capabilityを要求する。
 
 ### Current product truth
 
 | 利用者向け経路          | 対象                                           | availability | readiness                                                 |    selectable | データ                  | 費用負担         | 備考                                                                                                                                                                                                                   |
 | ----------------------- | ---------------------------------------------- | ------------ | --------------------------------------------------------- | ------------: | ----------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| このPCのChatGPTログイン | Codex App Serverを直接使う外部subscription経路 | `experimental` | 検出前は`unknown`、probe結果による                      | `ready`時のみ | 外部                    | 利用者の外部契約 | APIキー不要。手動replyと会議後に利用者が明示実行するminutesの生成・stream・cancelを対象とする。E2E品質は未確定で一般提供を主張しない。                                                                                 |
-| 外部エージェント連携    | generic ACP runtime                            | `experimental` | command未設定は`setup_required`                         | `ready`時のみ | 構成による              | 外部契約         | 一般設定に経路名、card、readinessを表示してよい。commandと診断は上級者向け設定で構成する。Codex専用経路とは別runtimeであり、Codex App ServerをACPとして扱わない。                                                      |
+| ACPエージェント | ACP Registryと共通Rust client | `experimental` | 導入・認証・接続の結果による | `ready`時のみ | 未確定 | 未確定 | 設定で追加・認証・更新・削除する。接続済みのエージェントを返答案に割り当てる。 |
 | 自分のAIサービス        | BYOK cloud inference                           | `available`  | credential未設定は`setup_required`                        |      **true** | 外部cloud               | 利用者           | 一般設定にOpenAI、Gemini、Anthropicなどのprovider名とroute cardを表示してよい。APIキーは対応するroute cardで入力・確認し、保存済み値、model識別子、endpointは表示しない。model識別子とendpointの編集はAdvancedに置く。 |
 | このPCで処理            | Ollama等のlocal inference                      | `available`  | service停止は`unavailable`、model未導入は`setup_required` |      **true** | localまたは指定endpoint | 利用者           | 一般設定にOllamaなどのservice名とroute cardを表示してよい。endpointとmodelの編集はAdvancedに置き、loopback以外はlocalと断定しない。                                                                                    |
 | Hosted service          | 通常のOSS buildでは未設定                      | `planned`    | `not_offered`                                             |     **false** | 未設定                  | 未設定           | server実装と運用文書はこのリポジトリに含まれない。                                                                                                                                                                    |
+
+Rust 構成の外部エージェント接続は [ADR-017](../adr/017-acp-registry-and-shared-rust-client.md) に従い、ACP Registry で導入した経路を共通 client で扱う。
+旧 Codex App Server 直接経路と手動 command の ACP 経路は廃止する。保存済みの旧割当は未選択として扱う。
+Registry 経路も experimental とし、認証・session 作成で ready を確認する。料金とデータ送信先はエージェント名から推測しない。
 
 ### Route read model
 
@@ -107,7 +113,7 @@ action
 - `availability`、`readiness`、`selectable` を別々に返し、UIで推測しない。
 - `selected = true` は `selectable = true` の経路に限る。
 - `data_location` と `billing_owner` を選択前に理解できる。
-- `capabilities` は実際に提供するユースケースだけを列挙する。Codexは `reply`、`minutes`、`stream`、`cancel` に限定する。
+- `capabilities` は実際に提供するユースケースだけを列挙する。ACPエージェントは `reply`、`stream`、`cancel` に限定する。
 - `reason_code`、`message`、`action` は安全な値とする。raw exception、prompt、stderr、token、credentialを返さない。
 
 ## Architecture-neutral Boundaries
@@ -129,7 +135,7 @@ use-caseはruntime種別を知らず、runtimeはroute表示文言を決めな�
 - credential、会議本文、生成prompt、token、raw subprocess出力を診断表示やroute responseへ含めない。
 - 利用者の操作なしに外部へ発話しない。
 - local表示は実際の接続先に基づき、remote endpointをlocalと誤表示しない。
-- desktop backendのlocal capability tokenは、その端末のTauri launcherが起動したprocessへの呼出しを確認するだけで、hosted serviceの利用者認証ではない。直接起動するPython backendと`python-server`はローカル開発・動作確認用であり、そのまま公開serviceとして運用しない。
+- desktop backendのlocal capability tokenは、その端末のTauri launcherが起動したprocessへの呼出しを確認するだけで、hosted serviceの利用者認証ではない。Rust API は loopback に限定し、外部公開用サーバーとしては扱わない。
 
 ### Reliability
 

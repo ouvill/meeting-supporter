@@ -1,7 +1,11 @@
 # ADR-009: Live Reply 中心の LLM use-case / runtime / provider 境界を採用する
 
+- **Supersession**: 議事録生成とクラウド音声認識の提供範囲は [ADR-019](./019-local-speech-and-saved-history.md) で部分置換する。
 - **Status**: Accepted
 - **Date**: 2026-07-08
+- **Updated**: 2026-09-30（情報 AI を機能・移植対象から削除）
+
+- **Partially superseded by**: [ADR-020](./020-versioned-rust-settings.md)（Rust の設定形式・旧設定と認証情報の扱い）
 
 ## Context
 
@@ -32,10 +36,6 @@ Product behavior の単位で分ける。
 - `ReplyPipeline`
   - Live Reply の主経路。
   - 会話文脈、meeting context、reference context、suggestion mode から「次の一言」を作る。
-- `InfoNoteUpdater`
-  - 会議中の hidden updater。
-  - AI note / context 補強 / 検索用メモ更新を扱う。
-  - user-visible な返答候補として扱わない。
 - `MinutesGenerator`
   - 会議後の議事録・要約生成。
   - Live Reply の同期 UX とは分ける。
@@ -51,7 +51,6 @@ Use-case layer は runtime 種別を直接知らない。Pydantic AI、ACP、Ope
 LLM / 外部 agent 実行方式の違いを吸収する。
 
 - `PydanticAIReplyAgentRuntime`
-- `PydanticAIInfoAgentRuntime`
 - `PydanticAIMinutesAgentRuntime`
 - `ACPReplyAgentRuntime`
 - future: `CodexRuntime`, `ClaudeSdkRuntime`, local runtime など
@@ -113,7 +112,6 @@ reply_enabled = true
 reply_auto_generate = false
 reply_main = true
 reply_polite = true
-info_enabled = true
 
 [[reply_agents]]
 id = "reply_main"
@@ -128,7 +126,6 @@ custom_instruction = ""
 ```toml
 [llm_assignments]
 reply_model = "gemini/gemini-3.1-flash-lite"
-info_model = "ollama/qwen3"
 minutes_model = "ollama/qwen3"
 ```
 
@@ -167,7 +164,7 @@ instruction = ""
 ### Pros
 
 - Live Reply を product の中心に置いたまま、LLM 実行方式だけを差し替えられる。
-- `reply`, `info`, `minutes` の責務境界が明確になる。
+- `reply`, `minutes` の責務境界が明確になる。
 - provider/model 解決と runtime construction が use-case wiring から分離される。
 - 未リリース前提のため、互換 shim を長期維持せず clean cutover できる。
 - ACP や subscription runtime は experimental / spike として隔離できる。
@@ -185,7 +182,7 @@ instruction = ""
 
 1. 内部の provider/model 解決と runtime construction を分離する。
 2. `factory.py` を bundle assembly / use-case wiring に縮小する。
-3. internal model を `ReplyPipeline` / `InfoNoteUpdater` / `MinutesGenerator` へ寄せる。
+3. internal model を `ReplyPipeline` / `MinutesGenerator` へ寄せる。
 4. UI 用語を「agent」から「返答スタイル / 提案モード」へ切り替える。
 5. `reply_agents` -> `reply.styles`、legacy `[agents].reply_main` / `[agents].reply_polite` 削除、Settings API / generated frontend types 更新を dedicated migration phase で clean cutover する。
 6. cutover 後に不要な compatibility shim を削除する。

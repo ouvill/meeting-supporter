@@ -1,4 +1,5 @@
 import { $, browser, expect } from "@wdio/globals";
+import type { WaitForOptions } from "webdriverio";
 
 const DEFAULT_WAIT_OPTIONS = {
   timeout: 15_000,
@@ -14,9 +15,9 @@ interface SurfaceMetrics {
 
 export async function expectDisplayedSurface(
   selector: string,
-  waitOptions: WebdriverIO.WaitForOptions = DEFAULT_WAIT_OPTIONS,
+  waitOptions: WaitForOptions = DEFAULT_WAIT_OPTIONS,
 ): Promise<WebdriverIO.Element> {
-  const surface = await $(selector);
+  const surface = await $(selector).getElement();
   await surface.waitForDisplayed(waitOptions);
 
   const metrics = await browser.execute<SurfaceMetrics, [WebdriverIO.Element]>(

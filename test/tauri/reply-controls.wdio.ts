@@ -1,11 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { $, browser, expect } from "@wdio/globals";
 import {
-  createAcpFixture,
-  removeAcpFixture,
-  type AcpFixture,
-} from "./helpers/acpFixture";
-import { localBackendRequest, waitForBackendReady } from "./helpers/backend";
+  createReplyFixture,
+  removeReplyFixture,
+  type ReplyFixture,
+} from "./helpers/replyFixture";
+import {
+  localBackendRequest,
+  syntheticSpeechSettings,
+  waitForBackendReady,
+} from "./helpers/backend";
 import { expectDisplayedSurface } from "./helpers/displayedSurface";
 import {
   finishMeeting,
@@ -23,13 +27,11 @@ interface RouteCatalog {
   }>;
   assignments: {
     reply: string | null;
-    info: string | null;
-    minutes: string | null;
   };
 }
 
 interface SettingsSnapshot {
-  acp: { command: string[] };
+  ollama: { base_url: string };
   stt: Record<string, unknown>;
   reply: {
     enabled: boolean;
@@ -43,7 +45,7 @@ const waitOptions = { timeout: 20_000, interval: 200 };
 const generationWaitOptions = { ...waitOptions, timeout: 90_000 };
 let settingsSnapshot: SettingsSnapshot | null = null;
 let routesSnapshot: RouteCatalog | null = null;
-let fixture: AcpFixture | null = null;
+let fixture: ReplyFixture | null = null;
 
 async function sendSyntheticSelfTurn(text: string): Promise<void> {
   await browser.tauri.execute(
@@ -102,26 +104,26 @@ async function waitForReplyText(expected?: string): Promise<void> {
 }
 
 async function configureFixture(initialInvocation?: number): Promise<void> {
-  fixture = await createAcpFixture({ initialInvocation });
+  fixture = await createReplyFixture({ initialInvocation });
   await localBackendRequest({
     path: "/api/settings",
     method: "POST",
     body: {
-      stt: { backend: "dummy" },
+      stt: await syntheticSpeechSettings(),
       reply: { enabled: true, auto_generate: false },
-      acp: { command: fixture.command },
+      ollama: { base_url: fixture.baseUrl },
     },
   });
   const configuredRoutes = await localBackendRequest<RouteCatalog>({
     path: "/api/ai/routes",
   });
   expect(
-    configuredRoutes.routes.find((route) => route.id === "acp"),
+    configuredRoutes.routes.find((route) => route.id === "ollama"),
   ).toMatchObject({ readiness: "ready", selectable: true });
   await localBackendRequest({
     path: "/api/ai/routes/assignments",
     method: "PUT",
-    body: { reply: "acp", info: null, minutes: null },
+    body: { reply: "ollama" },
   });
   await browser.refresh();
   await waitForBackendReady();
@@ -186,7 +188,7 @@ async function cleanupState(): Promise<void> {
                 enabled,
               })),
             },
-            acp: { command: settingsSnapshot.acp.command },
+            ollama: settingsSnapshot.ollama,
           },
         });
       }
@@ -199,7 +201,7 @@ async function cleanupState(): Promise<void> {
       await expectDisplayedSurface('[data-testid="setup-screen"]', waitOptions);
     },
     async () => {
-      if (fixture) await removeAcpFixture(fixture);
+      if (fixture) await removeReplyFixture(fixture);
     },
   ]) {
     try {
@@ -254,7 +256,7 @@ describe("Live reply controls", () => {
     await generate.click();
     const stop = await $('//button[normalize-space()="停止"]');
     await stop.waitForEnabled({ ...waitOptions, timeout: 5_000 });
-    if (!fixture) throw new Error("ACP fixture is missing");
+    if (!fixture) throw new Error("Reply fixture is missing");
     await browser.waitUntil(
       async () => {
         try {
@@ -265,7 +267,7 @@ describe("Live reply controls", () => {
       },
       {
         ...waitOptions,
-        timeoutMsg: "ACP fixture did not enter its first prompt",
+        timeoutMsg: "Reply fixture did not enter its first prompt",
       },
     );
     await stop.click();

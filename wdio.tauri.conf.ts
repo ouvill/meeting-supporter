@@ -1,17 +1,24 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Options } from "@wdio/types";
+import type { TauriCapabilities } from "@wdio/tauri-service";
 
 const configDir = path.dirname(fileURLToPath(import.meta.url));
-const appBinaryPath = path.resolve(
-  configDir,
-  "src-tauri",
-  "target",
-  "debug",
-  process.platform === "win32" ? "meeting-supporter.exe" : "meeting-supporter",
-);
+const appBinaryPath =
+  process.env.MEETING_E2E_APP ??
+  path.resolve(
+    configDir,
+    "src-tauri",
+    "target",
+    "debug",
+    process.platform === "win32"
+      ? "meeting-supporter.exe"
+      : "meeting-supporter",
+  );
+const capabilities: TauriCapabilities[] = [
+  { browserName: "tauri", "tauri:options": { application: appBinaryPath } },
+];
 
-export const config: Options.Testrunner = {
+export const config: WebdriverIO.Config = {
   runner: "local",
   logLevel: "error",
   specs: [
@@ -22,16 +29,8 @@ export const config: Options.Testrunner = {
       "./test/tauri/reply-controls.wdio.ts",
     ],
   ],
-  exclude: ["./test/tauri/live-codex.wdio.ts"],
   maxInstances: 1,
-  capabilities: [
-    {
-      browserName: "tauri",
-      "tauri:options": {
-        application: appBinaryPath,
-      },
-    },
-  ],
+  capabilities,
   services: [
     [
       "@wdio/tauri-service",

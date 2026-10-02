@@ -27,25 +27,19 @@ export type AiRouteAction = RouteAction;
 export type AiRouteReadModel = RouteReadModel;
 export type AiRouteAssignments = RouteAssignmentsReadModel;
 export type AiRouteCatalog = RouteCatalogResponse;
-export type AiAssignableUseCase = "reply" | "info" | "minutes";
+export type AiAssignableUseCase = "reply";
 export type AiRouteDraftAssignments = Record<
   AiAssignableUseCase,
   string | null
 >;
 
-const ASSIGNABLE_USE_CASES: readonly AiAssignableUseCase[] = [
-  "reply",
-  "info",
-  "minutes",
-];
+const ASSIGNABLE_USE_CASES: readonly AiAssignableUseCase[] = ["reply"];
 
 function normalizeAssignments(
   assignments: AiRouteAssignments | null | undefined,
 ): AiRouteDraftAssignments {
   return {
     reply: assignments?.reply ?? null,
-    info: assignments?.info ?? null,
-    minutes: assignments?.minutes ?? null,
   };
 }
 
@@ -84,14 +78,6 @@ const USE_CASE_ROUTE_MESSAGES: Record<
   reply: {
     unassigned: "返答案を利用する支援方法を設定してください。",
     unsupported: "選択した支援方法では返答案を利用できません。",
-  },
-  info: {
-    unassigned: "会話メモを利用する支援方法を設定してください。",
-    unsupported: "選択した支援方法では会話メモを利用できません。",
-  },
-  minutes: {
-    unassigned: "議事録を利用する支援方法を設定してください。",
-    unsupported: "選択した支援方法では議事録を利用できません。",
   },
 };
 
@@ -215,7 +201,9 @@ export function useAiRoutes() {
 
         catalogRef.current = result.data;
         setCatalog(result.data);
-        if (!(reason === "manual" && (preserveDraft || assignmentBecameDirty))) {
+        if (
+          !(reason === "manual" && (preserveDraft || assignmentBecameDirty))
+        ) {
           applyDraftAssignments(result.data.assignments);
         }
         if (reason === "manual") {
@@ -313,20 +301,18 @@ export function useAiRoutes() {
   }, [applyDraftAssignments, catalog, draftAssignments]);
 
   const assignmentDirty =
-    catalog !== null && !assignmentsAreEqual(draftAssignments, catalog.assignments);
+    catalog !== null &&
+    !assignmentsAreEqual(draftAssignments, catalog.assignments);
 
-  const assignedRoutes = useMemo<Record<
-    AiAssignableUseCase,
-    AiRouteReadModel | null
-  >>(() => {
+  const assignedRoutes = useMemo<
+    Record<AiAssignableUseCase, AiRouteReadModel | null>
+  >(() => {
     const findAssignedRoute = (useCase: AiAssignableUseCase) =>
       catalog?.routes.find(
         (route) => route.id === (catalog.assignments[useCase] ?? null),
       ) ?? null;
     return {
       reply: findAssignedRoute("reply"),
-      info: findAssignedRoute("info"),
-      minutes: findAssignedRoute("minutes"),
     };
   }, [catalog]);
   const routeStatuses = useMemo(
@@ -336,18 +322,6 @@ export function useAiRoutes() {
         error,
         assignedRouteId: catalog?.assignments.reply ?? null,
         selectedRoute: assignedRoutes.reply,
-      }),
-      info: resolveUseCaseRouteStatus("info", {
-        loading,
-        error,
-        assignedRouteId: catalog?.assignments.info ?? null,
-        selectedRoute: assignedRoutes.info,
-      }),
-      minutes: resolveUseCaseRouteStatus("minutes", {
-        loading,
-        error,
-        assignedRouteId: catalog?.assignments.minutes ?? null,
-        selectedRoute: assignedRoutes.minutes,
       }),
     }),
     [assignedRoutes, catalog?.assignments, error, loading],
@@ -362,8 +336,6 @@ export function useAiRoutes() {
     assignments: catalog?.assignments ?? null,
     assignedRoutes,
     replyStatus: routeStatuses.reply,
-    infoRouteStatus: routeStatuses.info,
-    minutesRouteStatus: routeStatuses.minutes,
     draftAssignments,
     assignmentDirty,
     setDraftAssignment,

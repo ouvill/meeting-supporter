@@ -38,7 +38,7 @@ jobs:
           tar -xzf "$archive" -C .gitleaks-bin gitleaks
 
       - name: Scan Git history
-        run: ./.gitleaks-bin/gitleaks git --redact=100 --no-banner .
+        run: ./.gitleaks-bin/gitleaks git --config .github/gitleaks.toml --redact=100 --no-banner .
 
       - name: Scan current tree
-        run: ./.gitleaks-bin/gitleaks dir --redact=100 --no-banner .
+        run: ./.gitleaks-bin/gitleaks dir --config .github/gitleaks.toml --redact=100 --no-banner .

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { client } from "./generated/client.gen";
 
 export interface RecordingCleanupRequest {
@@ -19,6 +20,19 @@ export interface RecordingCleanupExecution extends RecordingCleanupPreview {
   skipped_meeting_ids: string[];
 }
 
+const previewSchema = z.object({
+  candidate_meeting_ids: z.array(z.string()),
+  delete_count: z.number().int().nonnegative(),
+  delete_recording_bytes: z.number().int().nonnegative(),
+  total_recording_bytes_before: z.number().int().nonnegative(),
+  total_recording_bytes_after: z.number().int().nonnegative(),
+});
+const executionSchema = previewSchema.extend({
+  deleted_meeting_ids: z.array(z.string()),
+  failed_meeting_ids: z.array(z.string()),
+  skipped_meeting_ids: z.array(z.string()),
+});
+
 function apiHeaders(): Headers {
   const headers = new Headers({ "Content-Type": "application/json" });
   const configured = client.getConfig().headers;
@@ -33,6 +47,7 @@ function apiHeaders(): Headers {
 async function postJson<T>(
   path: string,
   body: RecordingCleanupRequest,
+  schema: z.ZodType<T>,
 ): Promise<T> {
   const baseUrl = client.getConfig().baseUrl ?? "";
   const response = await fetch(`${baseUrl.replace(/\/$/, "")}${path}`, {
@@ -43,17 +58,17 @@ async function postJson<T>(
   if (!response.ok) {
     throw new Error(`Recording cleanup request failed: ${response.status}`);
   }
-  return (await response.json()) as T;
+  return schema.parse(await response.json());
 }
 
 export function previewRecordingCleanup(
   body: RecordingCleanupRequest,
 ): Promise<RecordingCleanupPreview> {
-  return postJson("/meetings/recordings/cleanup/preview", body);
+  return postJson("/meetings/recordings/cleanup/preview", body, previewSchema);
 }
 
 export function executeRecordingCleanup(
   body: RecordingCleanupRequest,
 ): Promise<RecordingCleanupExecution> {
-  return postJson("/meetings/recordings/cleanup", body);
+  return postJson("/meetings/recordings/cleanup", body, executionSchema);
 }
