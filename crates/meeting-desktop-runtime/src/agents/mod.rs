@@ -51,6 +51,10 @@ pub enum AgentError {
     Connect,
     #[error("このエージェントのACPバージョンには対応していません。")]
     Protocol,
+    #[error("このエージェントはモデル変更に対応していません。")]
+    ModelUnsupported,
+    #[error("選択したモデルをこのエージェントで利用できません。接続を確認してください。")]
+    ModelUnavailable,
     #[error("エージェントへのログインが必要です。")]
     Auth,
     #[error("エージェントの処理中です。完了を待ってください。")]
@@ -172,7 +176,7 @@ impl Manager {
     }
     async fn accept_installation_with<F>(
         &self,
-        installed: Installed,
+        mut installed: Installed,
         verify: impl FnOnce(Launch, PathBuf) -> F,
     ) -> Result<bool, AgentError>
     where
@@ -184,6 +188,7 @@ impl Manager {
             keep: false,
         };
         let old = self.installed.lock().await.get(&id).cloned();
+        installed.model = old.as_ref().and_then(|record| record.model.clone());
         if old
             .as_ref()
             .is_some_and(|old| !updates::newer(installed.version(), old.version()))
@@ -268,6 +273,26 @@ impl Manager {
     ) -> Result<connection::Status, AgentError> {
         let launch = self.launch(id).await?;
         self.pool.connect(launch, self.cwd().await?, method).await
+    }
+    pub async fn select_model(
+        &self,
+        id: &str,
+        model: String,
+    ) -> Result<connection::Status, AgentError> {
+        if model.is_empty() || model.len() > 256 {
+            return Err(AgentError::ModelUnavailable);
+        }
+        let launch = self.launch(id).await?;
+        let status = self
+            .pool
+            .select_model(launch, self.cwd().await?, &model)
+            .await?;
+        let mut records = self.installed.lock().await;
+        let mut proposed = records.clone();
+        proposed.get_mut(id).ok_or(AgentError::NotInstalled)?.model = Some(model);
+        registry::save(&self.root, &proposed)?;
+        *records = proposed;
+        Ok(status)
     }
     pub async fn cwd(&self) -> Result<PathBuf, AgentError> {
         let path = self.root.join("workspace");

@@ -63,6 +63,9 @@ pub struct Installed {
     pub args: Vec<String>,
     pub env: BTreeMap<String, String>,
     pub node: bool,
+    /// ACP session model selected by the user. Older manifests omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 #[derive(Clone)]
 pub struct Launch {
@@ -70,6 +73,7 @@ pub struct Launch {
     pub command: PathBuf,
     pub args: Vec<String>,
     pub env: BTreeMap<String, String>,
+    pub model: Option<String>,
 }
 
 pub fn identifier(value: &str) -> bool {
@@ -255,6 +259,7 @@ impl Installed {
             command,
             args,
             env: self.env.clone(),
+            model: self.model.clone(),
         })
     }
 }
@@ -365,6 +370,7 @@ pub async fn install(root: &Path, entry: Entry) -> Result<Installed, AgentError>
         args,
         env,
         node,
+        model: None,
     })
 }
 enum BinaryFormat {
@@ -618,6 +624,7 @@ mod tests {
                 args: vec![],
                 env: BTreeMap::new(),
                 node: false,
+                model: None,
             },
         )]);
         save(temp.path(), &records).unwrap();

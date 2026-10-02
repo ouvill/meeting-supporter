@@ -68,7 +68,31 @@ fn main() {
             "session/new" => {
                 sessions += 1;
                 writeln!(log, "session").unwrap();
-                json!({"sessionId":format!("session-{sessions}")})
+                json!({"sessionId":format!("session-{sessions}"),"configOptions":[{
+                    "id":"model","name":"Model","category":"model","type":"select",
+                    "currentValue":"synthetic-fast","options":[
+                        {"value":"synthetic-fast","name":"Synthetic Fast"},
+                        {"value":"synthetic-accurate","name":"Synthetic Accurate"}
+                    ]
+                }]})
+            }
+            "session/set_config_option" => {
+                let requested = params["value"].as_str().unwrap_or("");
+                if !matches!(requested, "synthetic-fast" | "synthetic-accurate") {
+                    emit(
+                        &output,
+                        json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"unknown model"}}),
+                    );
+                    continue;
+                }
+                writeln!(log, "model:{requested}").unwrap();
+                json!({"configOptions":[{
+                    "id":"model","name":"Model","category":"model","type":"select",
+                    "currentValue":requested,"options":[
+                        {"value":"synthetic-fast","name":"Synthetic Fast"},
+                        {"value":"synthetic-accurate","name":"Synthetic Accurate"}
+                    ]
+                }]})
             }
             "session/close" => {
                 writeln!(log, "close").unwrap();

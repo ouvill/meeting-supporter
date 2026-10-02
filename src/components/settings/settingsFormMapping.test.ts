@@ -44,5 +44,11 @@ describe("settings save contract", () => {
       vad_sensitivity: 0.4,
       silence_duration: 0.8,
     });
+    expect(payload.ai_models).toEqual({
+      openai: "gpt-5.4-mini",
+      gemini: "gemini-3.1-flash-lite",
+      anthropic: "claude-haiku-4-5-20251001",
+      ollama: "qwen3",
+    });
   });
 });

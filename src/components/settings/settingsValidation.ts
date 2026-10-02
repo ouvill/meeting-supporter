@@ -32,6 +32,16 @@ export function validateSettingsForm(
   if (!["whisper", "reazonspeech", "dummy"].includes(form.sttBackend)) {
     errors.audio = "音声認識方式を選択してください。";
   }
+  if (
+    [
+      form.openaiModel,
+      form.geminiModel,
+      form.anthropicModel,
+      form.ollamaModel,
+    ].some((model) => !model.trim() || model.length > 256)
+  ) {
+    errors.advanced = "各AIサービスのモデル識別子を入力してください。";
+  }
   return errors;
 }
 

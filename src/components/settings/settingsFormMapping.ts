@@ -41,6 +41,10 @@ export const INITIAL_SETTINGS_FORM: SettingsForm = {
   secretsStatus: {},
   secretInputs: {},
   ollamaBaseUrl: "http://localhost:11434/v1",
+  openaiModel: "gpt-5.4-mini",
+  geminiModel: "gemini-3.1-flash-lite",
+  anthropicModel: "claude-haiku-4-5-20251001",
+  ollamaModel: "qwen3",
   sttBackend: "reazonspeech",
   sttWhisperModel: "large-v3-turbo",
   sttDevice: "auto",
@@ -104,6 +108,11 @@ export function mapSettingsResponseToForm(
     ),
     secretInputs: {},
     ollamaBaseUrl: settings.ollama?.base_url ?? "http://localhost:11434/v1",
+    openaiModel: settings.ai_models?.openai ?? "gpt-5.4-mini",
+    geminiModel: settings.ai_models?.gemini ?? "gemini-3.1-flash-lite",
+    anthropicModel:
+      settings.ai_models?.anthropic ?? "claude-haiku-4-5-20251001",
+    ollamaModel: settings.ai_models?.ollama ?? "qwen3",
     sttBackend,
     sttDevice: getTomlString(settings.stt, "device") ?? "auto",
     sttWhisperModel:
@@ -160,6 +169,12 @@ export function mapSettingsFormToPayload(
       })),
     },
     ollama: { base_url: form.ollamaBaseUrl },
+    ai_models: {
+      openai: form.openaiModel.trim(),
+      gemini: form.geminiModel.trim(),
+      anthropic: form.anthropicModel.trim(),
+      ollama: form.ollamaModel.trim(),
+    },
     ...(savedBaseline === null ||
     STT_FORM_FIELDS.some((field) => form[field] !== savedBaseline[field])
       ? {

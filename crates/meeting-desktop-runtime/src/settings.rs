@@ -33,6 +33,7 @@ impl Secrets for UnavailableSecrets {
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Patch {
+    pub ai_models: Option<Map<String, Value>>,
     pub stt: Option<Map<String, Value>>,
     pub audio: Option<Map<String, Value>>,
     pub reply: Option<Map<String, Value>>,
@@ -158,6 +159,12 @@ impl Store {
         Ok(json!({
             "stt":document.stt,"audio":document.audio,
             "ollama":{"base_url":self.route_url(Provider::Ollama)},
+            "ai_models":{
+                "openai":self.route_model(Provider::Openai),
+                "gemini":self.route_model(Provider::Gemini),
+                "anthropic":self.route_model(Provider::Anthropic),
+                "ollama":self.route_model(Provider::Ollama),
+            },
             "reply":{"enabled":document.reply.enabled,"auto_generate":document.reply.auto_generate,
                 "default_style":document.reply.default_style,"styles":styles},
             "secrets":secrets,"providers":[],"data_dir":self.directory,"context_dir":self.context_dir(),
@@ -199,6 +206,19 @@ impl Store {
                         .ok_or_else(invalid)?;
                     routes.entry("ollama").or_insert_with(|| json!({}))[key] = value.clone();
                 }
+            }
+        }
+        if let Some(models) = &patch.ai_models {
+            for (key, value) in models {
+                if !matches!(key.as_str(), "openai" | "gemini" | "anthropic" | "ollama")
+                    || value.as_str().is_none()
+                {
+                    return Err(invalid());
+                }
+                let routes = document["ai"]["routes"]
+                    .as_object_mut()
+                    .ok_or_else(invalid)?;
+                routes.entry(key).or_insert_with(|| json!({}))["model"] = value.clone();
             }
         }
         if let Some(reply) = &patch.reply {

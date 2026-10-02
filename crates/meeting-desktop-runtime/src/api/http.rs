@@ -291,6 +291,19 @@ impl HttpApi {
         response(operations::connection_test(api.clone(), request(body.0)?).await?)
     }
     #[oai(
+        path = "/api/settings/ai/models",
+        method = "get",
+        operation_id = "get_ai_models"
+    )]
+    async fn ai_models(
+        &self,
+        Data(api): Data<&Api>,
+        _auth: DesktopAuth,
+        provider: Query<ConnectionProvider>,
+    ) -> Reply<AiModelsResponse> {
+        response(operations::ai_models(api.clone(), request(provider.0)?).await?)
+    }
+    #[oai(
         path = "/api/ai/agents",
         method = "get",
         operation_id = "get_agent_catalog"
@@ -338,6 +351,20 @@ impl HttpApi {
             )
             .await?,
         )
+    }
+    #[oai(
+        path = "/api/ai/agents/:id/model",
+        method = "put",
+        operation_id = "select_agent_model"
+    )]
+    async fn select_agent_model(
+        &self,
+        Data(api): Data<&Api>,
+        _auth: DesktopAuth,
+        id: Path<String>,
+        body: Json<AgentModelRequest>,
+    ) -> Reply<AgentStatus> {
+        response(agents::select_model(api.clone(), id.0, body.0.model).await?)
     }
     #[oai(
         path = "/api/ai/agents/:id",

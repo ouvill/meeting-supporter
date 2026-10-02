@@ -25,6 +25,20 @@ pub struct AgentStatus {
     pub ready: bool,
     pub message: String,
     pub auth_methods: Vec<AgentAuthMethod>,
+    #[oai(nullable)]
+    pub model: Option<AgentModelSelector>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Object)]
+pub struct AgentModelOption {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, Object)]
+pub struct AgentModelSelector {
+    pub current: String,
+    pub options: Vec<AgentModelOption>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Object)]
@@ -60,6 +74,13 @@ pub struct AgentCatalog {
 pub struct AgentConnectRequest {
     #[oai(nullable)]
     pub method: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Object)]
+#[serde(deny_unknown_fields)]
+#[oai(deny_unknown_fields)]
+pub struct AgentModelRequest {
+    pub model: String,
 }
 
 #[derive(Clone, Serialize, Deserialize, Object)]

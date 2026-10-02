@@ -24,6 +24,9 @@ import type {
   GetAgentCatalogData,
   GetAgentCatalogErrors,
   GetAgentCatalogResponses,
+  GetAiModelsData,
+  GetAiModelsErrors,
+  GetAiModelsResponses,
   GetAiRoutesApiAiRoutesGetData,
   GetAiRoutesApiAiRoutesGetErrors,
   GetAiRoutesApiAiRoutesGetResponses,
@@ -66,6 +69,9 @@ import type {
   SaveSettingsApiSettingsPostData,
   SaveSettingsApiSettingsPostErrors,
   SaveSettingsApiSettingsPostResponses,
+  SelectAgentModelData,
+  SelectAgentModelErrors,
+  SelectAgentModelResponses,
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetData,
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetErrors,
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetResponses,
@@ -485,6 +491,19 @@ export const testConnectionApiSettingsConnectionsTestPost = <
     },
   });
 
+export const getAiModels = <ThrowOnError extends boolean = false>(
+  options: Options<GetAiModelsData, ThrowOnError>,
+): RequestResult<GetAiModelsResponses, GetAiModelsErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    GetAiModelsResponses,
+    GetAiModelsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/settings/ai/models",
+    ...options,
+  });
+
 export const getAgentCatalog = <ThrowOnError extends boolean = false>(
   options?: Options<GetAgentCatalogData, ThrowOnError>,
 ): RequestResult<
@@ -525,6 +544,27 @@ export const connectAgent = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/ai/agents/{id}/connect",
+    ...options,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...options.headers,
+    },
+  });
+
+export const selectAgentModel = <ThrowOnError extends boolean = false>(
+  options: Options<SelectAgentModelData, ThrowOnError>,
+): RequestResult<
+  SelectAgentModelResponses,
+  SelectAgentModelErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).put<
+    SelectAgentModelResponses,
+    SelectAgentModelErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/ai/agents/{id}/model",
     ...options,
     headers: {
       "Content-Type": "application/json; charset=utf-8",

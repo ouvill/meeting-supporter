@@ -5,6 +5,7 @@ import {
   getAgentCatalog,
   installAgent,
   removeAgent,
+  selectAgentModel,
   updateAllAgents,
   type AgentCatalog,
   type RegistryAgent,
@@ -267,6 +268,36 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
                 </span>
               </div>
               <p className="mt-2 text-xs text-ink-muted">{agent.description}</p>
+              {agent.status.ready && agent.status.model && (
+                <label className="mt-3 block text-xs font-medium text-ink">
+                  モデル
+                  <select
+                    className="field mt-1 w-full"
+                    aria-label={`${agent.name}のモデル`}
+                    value={agent.status.model.current}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      const model = event.target.value;
+                      void perform(
+                        `${agent.name}のモデルを変更しています`,
+                        async () => {
+                          const status = await selectAgentModel(
+                            agent.id,
+                            model,
+                          );
+                          if (mounted.current) setMessage(status.message);
+                        },
+                      );
+                    }}
+                  >
+                    {agent.status.model.options.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {!agent.installed_version && agent.distribution === "npm" && (
                 <p className="mt-2 text-xs text-ink-muted">
                   導入にはNode.jsとnpmが必要です。

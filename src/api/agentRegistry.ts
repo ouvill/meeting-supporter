@@ -5,6 +5,13 @@ const statusSchema = z.object({
   ready: z.boolean(),
   message: z.string(),
   auth_methods: z.array(z.object({ id: z.string(), name: z.string() })),
+  model: z
+    .object({
+      current: z.string(),
+      options: z.array(z.object({ id: z.string(), name: z.string() })),
+    })
+    .nullable()
+    .optional(),
 });
 const agentSchema = z.object({
   id: z.string(),
@@ -89,6 +96,15 @@ export async function connectAgent(id: string, method?: string) {
     url: `/api/ai/agents/${encodeURIComponent(id)}/connect`,
     headers: { "Content-Type": "application/json" },
     body: method ? { method } : {},
+  });
+  if (error) throw failure(error);
+  return parse(statusSchema, data);
+}
+export async function selectAgentModel(id: string, model: string) {
+  const { data, error } = await client.put({
+    url: `/api/ai/agents/${encodeURIComponent(id)}/model`,
+    headers: { "Content-Type": "application/json" },
+    body: { model },
   });
   if (error) throw failure(error);
   return parse(statusSchema, data);

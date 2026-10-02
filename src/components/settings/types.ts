@@ -39,6 +39,10 @@ export interface SettingsForm {
   secretsStatus: Record<string, boolean>;
   secretInputs: Record<string, string>;
   ollamaBaseUrl: string;
+  openaiModel: string;
+  geminiModel: string;
+  anthropicModel: string;
+  ollamaModel: string;
   sttBackend: string;
   sttWhisperModel: string;
   sttDevice: string;

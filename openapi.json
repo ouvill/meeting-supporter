@@ -2240,6 +2240,130 @@
         "operationId": "test_connection_api_settings_connections_test_post"
       }
     },
+    "/api/settings/ai/models": {
+      "get": {
+        "parameters": [
+          {
+            "name": "provider",
+            "schema": {
+              "$ref": "#/components/schemas/ConnectionProvider"
+            },
+            "in": "query",
+            "required": true,
+            "deprecated": false,
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModelsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DesktopAuth": []
+          }
+        ],
+        "operationId": "get_ai_models"
+      }
+    },
     "/api/ai/agents": {
       "get": {
         "parameters": [
@@ -2621,6 +2745,140 @@
           }
         ],
         "operationId": "connect_agent"
+      }
+    },
+    "/api/ai/agents/{id}/model": {
+      "put": {
+        "parameters": [
+          {
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "required": true,
+            "deprecated": false,
+            "explode": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json; charset=utf-8": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request or runtime error",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DesktopAuth": []
+          }
+        ],
+        "operationId": "select_agent_model"
       }
     },
     "/api/ai/agents/{id}": {
@@ -3211,6 +3469,53 @@
           }
         }
       },
+      "AgentModelOption": {
+        "type": "object",
+        "title": "AgentModelOption",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "AgentModelRequest": {
+        "type": "object",
+        "title": "AgentModelRequest",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          }
+        }
+      },
+      "AgentModelSelector": {
+        "type": "object",
+        "title": "AgentModelSelector",
+        "required": [
+          "current",
+          "options"
+        ],
+        "properties": {
+          "current": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentModelOption"
+            }
+          }
+        }
+      },
       "AgentStatus": {
         "type": "object",
         "title": "AgentStatus",
@@ -3231,6 +3536,17 @@
             "items": {
               "$ref": "#/components/schemas/AgentAuthMethod"
             }
+          },
+          "model": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AgentModelSelector"
+              },
+              {
+                "nullable": true
+              }
+            ]
           }
         }
       },
@@ -3270,6 +3586,95 @@
             "items": {
               "$ref": "#/components/schemas/AgentUpdateResult"
             }
+          }
+        }
+      },
+      "AiModelOption": {
+        "type": "object",
+        "title": "AiModelOption",
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "AiModelsConfig": {
+        "type": "object",
+        "title": "AiModelsConfig",
+        "required": [
+          "openai",
+          "gemini",
+          "anthropic",
+          "ollama"
+        ],
+        "properties": {
+          "openai": {
+            "type": "string"
+          },
+          "gemini": {
+            "type": "string"
+          },
+          "anthropic": {
+            "type": "string"
+          },
+          "ollama": {
+            "type": "string"
+          }
+        }
+      },
+      "AiModelsPayload": {
+        "type": "object",
+        "title": "AiModelsPayload",
+        "properties": {
+          "openai": {
+            "type": "string",
+            "nullable": true
+          },
+          "gemini": {
+            "type": "string",
+            "nullable": true
+          },
+          "anthropic": {
+            "type": "string",
+            "nullable": true
+          },
+          "ollama": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AiModelsResponse": {
+        "type": "object",
+        "title": "AiModelsResponse",
+        "required": [
+          "ok",
+          "provider",
+          "models"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/ConnectionProvider"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiModelOption"
+            }
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -4340,6 +4745,7 @@
         "title": "SettingsResponse",
         "required": [
           "ollama",
+          "ai_models",
           "stt",
           "audio",
           "reply",
@@ -4353,6 +4759,9 @@
         "properties": {
           "ollama": {
             "$ref": "#/components/schemas/OllamaConfig"
+          },
+          "ai_models": {
+            "$ref": "#/components/schemas/AiModelsConfig"
           },
           "stt": {
             "$ref": "#/components/schemas/SttSettings"
@@ -4390,6 +4799,17 @@
         "type": "object",
         "title": "SettingsSaveRequest",
         "properties": {
+          "ai_models": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiModelsPayload"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
           "ollama": {
             "nullable": true,
             "allOf": [

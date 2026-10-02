@@ -41,12 +41,36 @@ export type AgentInstallResponse = {
 };
 
 /**
+ * AgentModelOption
+ */
+export type AgentModelOption = {
+  id: string;
+  name: string;
+};
+
+/**
+ * AgentModelRequest
+ */
+export type AgentModelRequest = {
+  model: string;
+};
+
+/**
+ * AgentModelSelector
+ */
+export type AgentModelSelector = {
+  current: string;
+  options: Array<AgentModelOption>;
+};
+
+/**
  * AgentStatus
  */
 export type AgentStatus = {
   ready: boolean;
   message: string;
   auth_methods: Array<AgentAuthMethod>;
+  model?: (AgentModelSelector & unknown) | null;
 };
 
 /**
@@ -64,6 +88,44 @@ export type AgentUpdateResult = {
  */
 export type AgentUpdatesResponse = {
   results: Array<AgentUpdateResult>;
+};
+
+/**
+ * AiModelOption
+ */
+export type AiModelOption = {
+  id: string;
+  label: string;
+};
+
+/**
+ * AiModelsConfig
+ */
+export type AiModelsConfig = {
+  openai: string;
+  gemini: string;
+  anthropic: string;
+  ollama: string;
+};
+
+/**
+ * AiModelsPayload
+ */
+export type AiModelsPayload = {
+  openai?: string | null;
+  gemini?: string | null;
+  anthropic?: string | null;
+  ollama?: string | null;
+};
+
+/**
+ * AiModelsResponse
+ */
+export type AiModelsResponse = {
+  ok: boolean;
+  provider: ConnectionProvider;
+  models: Array<AiModelOption>;
+  message?: string | null;
 };
 
 /**
@@ -502,6 +564,7 @@ export type SettingsConflictDetail = {
  */
 export type SettingsResponse = {
   ollama: OllamaConfig;
+  ai_models: AiModelsConfig;
   stt: SttSettings;
   audio: AudioSettings;
   reply: ReplySettings;
@@ -517,6 +580,7 @@ export type SettingsResponse = {
  * SettingsSaveRequest
  */
 export type SettingsSaveRequest = {
+  ai_models?: (AiModelsPayload & unknown) | null;
   ollama?: (OllamaConfigPayload & unknown) | null;
   reply?: (ReplySettingsPayload & unknown) | null;
   secrets?: (SecretsPayload & unknown) | null;
@@ -1695,6 +1759,63 @@ export type TestConnectionApiSettingsConnectionsTestPostResponses = {
 export type TestConnectionApiSettingsConnectionsTestPostResponse =
   TestConnectionApiSettingsConnectionsTestPostResponses[keyof TestConnectionApiSettingsConnectionsTestPostResponses];
 
+export type GetAiModelsData = {
+  body?: never;
+  path?: never;
+  query: {
+    provider: ConnectionProvider;
+  };
+  url: "/api/settings/ai/models";
+};
+
+export type GetAiModelsErrors = {
+  /**
+   * Request or runtime error
+   */
+  400: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  401: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  403: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  404: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  409: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  413: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  422: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  500: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  503: ErrorResponse;
+};
+
+export type GetAiModelsError = GetAiModelsErrors[keyof GetAiModelsErrors];
+
+export type GetAiModelsResponses = {
+  200: AiModelsResponse;
+};
+
+export type GetAiModelsResponse =
+  GetAiModelsResponses[keyof GetAiModelsResponses];
+
 export type GetAgentCatalogData = {
   body?: never;
   path?: never;
@@ -1866,6 +1987,64 @@ export type ConnectAgentResponses = {
 
 export type ConnectAgentResponse =
   ConnectAgentResponses[keyof ConnectAgentResponses];
+
+export type SelectAgentModelData = {
+  body: AgentModelRequest;
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/api/ai/agents/{id}/model";
+};
+
+export type SelectAgentModelErrors = {
+  /**
+   * Request or runtime error
+   */
+  400: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  401: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  403: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  404: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  409: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  413: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  422: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  500: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  503: ErrorResponse;
+};
+
+export type SelectAgentModelError =
+  SelectAgentModelErrors[keyof SelectAgentModelErrors];
+
+export type SelectAgentModelResponses = {
+  200: AgentStatus;
+};
+
+export type SelectAgentModelResponse =
+  SelectAgentModelResponses[keyof SelectAgentModelResponses];
 
 export type RemoveAgentData = {
   body?: never;

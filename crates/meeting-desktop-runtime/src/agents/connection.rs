@@ -23,11 +23,36 @@ pub struct Status {
     pub ready: bool,
     pub auth_methods: Vec<AuthMethod>,
     pub message: String,
+    pub model: Option<ModelSelector>,
 }
 #[derive(Clone, Serialize)]
 pub struct AuthMethod {
     pub id: String,
     pub name: String,
+}
+#[derive(Clone, Serialize, PartialEq, Eq)]
+pub struct ModelOption {
+    pub id: String,
+    pub name: String,
+}
+#[derive(Clone, Serialize, PartialEq, Eq)]
+pub struct ModelSelector {
+    pub current: String,
+    pub options: Vec<ModelOption>,
+}
+
+/// Model support is discovered per ACP session. Keeping unsupported and
+/// selectable sessions distinct prevents sending an invented config id.
+enum ModelCapability {
+    Unsupported,
+    Selectable {
+        config_id: acp::SessionConfigId,
+        selector: ModelSelector,
+    },
+}
+struct Session {
+    id: acp::SessionId,
+    model: ModelCapability,
 }
 pub enum Chunk {
     Text(String),
@@ -42,7 +67,7 @@ struct Connection {
     overflow: Arc<AtomicBool>,
     auth_methods: Vec<AuthMethod>,
     close_supported: bool,
-    idle_session: Option<acp::SessionId>,
+    idle_session: Option<Session>,
     completed: usize,
 }
 struct TransportTask(JoinHandle<()>);
@@ -188,20 +213,32 @@ impl Connection {
             .is_some();
         Ok(connection)
     }
-    async fn session(&mut self, cwd: PathBuf) -> Result<acp::SessionId, AgentError> {
-        if let Some(id) = self.idle_session.take() {
-            return Ok(id);
+    async fn session(
+        &mut self,
+        cwd: PathBuf,
+        requested_model: Option<&str>,
+    ) -> Result<Session, AgentError> {
+        let mut session = if let Some(session) = self.idle_session.take() {
+            session
+        } else {
+            let response = tokio::time::timeout(
+                Duration::from_secs(30),
+                self.peer
+                    .send_request(acp::NewSessionRequest::new(cwd))
+                    .block_task(),
+            )
+            .await
+            .map_err(|_| AgentError::Timeout)?
+            .map_err(map_error)?;
+            Session {
+                id: response.session_id,
+                model: model_capability(response.config_options.unwrap_or_default()),
+            }
+        };
+        if let Some(requested) = requested_model {
+            session.select_model(&self.peer, requested).await?;
         }
-        let response = tokio::time::timeout(
-            Duration::from_secs(30),
-            self.peer
-                .send_request(acp::NewSessionRequest::new(cwd))
-                .block_task(),
-        )
-        .await
-        .map_err(|_| AgentError::Timeout)?
-        .map_err(map_error)?;
-        Ok(response.session_id)
+        Ok(session)
     }
     async fn close_session(&self, id: acp::SessionId) {
         if self.close_supported {
@@ -213,6 +250,98 @@ impl Connection {
             )
             .await;
         }
+    }
+}
+
+impl Session {
+    fn selector(&self) -> Option<ModelSelector> {
+        match &self.model {
+            ModelCapability::Unsupported => None,
+            ModelCapability::Selectable { selector, .. } => Some(selector.clone()),
+        }
+    }
+
+    async fn select_model(
+        &mut self,
+        peer: &ConnectionTo<Agent>,
+        requested: &str,
+    ) -> Result<(), AgentError> {
+        let ModelCapability::Selectable {
+            config_id,
+            selector,
+        } = &mut self.model
+        else {
+            return Err(AgentError::ModelUnsupported);
+        };
+        if !selector.options.iter().any(|option| option.id == requested) {
+            return Err(AgentError::ModelUnavailable);
+        }
+        if selector.current == requested {
+            return Ok(());
+        }
+        let response = tokio::time::timeout(
+            Duration::from_secs(30),
+            peer.send_request(acp::SetSessionConfigOptionRequest::new(
+                self.id.clone(),
+                config_id.clone(),
+                acp::SessionConfigValueId::new(requested.to_owned()),
+            ))
+            .block_task(),
+        )
+        .await
+        .map_err(|_| AgentError::Timeout)?
+        .map_err(map_error)?;
+        let updated = model_capability(response.config_options);
+        match updated {
+            ModelCapability::Selectable {
+                selector: ref updated_selector,
+                ..
+            } if updated_selector.current == requested => {
+                self.model = updated;
+                Ok(())
+            }
+            _ => Err(AgentError::ModelUnavailable),
+        }
+    }
+}
+
+fn model_capability(options: Vec<acp::SessionConfigOption>) -> ModelCapability {
+    let Some(option) = options.into_iter().find(|option| {
+        matches!(
+            option.category,
+            Some(acp::SessionConfigOptionCategory::Model)
+        ) || (option.category.is_none() && option.id.to_string() == "model")
+    }) else {
+        return ModelCapability::Unsupported;
+    };
+    let acp::SessionConfigKind::Select(select) = option.kind else {
+        return ModelCapability::Unsupported;
+    };
+    let options = match select.options {
+        acp::SessionConfigSelectOptions::Ungrouped(options) => options,
+        acp::SessionConfigSelectOptions::Grouped(groups) => {
+            groups.into_iter().flat_map(|group| group.options).collect()
+        }
+        _ => return ModelCapability::Unsupported,
+    };
+    let selector = ModelSelector {
+        current: select.current_value.to_string(),
+        options: options
+            .into_iter()
+            .map(|option| ModelOption {
+                id: option.value.to_string(),
+                name: option.name.chars().take(120).collect(),
+            })
+            .filter(|option| !option.id.is_empty() && option.id.len() <= 256)
+            .collect(),
+    };
+    if selector.options.iter().any(|o| o.id == selector.current) {
+        ModelCapability::Selectable {
+            config_id: option.id,
+            selector,
+        }
+    } else {
+        ModelCapability::Unsupported
     }
 }
 fn map_error(error: acp::Error) -> AgentError {
@@ -258,6 +387,7 @@ impl Pool {
         method: Option<String>,
     ) -> Result<Status, AgentError> {
         let slot = self.slot(&launch.id).await;
+        let requested_model = launch.model.clone();
         let mut guard = slot.connection.try_lock().map_err(|_| AgentError::Busy)?;
         if guard.as_ref().is_none_or(|c| c.task.is_finished()) {
             let opened = tokio::select! { result = Connection::open(launch) => result, _ = slot.cancel.notified() => Err(AgentError::Cancelled) };
@@ -279,8 +409,8 @@ impl Pool {
                     return Err(AgentError::Auth);
                 }
                 // 認証前のセッションを使うと、変更後の認証状態を確認できない。
-                if let Some(id) = connection.idle_session.take() {
-                    connection.close_session(id).await;
+                if let Some(session) = connection.idle_session.take() {
+                    connection.close_session(session.id).await;
                 }
                 tokio::time::timeout(
                     Duration::from_secs(180),
@@ -293,8 +423,8 @@ impl Pool {
                 .map_err(|_| AgentError::Timeout)?
                 .map_err(map_error)?;
             }
-            let id = connection.session(cwd).await?;
-            connection.idle_session = Some(id);
+            let session = connection.session(cwd, requested_model.as_deref()).await?;
+            connection.idle_session = Some(session);
             Ok::<_, AgentError>(())
         };
         let result = tokio::select! { result = operation => result, _ = slot.cancel.notified() => Err(AgentError::Cancelled) };
@@ -305,6 +435,7 @@ impl Pool {
                 .as_ref()
                 .map(|_| "接続済みです。".into())
                 .unwrap_or_else(|e| e.to_string()),
+            model: connection.idle_session.as_ref().and_then(Session::selector),
         };
         *slot.status.lock().unwrap() = status.clone();
         if matches!(
@@ -329,6 +460,7 @@ impl Pool {
         let pool = self.clone();
         tokio::spawn(async move {
             let slot = pool.slot(&launch.id).await;
+            let requested_model = launch.model.clone();
             let mut guard = tokio::select! { guard = slot.connection.lock() => guard, _ = tx.closed() => return };
             let result = async {
                 if guard
@@ -338,13 +470,13 @@ impl Pool {
                     *guard = Some(Connection::open(launch).await?);
                 }
                 let connection = guard.as_mut().ok_or(AgentError::Connect)?;
-                let session = connection.session(cwd).await?;
+                let session = connection.session(cwd, requested_model.as_deref()).await?;
                 connection.overflow.store(false, Ordering::Release);
-                *connection.sink.lock().unwrap() = Some((session.clone(), tx.clone()));
+                *connection.sink.lock().unwrap() = Some((session.id.clone(), tx.clone()));
                 let request = connection
                     .peer
                     .send_request(acp::PromptRequest::new(
-                        session.clone(),
+                        session.id.clone(),
                         vec![acp::ContentBlock::Text(acp::TextContent::new(prompt))],
                     ))
                     .block_task();
@@ -352,12 +484,12 @@ impl Pool {
                 let response = tokio::select! {
                     response = &mut request => response.map_err(map_error),
                     _ = tx.closed() => {
-                        let _ = connection.peer.send_notification(acp::CancelNotification::new(session.clone()));
+                        let _ = connection.peer.send_notification(acp::CancelNotification::new(session.id.clone()));
                         let _ = tokio::time::timeout(Duration::from_secs(1), &mut request).await;
                         Err(AgentError::Cancelled)
                     }
                     _ = tokio::time::sleep(Duration::from_secs(90)) => {
-                        let _ = connection.peer.send_notification(acp::CancelNotification::new(session.clone()));
+                        let _ = connection.peer.send_notification(acp::CancelNotification::new(session.id.clone()));
                         Err(AgentError::Timeout)
                     }
                 };
@@ -371,9 +503,10 @@ impl Pool {
                     ready: true,
                     auth_methods: connection.auth_methods.clone(),
                     message: "接続済みです。".into(),
+                    model: session.selector(),
                 };
                 connection.completed += 1;
-                connection.close_session(session).await;
+                connection.close_session(session.id).await;
                 Ok::<_, AgentError>(())
             };
             let result = tokio::select! { result = result => result, _ = tx.closed() => Err(AgentError::Cancelled), _ = slot.cancel.notified() => Err(AgentError::Cancelled) };
@@ -395,6 +528,32 @@ impl Pool {
             let _ = tx.send(result.map(|_| Chunk::Done)).await;
         });
         rx
+    }
+    pub async fn select_model(
+        &self,
+        launch: Launch,
+        cwd: PathBuf,
+        model: &str,
+    ) -> Result<Status, AgentError> {
+        let slot = self.slot(&launch.id).await;
+        let mut guard = slot.connection.try_lock().map_err(|_| AgentError::Busy)?;
+        if guard
+            .as_ref()
+            .is_none_or(|connection| connection.task.is_finished())
+        {
+            *guard = Some(Connection::open(launch).await?);
+        }
+        let connection = guard.as_mut().ok_or(AgentError::Connect)?;
+        let session = connection.session(cwd, Some(model)).await?;
+        let status = Status {
+            ready: true,
+            auth_methods: connection.auth_methods.clone(),
+            message: "モデルを変更しました。".into(),
+            model: session.selector(),
+        };
+        connection.idle_session = Some(session);
+        *slot.status.lock().unwrap() = status.clone();
+        Ok(status)
     }
     pub async fn disconnect(&self, id: &str) -> Result<(), AgentError> {
         let slot = self.slot(id).await;

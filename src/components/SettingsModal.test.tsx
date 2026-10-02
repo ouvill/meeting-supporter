@@ -11,9 +11,7 @@ import {
   saveSettingsApiSettingsPost,
   testConnectionApiSettingsConnectionsTestPost,
 } from "../api/generated/sdk.gen";
-import type {
-  SpeechModelStatusResponse,
-} from "../api/generated/types.gen";
+import type { SpeechModelStatusResponse } from "../api/generated/types.gen";
 import type {
   AiRouteReadModel,
   AiRoutesController,
@@ -28,6 +26,7 @@ const sdkMocks = vi.hoisted(() => ({
   startSpeechDownload: vi.fn(),
   cancelSpeechDownload: vi.fn(),
   getOllamaModels: vi.fn(),
+  getAiModels: vi.fn(),
 }));
 vi.mock("./settings/AgentRegistryPanel", () => ({
   AgentRegistryPanel: () => null,
@@ -41,6 +40,7 @@ vi.mock("../api/generated/sdk.gen", () => ({
   startSpeechModelDownloadApiSttModelDownloadPost: sdkMocks.startSpeechDownload,
   cancelSpeechModelDownloadApiSttModelCancelPost: sdkMocks.cancelSpeechDownload,
   getOllamaModelsApiSettingsOllamaModelsGet: sdkMocks.getOllamaModels,
+  getAiModels: sdkMocks.getAiModels,
 }));
 vi.mock("../api/recordingRetention", () => ({
   previewRecordingCleanup: vi.fn(),
@@ -166,6 +166,27 @@ describe("SettingsModal connection UX", () => {
       request,
       response,
     });
+    sdkMocks.getAiModels.mockImplementation(async ({ query }) => ({
+      data: {
+        ok: true,
+        provider: query.provider,
+        models: [
+          {
+            id:
+              query.provider === "openai"
+                ? "gpt-5.4-mini"
+                : query.provider === "gemini"
+                  ? "gemini-3.1-flash-lite"
+                  : "claude-haiku-4-5-20251001",
+            label: "推奨モデル",
+          },
+        ],
+        message: null,
+      },
+      error: undefined,
+      request,
+      response,
+    }));
     sdkMocks.saveSettings.mockResolvedValue({
       data: { ok: true, settings: settings() },
       error: undefined,
@@ -364,13 +385,20 @@ describe("SettingsModal connection UX", () => {
     );
   });
 
-  it("does not expose retired speech models or credentials in Advanced", async () => {
+  it("keeps credentials out of Advanced while exposing AI model selection", async () => {
     await renderModal(settings({ stt: { backend: "openai", language: "ja" } }));
     fireEvent.click(screen.getByRole("button", { name: /詳細設定/ }));
 
     expect(screen.queryByText("API接続")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("OpenAI APIキー")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("OpenAIモデル")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("OpenAIモデル")).toHaveValue("gpt-5.4-mini");
+    await waitFor(() => expect(sdkMocks.getAiModels).toHaveBeenCalledTimes(3));
+    fireEvent.change(screen.getByLabelText("OpenAIモデル"), {
+      target: { value: "__custom_model__" },
+    });
+    expect(
+      screen.getByLabelText("OpenAIカスタムモデル識別子"),
+    ).toBeInTheDocument();
   });
 
   it("shows every route in general or setup groups and keeps the selected route visible", async () => {

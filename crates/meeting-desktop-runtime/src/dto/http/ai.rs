@@ -259,6 +259,21 @@ pub struct ConnectionTestResponse {
 }
 
 #[derive(Clone, Serialize, Deserialize, Object)]
+pub struct AiModelOption {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, Object)]
+pub struct AiModelsResponse {
+    pub ok: bool,
+    pub provider: ConnectionProvider,
+    pub models: Vec<AiModelOption>,
+    #[oai(nullable)]
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Object)]
 pub struct OllamaModelsResponse {
     pub ok: bool,
     pub base_url: String,

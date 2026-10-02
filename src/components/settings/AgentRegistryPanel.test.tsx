@@ -11,6 +11,7 @@ import {
   getAgentCatalog,
   installAgent,
   removeAgent,
+  selectAgentModel,
   updateAllAgents,
   type RegistryAgent,
 } from "../../api/agentRegistry";
@@ -21,6 +22,7 @@ vi.mock("../../api/agentRegistry", () => ({
   connectAgent: vi.fn(),
   installAgent: vi.fn(),
   removeAgent: vi.fn(),
+  selectAgentModel: vi.fn(),
   updateAllAgents: vi.fn(),
 }));
 const agent: RegistryAgent = {
@@ -133,6 +135,52 @@ describe("AgentRegistryPanel", () => {
     expect(installAgent).not.toHaveBeenCalled();
     expect(connectAgent).not.toHaveBeenCalled();
     expect(removeAgent).not.toHaveBeenCalled();
+  });
+
+  it("selects an ACP-advertised model and refreshes the persisted selection", async () => {
+    let current = "fast";
+    const configured = () => ({
+      ...agent,
+      installed_version: agent.version,
+      status: {
+        ready: true,
+        message: "",
+        auth_methods: [],
+        model: {
+          current,
+          options: [
+            { id: "fast", name: "Fast" },
+            { id: "accurate", name: "Accurate" },
+          ],
+        },
+      },
+    });
+    vi.mocked(getAgentCatalog).mockImplementation(async () =>
+      catalog([configured()]),
+    );
+    vi.mocked(selectAgentModel).mockImplementation(async (_id, model) => {
+      current = model;
+      return {
+        ready: true,
+        message: "モデルを変更しました。",
+        auth_methods: [],
+        model: configured().status.model,
+      };
+    });
+
+    render(<AgentRegistryPanel locked={false} onChanged={vi.fn()} />);
+    const select = await screen.findByRole("combobox", {
+      name: "Synthetic Agentのモデル",
+    });
+    fireEvent.change(select, { target: { value: "accurate" } });
+
+    await waitFor(() =>
+      expect(selectAgentModel).toHaveBeenCalledWith("synthetic", "accurate"),
+    );
+    await waitFor(() => expect(select).toHaveValue("accurate"));
+    expect(
+      await screen.findByText("モデルを変更しました。"),
+    ).toBeInTheDocument();
   });
 
   it("shows the resolved version and allows retrying an update that still resolves to an older version", async () => {

@@ -396,3 +396,8 @@ pub(super) async fn connection_test(api: Api, body: crate::ai::connections::Requ
     let store = api.shared.settings.lock().await.clone();
     Ok(crate::ai::connections::check(store, body).await?)
 }
+
+pub(super) async fn ai_models(api: Api, provider: crate::ai::connections::Provider) -> Reply {
+    let store = api.shared.settings.lock().await.clone();
+    Ok(crate::ai::connections::models(store, provider).await?)
+}

@@ -782,6 +782,7 @@ async fn settings_survive_restart_and_reconfigure_speech() {
     let (_, body) = http(&server, "GET", "/api/settings", "").await;
     let body: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(body["stt"]["vad_sensitivity"], 0.6);
+    assert_eq!(body["ai_models"]["gemini"], "synthetic-model");
     let mut ws = connect(&server).await;
     start(&mut ws).await;
     let (status, body) = post_settings(&server, json!({"stt":{"vad_sensitivity":0.7}})).await;
@@ -803,7 +804,7 @@ async fn settings_survive_restart_and_reconfigure_speech() {
         v["type"] == "audio_level" && v["level"].as_f64().is_some_and(|l| l > 0.0)
     })
     .await;
-    let (status,body)=post_settings(&server,json!({"stt":{"vad_sensitivity":0.7,"silence_duration":0.9},"reply":{"styles":[{"id":"standard","enabled":false}],"enabled":false},"recording_retention":{"cutoff_date":null,"max_total_bytes":null}})).await;
+    let (status,body)=post_settings(&server,json!({"ai_models":{"openai":"synthetic-openai","gemini":"synthetic-gemini","anthropic":"synthetic-anthropic","ollama":"synthetic-ollama"},"stt":{"vad_sensitivity":0.7,"silence_duration":0.9},"reply":{"styles":[{"id":"standard","enabled":false}],"enabled":false},"recording_retention":{"cutoff_date":null,"max_total_bytes":null}})).await;
     assert_eq!((status, body["ok"].clone()), (200, json!(true)));
     send(&mut ws, json!({"type":"init_stt"})).await;
     until(&mut ws, |v| {
@@ -829,13 +830,18 @@ async fn settings_survive_restart_and_reconfigure_speech() {
     assert_eq!(persisted["schema_version"].as_integer(), Some(1));
     assert_eq!(
         persisted["ai"]["routes"]["gemini"]["model"].as_str(),
-        Some("synthetic-model")
+        Some("synthetic-gemini")
+    );
+    assert_eq!(
+        persisted["ai"]["routes"]["openai"]["model"].as_str(),
+        Some("synthetic-openai")
     );
     let server = Server::start(settings).await.unwrap();
     let (_, body) = http(&server, "GET", "/api/settings", "").await;
     let body: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(body["stt"]["silence_duration"], 0.9);
     assert_eq!(body["reply"]["enabled"], false);
+    assert_eq!(body["ai_models"]["ollama"], "synthetic-ollama");
     server.shutdown().await.unwrap();
 }
 
@@ -855,6 +861,8 @@ async fn invalid_or_unsupported_settings_do_not_change_file_or_prepared_state() 
         json!({"stt":{"backend":"whisper","whisper_model":"unknown"}}),
         json!({"audio":{"sample_rate":48000}}),
         json!({"recording_retention":{"cutoff_date":"bad"}}),
+        json!({"ai_models":{"openai":""}}),
+        json!({"ai_models":{"unknown":"synthetic"}}),
     ] {
         assert_eq!(post_settings(&server, patch).await.0, 422);
     }
@@ -2095,6 +2103,22 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
     .await;
     assert_eq!(status, 200);
     assert_eq!(body["ready"], true);
+    assert_eq!(body["model"]["current"], "synthetic-fast");
+    assert_eq!(body["model"]["options"].as_array().unwrap().len(), 2);
+    let (status, body) = agent_request(
+        &server,
+        "PUT",
+        "/api/ai/agents/synthetic/model",
+        json!({"model":"synthetic-accurate"}),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["model"]["current"], "synthetic-accurate");
+    let manifest: Value = serde_json::from_slice(
+        &std::fs::read(temp.path().join("data/agents/installed.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(manifest["synthetic"]["model"], "synthetic-accurate");
     assert_eq!(
         agent_request(
             &server,
@@ -2164,6 +2188,14 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
     let events = std::fs::read_to_string(marker).unwrap();
     assert_eq!(events.lines().filter(|l| *l == "start").count(), 1);
     assert_eq!(events.lines().filter(|l| *l == "session").count(), 2);
+    assert_eq!(
+        events
+            .lines()
+            .filter(|line| *line == "model:synthetic-accurate")
+            .count(),
+        2,
+        "the persisted selection is applied to each new ACP session"
+    );
     assert_eq!(
         http(&server, "DELETE", "/api/ai/agents/synthetic", "")
             .await

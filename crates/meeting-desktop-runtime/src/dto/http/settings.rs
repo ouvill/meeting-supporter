@@ -21,6 +21,14 @@ pub struct OllamaConfig {
 }
 
 #[derive(Clone, Serialize, Deserialize, Object)]
+pub struct AiModelsConfig {
+    pub openai: String,
+    pub gemini: String,
+    pub anthropic: String,
+    pub ollama: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, Object)]
 pub struct SttSettings {
     pub backend: SpeechBackend,
     pub whisper_model: String,
@@ -131,6 +139,7 @@ pub struct RecordingRetentionSettings {
 #[derive(Clone, Serialize, Deserialize, Object)]
 pub struct SettingsResponse {
     pub ollama: OllamaConfig,
+    pub ai_models: AiModelsConfig,
     pub stt: SttSettings,
     pub audio: AudioSettings,
     pub reply: ReplySettings,
@@ -149,6 +158,24 @@ pub struct OllamaConfigPayload {
     #[serde(default, skip_serializing_if = "MaybeUndefined::is_undefined")]
     #[oai(nullable)]
     pub base_url: MaybeUndefined<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Object)]
+#[serde(deny_unknown_fields)]
+#[oai(deny_unknown_fields)]
+pub struct AiModelsPayload {
+    #[serde(default, skip_serializing_if = "MaybeUndefined::is_undefined")]
+    #[oai(nullable)]
+    pub openai: MaybeUndefined<String>,
+    #[serde(default, skip_serializing_if = "MaybeUndefined::is_undefined")]
+    #[oai(nullable)]
+    pub gemini: MaybeUndefined<String>,
+    #[serde(default, skip_serializing_if = "MaybeUndefined::is_undefined")]
+    #[oai(nullable)]
+    pub anthropic: MaybeUndefined<String>,
+    #[serde(default, skip_serializing_if = "MaybeUndefined::is_undefined")]
+    #[oai(nullable)]
+    pub ollama: MaybeUndefined<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Object)]
@@ -268,6 +295,9 @@ pub struct UsageBudgetPatch {
 #[serde(deny_unknown_fields)]
 #[oai(deny_unknown_fields)]
 pub struct SettingsSaveRequest {
+    #[serde(default, skip_serializing_if = "MaybeUndefined::is_undefined")]
+    #[oai(nullable)]
+    pub ai_models: MaybeUndefined<AiModelsPayload>,
     #[serde(default, skip_serializing_if = "MaybeUndefined::is_undefined")]
     #[oai(nullable)]
     pub ollama: MaybeUndefined<OllamaConfigPayload>,
