@@ -1,120 +1,6 @@
-# Rust 音声認識の既存アプリへの接続
+# Rust ローカル文字起こしの検証
 
-旧 Python バックエンドから Rust の音声・会議・保存 worker を呼ぶ比較検証用の経路です。
-画面を併用する場合は、バックエンドとは別の端末で `npm run dev` を実行してブラウザーから接続します。
-Linux / Windows / macOS の標準 Tauri 構成は [Rust の直接接続](rust-desktop-backend.md)を使います。
-
-## 起動経路と Python 配布方針
-
-この比較経路では、会議管理などを担当する Python バックエンドを準備・起動します。
-音声取得・認識を Rust に切り替えても、ログには `uv sync` と FastAPI の起動が表示されます。
-これは Rust worker の使用有無とは別です。
-
-標準の Rust 構成では、DOCX 変換用の Python worker を
-PyInstaller `--onedir` で梱包し、Rust から必要時に直接起動します。
-uv は開発・ビルド用とし、製品の通常起動で環境同期を行いません。
-この配布方式と Rust → Python の通信契約は
-[ADR-016 の Python worker 配布方針](../adr/016-rust-runtime-and-ownership-boundaries.md#python-worker-は-pyinstaller-の-onedir-形式で配布する)
-に記載しています。旧 Python バックエンドのコードは比較用に残っています。
-
-## 既存画面で Rust 音声認識を使う
-
-リポジトリルートで実行します。先に
-[Rust 音声バックエンドの手順](../../test/rust-native-backend/README.md)でモデルとライブラリを準備してください。
-以下のビルド例は Linux x86_64 用です。
-
-```bash
-export SHERPA_ONNX_LIB_DIR="$PWD/test/rust-native-backend/target/assets/sherpa-onnx-v1.13.8-linux-x64-shared-lib/lib"
-cargo build --release --locked --features reazonspeech \
-  --manifest-path test/rust-native-backend/Cargo.toml
-
-export MEETING_REAZON_RUNTIME=rust
-export MEETING_REAZON_WORKER="$PWD/test/rust-native-backend/target/release/meeting-native-backend"
-export MEETING_REAZON_MODEL="$PWD/test/rust-native-backend/target/models/reazonspeech"
-export MEETING_REAZON_PUNCTUATION="$PWD/test/rust-native-backend/target/models/punctuation-bert"
-npm run dev:python
-```
-
-いつもの設定画面で ReazonSpeech と Silero を選び、入力デバイスを設定し、
-音声認識の準備、会議開始、停止を行います。認識結果は既存の会話処理へ渡され、
-文字起こし表示、履歴保存、設定に応じた AI 処理につながります。
-クラウド AI を有効にしている場合、その既存設定に従って認識テキストが送信されます。
-
-`MEETING_REAZON_WORKER` は絶対パスで指定します。画面から実行ファイルは指定しません。
-`MEETING_REAZON_MODEL` を省略すると、既存画面から取得する Hugging Face キャッシュを使います。
-指定時はモデル状態の API も同じフォルダーを確認します。
-`MEETING_REAZON_PUNCTUATION` を省略すると句読点処理を無効にします。
-句読点処理を指定した場合は、モデルがない状態で勝手に無効化しません。
-推論中の句読点処理だけの失敗では、通知して認識原文を使用します。
-
-`MEETING_REAZON_RUNTIME` を解除してアプリを再起動すると従来の Python 実装に戻ります。
-Rust worker の失敗時に自動で Python 推論へ切り替える処理はありません。
-
-## 音声取得・録音も Rust に切り替える（Linux）
-
-PulseAudio、または PipeWire の PulseAudio 互換サーバーがある Linux で試せます。
-既存の入力選択・音量メーター・会議録音の操作は共通です。
-マイクと相手音声のモニター入力を Rust から列挙し、既存画面へ返します。
-既定の相手音声モニターが見つからない場合、マイクへ自動的に置き換えません。
-
-開発環境では `libpulse-dev`、`libasound2-dev` と Rust が必要です。上記の音声認識用環境変数に加えて指定します。
-
-```bash
-cargo build --release --locked --manifest-path crates/meeting-audio-runtime/Cargo.toml
-export MEETING_AUDIO_RUNTIME=rust
-export MEETING_AUDIO_WORKER="$PWD/crates/meeting-audio-runtime/target/release/meeting-audio-runtime"
-npm run dev:python
-```
-
-`MEETING_AUDIO_RUNTIME` を省略すると従来の Python 音声取得・録音を使います。
-Rust 取得は現在、Rust ReazonSpeech・16 kHz 設定との組み合わせに限定しています。
-取得 worker は CPAL を使い、Linux に加えて Windows の WASAPI に対応します。
-この Python 併用経路の手順は Linux 用です。Windows の実機検証、macOS の取得、一般配布は未対応です。
-Linux の実行環境には `libpulse` / `libasound` が必要ですが、Python の soundcard はこの経路で使用しません。
-
-Rust の取得 worker が同じ PCM を WAV 保存と音声認識向けの転送に分岐します。
-取得 worker は ONNX / ReazonSpeech をリンクせず、推論 worker が異常終了しても録音を継続します。
-録音先は既存の会議サービスが決め、保存完了の結果を既存の録音資産・履歴へ登録します。
-WAV 書き込みエラーや取得失敗を、成功した録音として登録しません。
-
-取得 worker からの PCM は上限付きの長さヘッダーとバイナリデータで転送します。
-推論への Python adapter は現段階では PCM を既存の JSONL protocol 2 へ変換します。
-転送・認識キューの欠落はフレーム連番で検出し、文字起こしを停止して通知します。
-取得から WAV 保存へのキューがあふれた場合は取得失敗として扱います。
-会議管理・設定・保存データベース・AI 制御には Python が残ります。
-
-取得 worker のテストはマイク権限や実会議の音声を使いません。
-以下は一時的な PulseAudio サーバーと null sink に合成音を流す結合テストです。
-開発環境に `pulseaudio` と `pulseaudio-utils` が必要です。
-
-```bash
-MEETING_AUDIO_WORKER="$PWD/crates/meeting-audio-runtime/target/release/meeting-audio-runtime" \
-MEETING_TEST_RUST_AUDIO=1 \
-  uv run --directory python pytest tests/app/audio/test_native_audio.py -q
-```
-
-## Python 音声取得を使う場合の所有者と制約
-
-- Python が音声取得・録音・会議状態・保存・AI を所有します。
-  Rust worker はデバイスを開かず、16 kHz mono PCM16LE の 30 ms フレームを受け取ります。
-- Python の VAD / ReazonSpeech stage を通さず、Rust 側で発話区間と認識を処理します。
-  VAD 感度、無音時間、最低発話時間・比率・音量は既存設定から渡します。
-- 入力元 `self` / `other` ごとに worker を起動します。準備したモデルは会議間で保持します。
-  モデルが二重ロードされるメモリコストがあり、共有 supervisor への統合は今後の対象です。
-- 会議開始時に準備中の音声を捨て、停止時に両入力の境界を固定します。
-  受理済み音声と最後の発話を処理し、既存の会話処理への受け渡し完了を待ってから会議を閉じます。
-- 準備は 120 秒、各要求は 30 秒、停止時の排出は入力ごとに 10 秒を上限とします。
-  異常終了・不正応答・期限超過では worker を kill / wait し、エラーを通知します。
-  強制停止では未確定の音声を失う可能性があります。
-- 暫定 IPC は上限付き JSONL protocol 2 です。要求 ID と source 世代を照合します。
-  binary PCM 転送と取得段階からの連番・欠落通知は音声取得移行時の課題です。
-  既存の入力キューが過負荷時に古いフレームを捨てる制約は残っています。
-- 既存履歴には表示用の確定テキストを渡します。認識原文と句読点適用後テキストの別保存、
-  話者推定・途中認識結果・一般配布用の配置は今回の範囲に含みません。
-
-この橋渡しは音声取得・会議管理の Rust 移行に合わせて除去します。
-公開 HTTP / WebSocket 契約と既存の React 画面は変更していません。
-[ADR-016](../adr/016-rust-runtime-and-ownership-boundaries.md) は引き続き Proposed です。
+通常のアプリ起動は [Rust バックエンド](rust-desktop-backend.md)を参照してください。
 
 ## 独立した音声検証画面
 
@@ -137,7 +23,7 @@ cargo build --release --locked --features reazonspeech \
   --manifest-path test/rust-native-backend/Cargo.toml
 ```
 
-Python リソースを準備しない設定を指定して Tauri を起動します。
+検証画面用の設定を指定して Tauri を起動します。
 
 ```bash
 npm run dev:native
@@ -181,9 +67,7 @@ npm run dev:native
 会議履歴・録音保存・システム音声・話者分離・AI 支援・モデル自動取得は未接続です。
 モデルの未導入時でも画面と設定操作は利用でき、文字起こし開始時にエラーを表示します。
 
-最初の接続では、マイク取得も推論 worker 内にあります。
-worker 障害時も録音を継続できる構成ではありません。
-録音機能をつなぐ前に capture と recording を推論から分離します。
+この検証画面ではマイク取得も推論 worker 内にあります。通常の会議画面は、取得・録音 worker と推論 worker を分離しています。
 [ADR-016](../adr/016-rust-runtime-and-ownership-boundaries.md) は引き続き Proposed です。
 
 `tauri.native.conf.json` は Python リソースの準備と bundle を無効にしています。
@@ -203,7 +87,7 @@ npm run build
 
 supervisor は合成結果を返すテスト worker で、二重開始、停止中の flush、
 再開時の世代、異常終了、不正 protocol、停止期限切れ、モデルエラーを検証します。
-フロントエンドは Python API hook を mount しないこと、準備中の停止、
+フロントエンドは 通常画面の API hook を mount しないこと、準備中の停止、
 原文表示、句読点の無効化、マイクエラーを検証します。
 実モデルの認識・句読点とマイク処理経路の合成音声検証は
 [音声バックエンドの検証手順](../../test/rust-native-backend/README.md)に分けています。
@@ -223,38 +107,3 @@ xvfb-run -a dbus-run-session -- node scripts/run-tauri-wdio.mjs \
 
 開始・停止、原文表示、画面再読み込み後の状態復元、再開、テキスト保存、消去を確認します。
 実モデルの認識とは分けて検証しており、物理マイクの実機試験を代替するものではありません。
-
-## 既存画面の履歴保存を Rust に切り替える
-
-音声入力・推論の選択とは独立して、履歴保存も Rust に切り替えられます。
-[meeting-storage の起動・検証手順](../../crates/meeting-storage/README.md)を参照してください。
-
-```bash
-cargo build --release --locked --manifest-path crates/meeting-storage/Cargo.toml
-export MEETING_STORAGE_RUNTIME=rust
-export MEETING_STORAGE_WORKER="$PWD/crates/meeting-storage/target/release/meeting-storage"
-npm run dev:python
-```
-
-既存の会議サービスが Rust worker に保存を依頼し、Rust / SQLx が SQLite の接続を所有します。
-SQL はビルド時に生成する検証専用DBに対してコンパイル時検証します。
-この段階では会議管理と FastAPI が Python に残り、起動時の Python 環境準備も残ります。
-
-## 既存画面の会議管理を Rust に切り替える
-
-`MEETING_SESSION_RUNTIME=rust` で、開始・停止の順序と復旧判断を Rust に切り替えられます。
-[meeting-session の起動・検証手順](../../crates/meeting-session/README.md)を参照してください。
-会議管理と履歴保存の Rust worker を併用できます。
-
-この段階では Python が Rust の指示に従って既存の音声・AI・配信処理を実行します。
-Python の起動を外すには、音声 worker の制御と既存画面への接続も Rust に移す必要があります。
-
-## 音声 worker の制御と PCM 中継を Rust に切り替える
-
-`MEETING_MEDIA_RUNTIME=rust` で、音声取得と推論 worker の間を Rust が直接中継します。
-[meeting-media-runtime の起動・検証手順](../../crates/meeting-media-runtime/README.md)を参照してください。
-Python には PCM を渡さず、音量・認識結果・制御応答だけを渡します。
-推論を停止しても録音を継続でき、会議管理・履歴保存の Rust 設定と併用できます。
-
-画面との接続と AI への結果引渡しは Python 側に残っています。
-Python 起動を外す次の段階では、この Rust ライブラリを Tauri から直接呼び出します。

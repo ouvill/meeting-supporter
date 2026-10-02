@@ -48,7 +48,7 @@ beforeEach(() => {
 });
 
 describe("AgentRegistryPanel", () => {
-  it("does not offer Registry controls for the Python runtime", async () => {
+  it("does not offer Registry controls when the catalog is unavailable", async () => {
     vi.mocked(getAgentCatalog).mockResolvedValue(null);
     const { container } = render(
       <AgentRegistryPanel locked={false} onChanged={vi.fn()} />,

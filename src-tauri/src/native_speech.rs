@@ -23,12 +23,10 @@ pub struct StartOptions {
 
 #[tauri::command]
 pub fn get_runtime_mode() -> &'static str {
-    if cfg!(feature = "rust-backend") {
-        "rust-backend"
-    } else if cfg!(feature = "native-speech") {
+    if cfg!(feature = "native-speech") {
         "rust"
     } else {
-        "python"
+        "rust-backend"
     }
 }
 

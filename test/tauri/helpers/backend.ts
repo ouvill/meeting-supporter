@@ -18,7 +18,8 @@ export async function syntheticSpeechSettings(): Promise<{ backend: string }> {
   const health = await localBackendRequest<{ runtime?: string }>({
     path: "/health",
   });
-  return { backend: health.runtime === "rust" ? "reazonspeech" : "dummy" };
+  if (health.runtime !== "rust") throw new Error("Expected Rust desktop runtime");
+  return { backend: "reazonspeech" };
 }
 
 export async function localBackendRequest<T>(

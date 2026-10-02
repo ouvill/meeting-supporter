@@ -6,7 +6,7 @@ ADRは、architecture boundary、protocol、永続schema、security/privacy/dist
 
 | ADR | Status | Authority |
 | --- | --- | --- |
-| [ADR-001](./001-python-server-directory-structure.md) | Accepted | Python server directory structure |
+| [ADR-001](./001-python-server-directory-structure.md) | Superseded by ADR-021 | Python server directory structure |
 | [ADR-002](./002-stt-pipeline-architecture.md) | Accepted | STT pipeline architecture |
 | [ADR-003](./003-meeting-recording-history-architecture.md) | Accepted | meeting recording/history architecture |
 | [ADR-009](./009-live-reply-llm-usecase-runtime-provider-architecture.md) | Accepted（議事録生成は ADR-019、Rust 設定は ADR-020 で部分置換） | use-case / runtime / provider-model / config-secret boundary |
@@ -19,6 +19,7 @@ ADRは、architecture boundary、protocol、永続schema、security/privacy/dist
 | [ADR-018](./018-interrupted-meeting-history.md) | Accepted | Rust 直接接続の中断会議、起動時の整理、保存失敗と停止失敗の分離 |
 | [ADR-019](./019-local-speech-and-saved-history.md) | Accepted（Rust の旧設定の扱いは ADR-020 で部分置換） | ローカル音声認識と保存済み履歴への整理 |
 | [ADR-020](./020-versioned-rust-settings.md) | Accepted | Rust のバージョン付き設定形式、検証、旧設定の廃止 |
+| [ADR-021](./021-retire-python-backend.md) | Accepted | 旧 Python バックエンドと移行用 adapter の撤去、MarkItDown worker の保持 |
 
 ## Proposed decisions
 

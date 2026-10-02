@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSpeechCapabilities } from "../../api/speechCapabilities";
 import type { SpeechModelController } from "../../hooks/useSpeechModel";
-import { RuntimeContext } from "../../platform/runtimeContext";
 import { AudioSettingsPanel } from "./AudioSettingsPanel";
 import type { SettingsForm } from "./types";
 
@@ -20,7 +19,6 @@ const FORM: SettingsForm = {
   sttLang: "ja",
   sttVadEngine: "silero",
   sttVadSensitivity: 0.4,
-  sttVad: 2,
   sttSilence: 0.4,
   replyFeatureEnabled: true,
   replyAutoGenerate: false,
@@ -56,75 +54,47 @@ describe("AudioSettingsPanel", () => {
     vi.mocked(getSpeechCapabilities).mockResolvedValue({ whisper_gpu: true });
   });
 
-  it.each(["python", "rust-backend"] as const)(
-    "offers local speech controls for %s",
-    async (runtime) => {
-      const update = vi.fn();
-      render(
-        <AudioSettingsPanel
-          form={FORM}
-          errors={{}}
-          speechModel={SPEECH_MODEL}
-          update={update}
-        />,
-        {
-          wrapper: ({ children }) => (
-            <RuntimeContext.Provider value={runtime}>
-              {children}
-            </RuntimeContext.Provider>
-          ),
-        },
-      );
-      if (runtime === "rust-backend") {
-        expect(screen.getByRole("option", { name: "GPU" })).toBeDisabled();
-        expect(
-          screen.getByText("GPUへの対応状況を確認しています。"),
-        ).toBeInTheDocument();
-        await waitFor(() =>
-          expect(screen.getByRole("option", { name: "GPU" })).toBeEnabled(),
-        );
-      } else {
-        expect(getSpeechCapabilities).not.toHaveBeenCalled();
-        expect(screen.getByRole("option", { name: "CUDA" })).toBeEnabled();
-      }
-      const device = screen.getByLabelText("音声認識の実行デバイス");
-      fireEvent.change(device, {
-        target: { value: runtime === "rust-backend" ? "gpu" : "cuda" },
-      });
-      expect(update).toHaveBeenCalledWith(
-        "sttDevice",
-        runtime === "rust-backend" ? "gpu" : "cuda",
-      );
-      if (runtime === "rust-backend") {
-        expect(screen.getByRole("option", { name: "自動判定" })).toHaveValue(
-          "auto",
-        );
-        expect(
-          screen.queryByRole("option", { name: "CUDA" }),
-        ).not.toBeInTheDocument();
-      }
+  it("offers local speech controls", async () => {
+    const update = vi.fn();
+    render(
+      <AudioSettingsPanel
+        form={FORM}
+        errors={{}}
+        speechModel={SPEECH_MODEL}
+        update={update}
+      />,
+    );
+    expect(screen.getByRole("option", { name: "GPU" })).toBeDisabled();
+    expect(
+      screen.getByText("GPUへの対応状況を確認しています。"),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: "GPU" })).toBeEnabled(),
+    );
+    const device = screen.getByLabelText("音声認識の実行デバイス");
+    fireEvent.change(device, {
+      target: { value: "gpu" },
+    });
+    expect(update).toHaveBeenCalledWith("sttDevice", "gpu");
+    expect(screen.getByRole("option", { name: "自動判定" })).toHaveValue(
+      "auto",
+    );
+    expect(
+      screen.queryByRole("option", { name: "CUDA" }),
+    ).not.toBeInTheDocument();
 
-      expect(
-        screen.queryByRole("option", { name: "端末内・軽量" }),
-      ).not.toBeInTheDocument();
-      const vadEngine = screen.getByLabelText("声の検出方法");
-      expect(vadEngine).toHaveValue("silero");
-      expect(
-        screen.getByRole("option", { name: "Silero VAD（高精度・おすすめ）" }),
-      ).toBeInTheDocument();
-      expect(screen.getByLabelText("Silero音声判定しきい値")).toHaveValue(
-        "0.4",
-      );
-      expect(
-        screen.getByText(
-          "SileroはTorchを使わず、同梱した約208 KBのONNXモデルを端末内で実行します",
-        ),
-      ).toBeInTheDocument();
-
-      fireEvent.change(vadEngine, { target: { value: "webrtc" } });
-      expect(update).toHaveBeenCalledWith("sttVadEngine", "webrtc");
-    },
-  );
+    expect(
+      screen.queryByRole("option", { name: "端末内・軽量" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Silero VAD")).toBeInTheDocument();
+    expect(screen.queryByText(/WebRTC/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Silero音声判定しきい値")).toHaveValue("0.4");
+    expect(
+      screen.getByText(
+        "SileroはTorchを使わず、同梱した約208 KBのONNXモデルを端末内で実行します",
+      ),
+    ).toBeInTheDocument();
+  });
 
   it.each(["auto", "gpu"])(
     "disables GPU in a CPU-only build without changing saved %s",
@@ -173,7 +143,7 @@ describe("AudioSettingsPanel", () => {
     },
   );
 
-  it("locks every audio control while a meeting is active", () => {
+  it("locks every audio control while a meeting is active", async () => {
     render(
       <AudioSettingsPanel
         form={FORM}
@@ -190,11 +160,11 @@ describe("AudioSettingsPanel", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("音声認識方式")).toBeDisabled();
-    expect(screen.getByLabelText("声の検出方法")).toBeDisabled();
     expect(screen.getByLabelText("Silero音声判定しきい値")).toBeDisabled();
+    await screen.findByText("自動はGPUを優先し、使えない場合はCPUで実行します");
   });
 
-  it("offers ReazonSpeech as a Japanese-only local model", () => {
+  it("offers ReazonSpeech as a Japanese-only local model", async () => {
     render(
       <AudioSettingsPanel
         form={{ ...FORM, sttBackend: "reazonspeech", sttLang: "ja" }}
@@ -223,20 +193,19 @@ describe("AudioSettingsPanel", () => {
       screen.queryByRole("option", { name: "英語" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("ReazonSpeech日本語モデル")).toBeInTheDocument();
+    await waitFor(() => expect(getSpeechCapabilities).toHaveBeenCalled());
   });
 });
 
 function renderRustWhisper(device = "auto") {
   const update = vi.fn();
   render(
-    <RuntimeContext.Provider value="rust-backend">
-      <AudioSettingsPanel
-        form={{ ...FORM, sttDevice: device }}
-        errors={{}}
-        speechModel={SPEECH_MODEL}
-        update={update}
-      />
-    </RuntimeContext.Provider>,
+    <AudioSettingsPanel
+      form={{ ...FORM, sttDevice: device }}
+      errors={{}}
+      speechModel={SPEECH_MODEL}
+      update={update}
+    />,
   );
   return update;
 }

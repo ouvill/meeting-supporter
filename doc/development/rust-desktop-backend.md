@@ -43,7 +43,6 @@ npm run generate:api
 `@hey-api/openapi-ts` で TypeScript クライアントを生成します。
 生成時はアプリの保存先、認証情報ストア、音声 worker に接続せず、Python も起動しません。
 `openapi.json` と `src/api/generated` は手編集しません。
-旧 Python API の診断用出力は `python/scripts/generate_openapi.py` に別の出力先を明示して取得します。
 
 [WebSocket DTO](../../crates/meeting-desktop-runtime/src/dto/ws.rs) はコマンドとイベントの型を所有します。
 WebSocket メッセージの TypeScript / Zod 定義は `src/types/wsMessages.ts` にあり、
@@ -104,7 +103,7 @@ Silero threshold と無音時間は既存の設定画面で変更できます。
 モデルは「音声認識を準備」で開きます。正常に会議を保存した後もモデルを保持し、次の会議で再利用します。
 音声設定・入力デバイスの変更、準備解除、アプリ終了時には解放します。
 
-`dev:rust` は `rust-backend` feature と `tauri.rust.conf.json` を使い、Python resource の準備をスキップします。
+Rust バックエンドは必須です。`dev:rust` は `tauri.rust.conf.json` を使い、インストーラー用リソースの準備をスキップします。
 起動ログに `Rust in-process backend is ready (Python worker starts only on demand).` と表示します。
 `npm run tauri -- dev` は Linux / Windows / macOS では Rust を使い、固定版の native library と DOCX worker も準備します。
 ビルドには uv が必要ですが、アプリは利用者環境の Python / uv を起動しません。
@@ -269,7 +268,7 @@ Whisper は `ggerganov/whisper.cpp` の `ggml-{model}-q8_0.bin` を取得しま�
 ## Whisper.cpp の実行
 
 設定の「聞き取り方法」で端末内・高精度を選ぶと、Rust 経路は `whisper-rs 0.16.0` / whisper.cpp 1.8.3 を使います。
-モデル取得後に音声認識を準備してください。既存 Python 経路は引き続き faster-whisper です。
+モデル取得後に音声認識を準備してください。
 
 - Silero が発話を区切り、Whisper の確定結果を自分・相手別に表示・保存します。途中認識はありません。
 - 無音時間は設定に従い、連続発話は約 28 秒で分割します。日本語・英語・自動判定に対応します。
@@ -334,8 +333,8 @@ GPU 判定は固定した whisper.cpp 版の初期化通知を利用するため
 汎用 provider plan と Windows / macOS の実機検証は後続の作業です。
 開発専用の `tauri.rust.conf.json` は bundle を無効にします。インストーラーは次の標準構成から生成します。
 
-Python が必要な AI 機能は、後続の移植で共通 PyInstaller worker のサブコマンドとして追加します。
-この直接接続の経路に Python の仲介を戻す必要はありません。
+製品に残す Python は MarkItDown による DOCX 変換用 worker です。
+旧バックエンドと段階移行用 adapter の撤去は [ADR-021](../adr/021-retire-python-backend.md)を参照してください。
 
 ## インストーラー
 
@@ -347,7 +346,7 @@ npm ci
 npm run tauri -- build --ci
 ```
 
-OS 別の Tauri 設定が `rust-backend` を選択し、`prepare:rust-resources` を実行します。
+標準の Tauri 設定は Rust バックエンドを使い、`prepare:rust-resources` を実行します。
 音声取得・推論 worker と共有ライブラリは `native/`、凍結した DOCX worker は `python-worker/` に同梱します。
 旧 FastAPI バックエンドは同梱しません。Windows は NSIS インストーラーを生成します。
 Linux は標準の Tauri パッケージ、macOS はネイティブ architecture ごとの app / DMG を生成します。

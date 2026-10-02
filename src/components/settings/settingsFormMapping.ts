@@ -3,7 +3,6 @@ import type {
   SecretsPayload,
   SettingsResponse,
   SettingsSaveRequest,
-  SttSettingsPatch,
 } from "../../api/generated/types.gen";
 import type { ConnectionSecretKey } from "./ApiConnectionControl";
 import {
@@ -21,8 +20,6 @@ export type SettingsResponseWithRetention = SettingsResponse & {
 };
 
 export type SettingsSaveRequestWithRetention = SettingsSaveRequest & {
-  // Only the legacy Python path sends this extra setting.
-  stt?: SttSettingsPatch & { vad_aggressiveness?: number };
   delete_secrets?: ConnectionSecretKey[];
   recording_retention: {
     cutoff_date: string | null;
@@ -50,7 +47,6 @@ export const INITIAL_SETTINGS_FORM: SettingsForm = {
   sttLang: "ja",
   sttVadEngine: "silero",
   sttVadSensitivity: 0.4,
-  sttVad: 2,
   sttSilence: 0.8,
   replyFeatureEnabled: true,
   replyAutoGenerate: false,
@@ -115,7 +111,6 @@ export function mapSettingsResponseToForm(
     sttLang: sttBackend === "reazonspeech" ? "ja" : sttLanguage,
     sttVadEngine: isVadEngine(sttVadEngine) ? sttVadEngine : "silero",
     sttVadSensitivity: getTomlNumber(settings.stt, "vad_sensitivity") ?? 0.4,
-    sttVad: getTomlNumber(settings.stt, "vad_aggressiveness") ?? 2,
     sttSilence: getTomlNumber(settings.stt, "silence_duration") ?? 0.8,
     replyFeatureEnabled: settings.reply?.enabled ?? true,
     replyAutoGenerate: settings.reply?.auto_generate ?? false,
@@ -135,7 +130,6 @@ export function mapSettingsFormToPayload(
   form: SettingsForm,
   savedBaseline: SettingsForm | null,
   pendingDeleteSecrets: ConnectionSecretKey[],
-  rustBackend = false,
 ): SettingsSaveRequestWithRetention {
   const secrets = Object.fromEntries(
     Object.entries(form.secretInputs).filter(([, value]) => value.trim()),
@@ -172,8 +166,7 @@ export function mapSettingsFormToPayload(
           stt: {
             backend:
               form.sttBackend === "whisper" ||
-              form.sttBackend === "reazonspeech" ||
-              form.sttBackend === "dummy"
+              form.sttBackend === "reazonspeech"
                 ? form.sttBackend
                 : undefined,
             whisper_model: form.sttWhisperModel,
@@ -181,7 +174,6 @@ export function mapSettingsFormToPayload(
             language: form.sttLang,
             vad_engine: form.sttVadEngine,
             vad_sensitivity: form.sttVadSensitivity,
-            ...(!rustBackend ? { vad_aggressiveness: form.sttVad } : {}),
             silence_duration: form.sttSilence,
           },
         }

@@ -34,7 +34,7 @@ describe("settings save contract", () => {
       sttLang: "auto",
       sttDevice: "cpu",
     };
-    const payload = mapSettingsFormToPayload(form, null, [], true);
+    const payload = mapSettingsFormToPayload(form, null, []);
     expect(payload.stt).toEqual({
       backend: "whisper",
       whisper_model: "tiny",
@@ -44,7 +44,5 @@ describe("settings save contract", () => {
       vad_sensitivity: 0.4,
       silence_duration: 0.8,
     });
-    const pythonPayload = mapSettingsFormToPayload(form, null, [], false);
-    expect(pythonPayload.stt?.vad_aggressiveness).toBe(2);
   });
 });

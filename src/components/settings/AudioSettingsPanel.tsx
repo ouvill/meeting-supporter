@@ -1,14 +1,9 @@
-import { useRustBackend } from "../../platform/runtimeContext";
 import { useSpeechCapabilities } from "../../hooks/useSpeechCapabilities";
 import type { SpeechModelController } from "../../hooks/useSpeechModel";
 import { InlineNotice } from "../ui/InlineNotice";
 import { SpeechModelPreparationCard } from "./SpeechModelPreparationCard";
 import { FieldRow, SettingsCard, SettingsPage } from "./SettingsPrimitives";
-import {
-  isVadEngine,
-  type SettingsFieldErrors,
-  type SettingsForm,
-} from "./types";
+import { type SettingsFieldErrors, type SettingsForm } from "./types";
 
 interface Props {
   form: SettingsForm;
@@ -34,12 +29,10 @@ export function AudioSettingsPanel({
     audioSettingsLocked ||
     speechModel.blocksSettingsSave ||
     speechModelActionsDisabled;
-  const rustBackend = useRustBackend();
-  const gpuSupport = useSpeechCapabilities(rustBackend);
-  const gpuDisabled = rustBackend && gpuSupport !== "supported";
-  const deviceHint = !rustBackend
-    ? undefined
-    : gpuSupport === "supported"
+  const gpuSupport = useSpeechCapabilities(true);
+  const gpuDisabled = gpuSupport !== "supported";
+  const deviceHint =
+    gpuSupport === "supported"
       ? "自動はGPUを優先し、使えない場合はCPUで実行します"
       : gpuSupport === "unsupported"
         ? "このビルドはGPUに対応していません。「自動」または「CPU」を選んでください。"
@@ -71,11 +64,7 @@ export function AudioSettingsPanel({
             >
               <select
                 aria-label="音声認識方式"
-                value={
-                  usesLocalSpeechModel || form.sttBackend === "dummy"
-                    ? form.sttBackend
-                    : ""
-                }
+                value={usesLocalSpeechModel ? form.sttBackend : ""}
                 disabled={speechModelControlsDisabled}
                 onChange={(event) => update("sttBackend", event.target.value)}
                 className="field"
@@ -84,17 +73,14 @@ export function AudioSettingsPanel({
                 <option value="reazonspeech">
                   端末内・日本語高精度（ReazonSpeech）
                 </option>
-                {form.sttBackend === "dummy" && (
-                  <option value="dummy">テスト用</option>
-                )}
-                {!usesLocalSpeechModel && form.sttBackend !== "dummy" && (
+                {!usesLocalSpeechModel && (
                   <option value="" disabled>
                     選択してください
                   </option>
                 )}
               </select>
             </FieldRow>
-            {!usesLocalSpeechModel && form.sttBackend !== "dummy" && (
+            {!usesLocalSpeechModel && (
               <InlineNotice tone="warning">
                 音声認識方式を選択してください。
               </InlineNotice>
@@ -142,26 +128,19 @@ export function AudioSettingsPanel({
                   >
                     <option value="auto">自動</option>
                     <option value="cpu">CPU</option>
-                    {!["auto", "cpu", rustBackend ? "gpu" : "cuda"].includes(
-                      form.sttDevice,
-                    ) && (
+                    {!["auto", "cpu", "gpu"].includes(form.sttDevice) && (
                       <option value={form.sttDevice} disabled>
                         未対応の設定（{form.sttDevice}）
                       </option>
                     )}
-                    <option
-                      value={rustBackend ? "gpu" : "cuda"}
-                      disabled={gpuDisabled}
-                    >
-                      {rustBackend ? "GPU" : "CUDA"}
+                    <option value="gpu" disabled={gpuDisabled}>
+                      GPU
                     </option>
                   </select>
                 </FieldRow>
-                {rustBackend && (
-                  <InlineNotice tone="info">
-                    Whisper.cppのQ8モデルを使います。大きなモデルでは文字起こしの表示が会話より遅れることがあります。
-                  </InlineNotice>
-                )}
+                <InlineNotice tone="info">
+                  Whisper.cppのQ8モデルを使います。大きなモデルでは文字起こしの表示が会話より遅れることがあります。
+                </InlineNotice>
               </>
             )}
             <FieldRow
@@ -188,15 +167,13 @@ export function AudioSettingsPanel({
                 {form.sttBackend !== "reazonspeech" && (
                   <option value="en">英語</option>
                 )}
-                {rustBackend && form.sttBackend === "whisper" && (
+                {form.sttBackend === "whisper" && (
                   <option value="auto">自動判定</option>
                 )}
                 {![
                   "ja",
                   "en",
-                  ...(rustBackend && form.sttBackend === "whisper"
-                    ? ["auto"]
-                    : []),
+                  ...(form.sttBackend === "whisper" ? ["auto"] : []),
                 ].includes(form.sttLang) && (
                   <option value={form.sttLang}>{form.sttLang}</option>
                 )}
@@ -219,21 +196,7 @@ export function AudioSettingsPanel({
               label="声の検出方法"
               hint="SileroはTorchを使わず、同梱した約208 KBのONNXモデルを端末内で実行します"
             >
-              <select
-                value={form.sttVadEngine}
-                disabled={audioSettingsLocked}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (isVadEngine(value)) {
-                    update("sttVadEngine", value);
-                  }
-                }}
-                className="field"
-                aria-label="声の検出方法"
-              >
-                <option value="silero">Silero VAD（高精度・おすすめ）</option>
-                <option value="webrtc">WebRTC VAD（最軽量）</option>
-              </select>
+              <p className="text-sm text-ink">Silero VAD</p>
             </FieldRow>
             <FieldRow
               label="無音とみなす時間"
@@ -258,48 +221,29 @@ export function AudioSettingsPanel({
                 </output>
               </div>
             </FieldRow>
-            {form.sttVadEngine === "silero" ? (
-              <FieldRow
-                label="音声判定しきい値"
-                hint="低いほど小さな声を拾い、高いほど雑音を除外します"
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="range"
-                    aria-label="Silero音声判定しきい値"
-                    value={form.sttVadSensitivity}
-                    disabled={audioSettingsLocked}
-                    min={0.05}
-                    max={0.95}
-                    step={0.05}
-                    onChange={(event) =>
-                      update("sttVadSensitivity", Number(event.target.value))
-                    }
-                    className="min-w-0 flex-1 accent-primary"
-                  />
-                  <output className="w-12 text-right text-sm font-semibold tabular-nums text-ink">
-                    {Math.round(form.sttVadSensitivity * 100)}%
-                  </output>
-                </div>
-              </FieldRow>
-            ) : (
-              <FieldRow label="声の検出感度">
-                <select
-                  value={form.sttVad}
+            <FieldRow
+              label="音声判定しきい値"
+              hint="低いほど小さな声を拾い、高いほど雑音を除外します"
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  aria-label="Silero音声判定しきい値"
+                  value={form.sttVadSensitivity}
                   disabled={audioSettingsLocked}
+                  min={0.05}
+                  max={0.95}
+                  step={0.05}
                   onChange={(event) =>
-                    update("sttVad", Number(event.target.value))
+                    update("sttVadSensitivity", Number(event.target.value))
                   }
-                  className="field"
-                  aria-label="声の検出感度"
-                >
-                  <option value={0}>低い</option>
-                  <option value={1}>やや低い</option>
-                  <option value={2}>標準</option>
-                  <option value={3}>高い</option>
-                </select>
-              </FieldRow>
-            )}
+                  className="min-w-0 flex-1 accent-primary"
+                />
+                <output className="w-12 text-right text-sm font-semibold tabular-nums text-ink">
+                  {Math.round(form.sttVadSensitivity * 100)}%
+                </output>
+              </div>
+            </FieldRow>
           </div>
         </SettingsCard>
       </fieldset>

@@ -46,7 +46,7 @@ export function AboutSettingsPanel() {
 
       <SettingsCard
         title="第三者ソフトウェア"
-        description="Node.js、Rust、Pythonの依存関係と、初回起動時に公式配布元から取得するuvの通知を収録しています。"
+        description="フロントエンド、Rust、文書変換用Pythonワーカーと、同梱するライブラリ・モデルの通知を収録しています。"
       >
         <details
           onToggle={(event) => {

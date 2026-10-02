@@ -1,9 +1,9 @@
+generated/
 .direnv
 
 # uv / venv (downloaded binaries and generated environments)
 src-tauri/resources/uv
 src-tauri/resources/uv.exe
-generated/tauri/python/
 
 # Logs
 logs

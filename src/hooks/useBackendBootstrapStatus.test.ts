@@ -30,7 +30,7 @@ async function flushAsync(): Promise<void> {
 // ---------------------------------------------------------------------------
 const DEFAULT_BOOTSTRAP = {
   phase: "initializing",
-  message: "Pythonバックエンドを起動しています...",
+  message: "バックエンドを起動しています...",
 };
 
 const POLL_INTERVAL_MS = 1200;
@@ -56,8 +56,6 @@ describe("useBackendBootstrapStatus", () => {
         case "get_api_port":
           return Promise.resolve(null);
         case "get_api_auth_token":
-          return Promise.resolve(null);
-        case "get_backend_crash_info":
           return Promise.resolve(null);
         default:
           return Promise.reject(new Error(`Unknown command: ${cmd}`));
@@ -104,8 +102,6 @@ describe("useBackendBootstrapStatus", () => {
           return Promise.resolve(8000);
         case "get_api_auth_token":
           return Promise.resolve("token");
-        case "get_backend_crash_info":
-          return Promise.resolve(null);
         default:
           return Promise.reject(new Error(`Unknown command: ${cmd}`));
       }
@@ -133,19 +129,19 @@ describe("useBackendBootstrapStatus", () => {
     // Let the initial refresh complete
     await flushAsync();
     const callsAfterFirst = mockInvoke.mock.calls.length;
-    expect(callsAfterFirst).toBe(5);
+    expect(callsAfterFirst).toBe(4);
 
     // Advance one interval — wrapped in act so React sees the state updates
     await act(async () => {
       await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
     });
-    expect(mockInvoke.mock.calls.length).toBe(callsAfterFirst + 5);
+    expect(mockInvoke.mock.calls.length).toBe(callsAfterFirst + 4);
 
     // Advance another interval
     await act(async () => {
       await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
     });
-    expect(mockInvoke.mock.calls.length).toBe(callsAfterFirst + 10);
+    expect(mockInvoke.mock.calls.length).toBe(callsAfterFirst + 8);
   });
 
   // -----------------------------------------------------------------------
@@ -239,8 +235,6 @@ describe("useBackendBootstrapStatus", () => {
           return Promise.resolve(8000); // port is available but backend not running
         case "get_api_auth_token":
           return Promise.resolve("token");
-        case "get_backend_crash_info":
-          return Promise.resolve(null);
         default:
           return Promise.reject(new Error(`Unknown command: ${cmd}`));
       }
@@ -271,8 +265,6 @@ describe("useBackendBootstrapStatus", () => {
           return Promise.resolve(null);
         case "get_api_auth_token":
           return Promise.resolve(null);
-        case "get_backend_crash_info":
-          return Promise.resolve(null);
         default:
           return Promise.reject(new Error(`Unknown command: ${cmd}`));
       }
@@ -286,160 +278,6 @@ describe("useBackendBootstrapStatus", () => {
     // console.warn should have been called by the client validation layer
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       "[BootstrapClient] Invalid bootstrap status shape:",
-      expect.any(Error),
-    );
-    consoleWarnSpy.mockRestore();
-  });
-
-  // -----------------------------------------------------------------------
-  // 9. crash info — unexpected termination overrides bootstrap to 'failed'
-  // -----------------------------------------------------------------------
-  it("sets bootstrap to failed and clears apiPort when crash info reports unexpected termination", async () => {
-    const crashData = {
-      unexpected: true,
-      exit_code: 137,
-      signal: null,
-      message: "Backend process terminated unexpectedly. Exited with code 137.",
-    };
-    mockInvoke.mockImplementation((cmd: string) => {
-      switch (cmd) {
-        case "get_backend_bootstrap_status":
-          return Promise.resolve({
-            phase: "running",
-            message: "Backend is ready.",
-          });
-        case "is_backend_running":
-          return Promise.resolve(true);
-        case "get_api_port":
-          return Promise.resolve(8000);
-        case "get_api_auth_token":
-          return Promise.resolve("token");
-        case "get_backend_crash_info":
-          return Promise.resolve(crashData);
-        default:
-          return Promise.reject(new Error(`Unknown command: ${cmd}`));
-      }
-    });
-
-    const { result } = renderHook(() => useBackendBootstrapStatus());
-    await flushAsync();
-
-    expect(result.current.bootstrap.phase).toBe("failed");
-    expect(result.current.bootstrap.message).toContain("unexpectedly");
-    expect(result.current.apiPort).toBeNull();
-    expect(result.current.apiAuthToken).toBeNull();
-    expect(result.current.crashInfo).toEqual(crashData);
-  });
-
-  // -----------------------------------------------------------------------
-  // 9b. crash detected → polling stops (no further IPC calls)
-  // -----------------------------------------------------------------------
-  it("stops polling after an unexpected crash is detected", async () => {
-    const crashData = {
-      unexpected: true,
-      exit_code: 137,
-      signal: null,
-      message: "Backend process terminated unexpectedly. Exited with code 137.",
-    };
-    mockInvoke.mockImplementation((cmd: string) => {
-      switch (cmd) {
-        case "get_backend_bootstrap_status":
-          return Promise.resolve({
-            phase: "running",
-            message: "Backend is running.",
-          });
-        case "is_backend_running":
-          return Promise.resolve(false);
-        case "get_api_port":
-          return Promise.resolve(null);
-        case "get_api_auth_token":
-          return Promise.resolve(null);
-        case "get_backend_crash_info":
-          return Promise.resolve(crashData);
-        default:
-          return Promise.reject(new Error(`Unknown command: ${cmd}`));
-      }
-    });
-
-    renderHook(() => useBackendBootstrapStatus());
-
-    // Let the initial refresh complete
-    await flushAsync();
-    const callsAfterFirst = mockInvoke.mock.calls.length;
-    expect(callsAfterFirst).toBe(5);
-
-    // Advance well past multiple poll intervals — no new IPC calls should happen
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 10);
-    });
-
-    expect(mockInvoke.mock.calls.length).toBe(callsAfterFirst);
-  });
-
-  // -----------------------------------------------------------------------
-  // 10. crash info — null crash info does not affect normal flow
-  // -----------------------------------------------------------------------
-  it("returns null crashInfo when no crash detected", async () => {
-    mockInvoke.mockImplementation((cmd: string) => {
-      switch (cmd) {
-        case "get_backend_bootstrap_status":
-          return Promise.resolve({
-            phase: "running",
-            message: "Backend is ready.",
-          });
-        case "is_backend_running":
-          return Promise.resolve(true);
-        case "get_api_port":
-          return Promise.resolve(8000);
-        case "get_api_auth_token":
-          return Promise.resolve("token");
-        case "get_backend_crash_info":
-          return Promise.resolve(null);
-        default:
-          return Promise.reject(new Error(`Unknown command: ${cmd}`));
-      }
-    });
-
-    const { result } = renderHook(() => useBackendBootstrapStatus());
-    await flushAsync();
-
-    expect(result.current.crashInfo).toBeNull();
-    expect(result.current.bootstrap.phase).toBe("running");
-    expect(result.current.apiPort).toBe(8000);
-    expect(result.current.apiAuthToken).toBe("token");
-  });
-
-  // -----------------------------------------------------------------------
-  // 11. crash info — invalid shape falls back to null
-  // -----------------------------------------------------------------------
-  it("falls back to null crashInfo when IPC returns invalid shape", async () => {
-    const consoleWarnSpy = vi
-      .spyOn(console, "warn")
-      .mockImplementation(() => {});
-    mockInvoke.mockImplementation((cmd: string) => {
-      switch (cmd) {
-        case "get_backend_bootstrap_status":
-          return Promise.resolve({ phase: "starting", message: "Starting..." });
-        case "is_backend_running":
-          return Promise.resolve(false);
-        case "get_api_port":
-          return Promise.resolve(null);
-        case "get_api_auth_token":
-          return Promise.resolve(null);
-        case "get_backend_crash_info":
-          // Invalid shape — missing required fields
-          return Promise.resolve({ unexpected: "yes" });
-        default:
-          return Promise.reject(new Error(`Unknown command: ${cmd}`));
-      }
-    });
-
-    const { result } = renderHook(() => useBackendBootstrapStatus());
-    await flushAsync();
-
-    expect(result.current.crashInfo).toBeNull();
-    expect(consoleWarnSpy).toHaveBeenCalledWith(
-      "[BootstrapClient] Invalid crash info shape:",
       expect.any(Error),
     );
     consoleWarnSpy.mockRestore();

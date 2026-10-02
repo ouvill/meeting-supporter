@@ -29,6 +29,7 @@ const REQUIRED_AUTHORITIES = [
   "doc/adr/018-interrupted-meeting-history.md",
   "doc/adr/019-local-speech-and-saved-history.md",
   "doc/adr/020-versioned-rust-settings.md",
+  "doc/adr/021-retire-python-backend.md",
 ];
 
 const REQUIRED_LINKS = [

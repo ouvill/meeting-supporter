@@ -1,32 +1,13 @@
 # Rust 音声バックエンド: Silero + ReazonSpeech
 
-## 方針
+## 役割
 
-通常起動と会議の実行経路を Rust に移し、Python を必須依存から外す方針です。音声系の native 化を優先し、モデルに適した実行 engine を選びます。ローカル LLM の実行基盤は後で検討します。React / TypeScript の画面は維持し、対象を現在 Python が担っているバックエンド全体とします。
+デスクトップアプリに同梱する Rust 音声ワーカーです。Silero VAD、発話区間の切り出し、ReazonSpeech / Whisper の文字起こしを担当します。
+標準構成では `meeting-media-runtime` が子プロセスを管理し、会議管理・履歴・AI・画面接続は `meeting-desktop-runtime` が担当します。
+開発・配布手順は [Rust バックエンド](../../doc/development/rust-desktop-backend.md)を参照してください。
 
-目的は音声演算の高速化だけでなく、起動時の依存環境準備の除去、配布の再現性、状態・リソース・キャンセルの管理改善です。[音声コア単体の測定](../rust-audio-core/README.md)では扱わなかった起動経路を対象にしています。
-
-このディレクトリは検証用です。製品のバックエンドはまだ Python であり、全面移行は完了していません。実装範囲は **Python なしの操作受付 → モデルの遅延初期化 → Silero VAD → 発話区間の切り出し → ReazonSpeech の文字起こし** です。マイク、16 kHz mono PCM16 の逐次入力、WAV ファイルを使えます。会議履歴・AI 通信・画面接続は未実装です。
-
-## 起動経路で確認したこと
-
-参照コードは `51b65e1` です。以下は静的なコード調査であり、製品の各工程を実機で計測した結果ではありません。
-
-| 起動工程 | 現在の実装 | 移行先 |
-|---|---|---|
-| Python 環境の準備 | [Tauri 起動](../../src-tauri/src/lib.rs)から毎回 `ensure_python_environment` を呼びます。[uv 管理](../../src-tauri/src/paths/uv.rs)で `uv sync --locked --no-dev` を実行し、失敗時は再試行します。変更がなくても確認コストは残ります。 | 通常起動から uv / Python / pip 環境を除去し、署名済みアプリと native runtime を配布します。 |
-| バックエンド起動 | [プロセス管理](../../src-tauri/src/process.rs)で `uv run --no-sync uvicorn main:app` を起動し、認証付き `/health` をポーリングします。 | Tauri 内の Rust サービスを起動し、画面操作の受付をモデル準備と分離します。 |
-| モジュール読み込み | [main.py](../../python/main.py)から音声・STT・AI provider・API の依存を広く import します。設定、secret store、サービス、AI bundle も組み立てます。 | 純粋な設定・状態・UI 接続を先に用意し、デバイス・モデル・外部 provider は必要時に初期化します。 |
-| lifespan | [lifespan.py](../../python/app/lifespan.py)でDB 初期化、文脈読み込みなどが完了してから受付可能になります。 | 必須のローカル状態だけを起動条件にし、外部 runtime の接続失敗が設定画面を塞がないようにします。 |
-| 音声準備 | WebSocket 接続後のレベル監視と `init_stt` によるモデル準備は別経路です。現在もすべてのモデルが `/health` 前にロードされるわけではありません。 | `app_ready`、`audio_ready`、`stt_ready` を別々に計測・表示します。 |
-
-Rust に移しても、デバイス列挙、DB migration、モデルのファイル I/O、推論 runtime の初期化時間は残ります。起動経路から不要な処理を外す設計と、言語の移行を組み合わせます。
-
-## 移行先の設計
-
-実行境界・状態の所有者・保存・UI 契約は、[ADR-016: Rust 移行時の実行境界と状態の所有者](../../doc/adr/016-rust-runtime-and-ownership-boundaries.md)にまとめています。現在は Proposed です。
-
-推奨案は Tauri 本体で会議を制御し、ONNX / ローカル STT を必要時起動の Rust speech-worker に隔離する構成です。この実装は ONNX のロード・推論・区間処理・文字起こしを提供する Rust library / CLI であり、製品用 supervisor、会議世代、binary IPC、強制停止期限は未実装です。この試作は分割処理型の一例です。製品設計は SpeechSession ごとに処理 plan を持ち、VAD・ASR・話者推定をまとめて提供する engine / service も扱います。統合方式や話者推定を試作に実装済みという意味ではありません。以下は試作で検討したモデルの適合性と再現手順です。
+Silero の組込みモデルは [resources/silero_vad.int8.onnx](resources/silero_vad.int8.onnx) に置きます。
+旧 Python 実装と同じモデルを保持し、このワーカーの実行に Python は使いません。
 
 ## モデルごとの実行基盤
 
@@ -42,7 +23,7 @@ ONNX はモデル形式であり、トークナイザー、特徴量抽出、パ
 
 Python 専用モデルを実行する必要がある場合は、製品から呼び出すことも許容します。条件と実行境界は [ADR-016](../../doc/adr/016-rust-runtime-and-ownership-boundaries.md#python-が不可欠なモデルは専用-adapter-から実行できる)を参照してください。この Silero + ReazonSpeech 経路は Python を呼びません。
 
-## 試作の実装
+## 実装
 
 - [src/session.rs](src/session.rs): `SpeechPlan` と `SpeechSession<Unprepared/Prepared>`、入力元ごとの状態・sample clock・世代、終了とリセットです。
 - [src/error.rs](src/error.rs): `thiserror` の error enum です。文字列で失敗理由を比較しません。
@@ -176,51 +157,21 @@ test/rust-native-backend/target/vad-only/release/meeting-native-backend \
 
 ## 検証と測定
 
-### Silero 単体の比較
-
-Python は比較用のテストドライバーだけに使います。以下は既存 lockfile に合わせた ONNX Runtime の Python 配布物を比較用環境へ導入する手順です。Rust 子プロセスはその中の native library を直接ロードしており、Python を実行しません。テストでは子プロセスの `PATH` を空にし、アプリの credential も渡していません。
+### Rust と同梱リソースの検証
 
 ```bash
-uv venv --python 3.14 test/rust-native-backend/.venv
-uv pip install --python test/rust-native-backend/.venv/bin/python numpy==2.4.4 pydantic==2.13.2 onnxruntime==1.24.4
-test/rust-native-backend/.venv/bin/python test/rust-native-backend/verify.py \
-  --binary test/rust-native-backend/target/vad-only/release/meeting-native-backend
 cargo test --locked --manifest-path test/rust-native-backend/Cargo.toml
-cargo clippy --locked --all-targets --manifest-path test/rust-native-backend/Cargo.toml -- -D warnings
+npm run test:rust-bundle
 ```
 
-Windows では `.venv/Scripts/python.exe` と実行ファイルの `.exe` を使い、`--binary` / `--ort-library` で必要な path を指定します。Windows / macOS の実行・配布は未検証です。
+`test:rust-bundle` は `prepare:rust-resources` 後に実行します。移動先・空の PATH でネイティブライブラリと実モデルを読み込み、合成無音を処理します。
 
-以下の数値は ReazonSpeech 接続前の VAD 単体試作の測定です。Linux x86_64、Rust 1.98.1 release、Python 比較環境 3.14.4、NumPy 2.4.4、ONNX Runtime 1.24.4 での結果です。15 回とも別プロセスを起動し、OS のファイルキャッシュはウォームです。コールドブートや製品全体の起動速度は測定していません。
+### 移植時の比較記録
 
-| 測定対象 | 中央値 | 最大値 |
-|---|---:|---:|
-| 子プロセス起動から操作受付応答の受信まで | 1.03 ms | 1.15 ms |
-| worker 内の ONNX Runtime + Silero session 作成 | 29.55 ms | 31.20 ms |
-
-前者は親側のプロセス作成・標準出力受信・テストドライバーのスケジューリングを含みます。後者は Rust 内部の時計で、キュー待ちと IPC、初回推論を含みません。当時の VAD 単体バイナリは約 1.27 MB ですが、外部の ONNX Runtime 共有ライブラリや STT モデルはこのサイズに含みません。製品の Python バックエンドと同じ機能・条件での起動比較ではないため、製品の高速化倍率は算出していません。
-
-比較は、数式で生成した母音状波形・ノイズ・無音を 2 話者に交互に渡した 360 フレームです。現行 Python の `SileroVadEngine` と発話判定が一致し、窓ごとの確率の最大絶対差は約 `2.98e-8` でした。認識対象に採用された 2 区間について、Python の `ReazonSpeechStage` と終端位置・サンプル数を比較しました。これはモデルの配線と状態管理の検証であり、自然な会話の VAD 精度や文字起こし精度の評価ではありません。
-
-runtime 不在でも操作受付可能であること、ロード失敗と再試行、prepare と並行した health、準備前の音声拒否、不正入力、入力元の状態分離、reset、shutdown、過大入力の拒否も検証しました。従来の区間コアには別途 60 ケースの音声サンプル一致比較があります。
-
-### ReazonSpeech の実モデル検証
-
-[verify_reazon.py](verify_reazon.py) は Open JTalk で固定の日本語文を合成し、Rust に渡した区間を既存 Python の `transcribe_reazonspeech` にも渡して比較します。録音や会議データは使いません。テスト用の Open JTalk、48 kHz の voice と辞書を別途用意します。検証時は pyopenjtalk の `mei_normal.htsvoice`（SHA-256 `f3be49a6838904a6c218790b64e07c3e83c1886e995dca284b413caab19184de`）を使用しました。voice は製品に同梱しません。
-
-```bash
-uv pip install --python test/rust-native-backend/.venv/bin/python sherpa-onnx==1.12.31
-test/rust-native-backend/.venv/bin/python test/rust-native-backend/verify_reazon.py \
-  --model test/rust-native-backend/target/models/reazonspeech \
-  --voice /path/to/mei_normal.htsvoice \
-  --dictionary /path/to/open-jtalk-dictionary
-cargo test --locked --features reazonspeech --manifest-path test/rust-native-backend/Cargo.toml
-cargo clippy --locked --all-targets --features reazonspeech --manifest-path test/rust-native-backend/Cargo.toml -- -D warnings
-```
-
-比較側は製品 lockfile と同じ Python `sherpa-onnx 1.12.31`、Rust 側は `1.13.8` です。Linux x86_64 の実測では、2 発話の文字列が Python と一致し、WAV / PCM の区間・認識結果も一致しました。別入力元へ交互に無音を送った場合の分離、終了後の入力拒否、finish の冪等性、reset による破棄と世代更新、モデル不在時の再試行、不正な WAV、キュー満杯時の `busy` 応答も検証しています。typestate の準備前入力禁止は compile-fail doctest で確認します。
-
-2 回の検証実行で、操作受付は約 3.4 ms と 70.8 ms、Silero + ReazonSpeech の準備は約 4.7 秒と 5.4 秒でした。native library のビルド・配置を挟んでおり、条件を揃えた起動ベンチマークではありません。準備後は同じ認識器を再利用します。この値は製品全体の起動速度や認識精度の保証ではなく、自然な会議音声・GPU・他 OS の比較も未実施です。
+旧 Python 実装との Silero / ReazonSpeech 比較は、移植時に合成音声で実施しました。
+比較専用の Python スクリプトは撤去しています。条件・結果・当時の実行手順は
+[移植前の比較記録](https://github.com/ouvill/meeting-supporter/blob/8b269dc983a51a06138e25b10e5ce9b41f317797/test/rust-native-backend/README.md#検証と測定)に保存されています。
+実機の認識品質・長時間録音の評価とは分けて扱います。
 
 ### マイク処理経路の合成音声テスト
 
@@ -236,9 +187,10 @@ cargo test --locked --features reazonspeech --manifest-path test/rust-native-bac
 
 このテストは合成音声を stereo にして取得コールバックの処理へ渡し、リングバッファ・resampler・Silero・ReazonSpeech を通して日本語の認識を確認します。OS のマイクデバイスそのものの検証を代替するものではありません。
 
-## 製品移行との関係
+## 製品との接続
 
-段階的な置換境界と採用前の検証条件は [ADR-016](../../doc/adr/016-rust-runtime-and-ownership-boundaries.md)を参照してください。この試作の起動時間は、製品の UI、DB、音声取得、文字起こしまで含めた時間ではありません。起動受付と最初に会議を開始できるまでの時間を分けて評価します。
+通常の会議画面は [Rust バックエンド](../../doc/development/rust-desktop-backend.md)からこのワーカーを使用します。
+音声取得・録音は別プロセスで実行し、推論障害時も録音を継続します。
 
 ## ライセンスと配布境界
 

@@ -53,7 +53,7 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           enable-cache: true
-          cache-dependency-glob: python/uv.lock
+          cache-dependency-glob: python-worker/uv.lock
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
@@ -72,14 +72,13 @@ jobs:
       - name: Check documents, build frontend, and run frontend tests
         run: npm run check:docs && npm run build && npm run test
 
-      - name: Check Python and run backend tests
-        working-directory: python
-        run: uv sync --locked && uv run poe check && uv run poe test
+      - name: Check and test the MarkItDown worker
+        run: |
+          uv run --locked --project python-worker ruff check python-worker
+          uv run --locked --project python-worker ruff format --check python-worker
+          npm run test:python-worker
       - name: Audit third-party licenses and notices
         run: npm run licenses:check
-
-      - name: Prepare bundled Python resource
-        run: npm run prepare:python-resource
 
       - name: Run Rust tests
         env:
@@ -87,83 +86,10 @@ jobs:
         working-directory: src-tauri
         run: cargo test --locked
 
-  native-e2e:
-    name: Native E2E (${{ matrix.label }})
-    needs: verify
-    runs-on: ${{ matrix.platform }}
-    continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: Linux x64
-            platform: ubuntu-24.04
-            command: xvfb-run -a npm run test:tauri:linux
-          - label: macOS native
-            platform: macos-latest
-            command: npm run test:tauri
-          - label: Windows x64
-            platform: windows-latest
-            command: npm run test:tauri
-
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Install Linux desktop dependencies
-        if: startsWith(matrix.platform, 'ubuntu-')
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libasound2-dev \
-            libayatana-appindicator3-dev \
-            libgtk-3-dev \
-            librsvg2-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev \
-            patchelf \
-            openbox \
-            xvfb
-
-      - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.12"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
-        with:
-          enable-cache: true
-          cache-dependency-glob: python/uv.lock
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
-
-      - name: Install frontend and backend dependencies
-        shell: bash
-        run: |
-          npm ci
-          uv sync --project python --locked
-
-      - name: Run native Tauri WebDriver scenarios
-        shell: bash
-        run: ${{ matrix.command }}
-
   build:
     name: Build ${{ matrix.label }}
     if: github.ref_type == 'tag'
-    needs: [verify, native-e2e, rust-backend, rust-installers]
+    needs: [verify, rust-backend, rust-installers]
     permissions:
       contents: write
     strategy:

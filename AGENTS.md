@@ -9,15 +9,13 @@ Meeting Supporter is a Japanese desktop AI meeting assistant. Keep changes withi
 | `src/` | React 19 + Vite 7 + TypeScript frontend. Consumes `src/api/generated`. |
 | `crates/` | Rust desktop domain and runtime libraries. |
 | `src-tauri/` | Tauri 2 shell; standard Rust backend on Linux/Windows/macOS. |
-| `python/` | Legacy FastAPI/WebSocket/Pydantic AI backend; retained for comparison tests. |
-| `python-server/` | Optional remote Google Cloud STT relay. |
 | `python-worker/` | Shared on-demand Python executable for Rust-owned operations; MarkItDown document conversion. |
 | `doc/` | Public product, UI, and architecture authorities. |
 | `public/` | Static web assets. |
 | `test/` | Public integration and desktop test support. |
 | `scripts/` | Public checks, generation, and test runners. |
 
-Do not confuse `python/` with `python-server/`. Meeting history and user context are stored in the platform app-data directory, not in this repository.
+Meeting history and user context are stored in the platform app-data directory, not in this repository.
 
 Meeting Supporter-operated hosted-service server code and operations are outside this repository. A normal OSS build must remain fail closed when the hosted endpoint is not configured.
 
@@ -46,8 +44,8 @@ npm run build
 npm run test
 npm run generate:api
 git diff --exit-code -- openapi.json src/api/generated
-uv run --directory python poe check
-uv run --directory python poe test
+uv run --locked --project python-worker ruff check python-worker
+npm run test:python-worker
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 npm run test:tauri
 ```

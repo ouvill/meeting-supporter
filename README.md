@@ -37,11 +37,10 @@
 
 - Whisper（local。アプリ設定からmodelを準備可能）
 - ReazonSpeech K2-v2 int8（local・日本語専用。アプリ設定からmodelを準備可能）
-- Dummy（旧 Python 構成の development/smoke 用）
 
 既定はReazonSpeechです。モデルの利用規約は各提供元に従います。
 
-Rust 構成の VAD は Silero です。旧 Python 構成では Silero VAD または WebRTC VAD を選択します。
+VAD は Silero を使用します。
 
 
 ## AIの利用方法
@@ -66,10 +65,10 @@ Meeting Supporterが運営するhosted serviceのserver実装・運用文書は�
 
 ### 前提条件
 
-- Node.js 20+
-- Python 3.12–3.14（旧 Python バックエンドを開発する場合）
+- Node.js 20.19+
+- Python 3.12.12（MarkItDown worker のビルド・検証用。uv で取得可能）
 - Rust toolchain（Tauri desktop開発時）
-- `uv`（DOCX worker のビルド、または旧 Python バックエンドの開発時）
+- `uv`（DOCX worker のビルド・検証とライセンス通知の生成用）
 
 Linux / Windows / macOS の標準構成は Rust を使用します。配布版には必要な worker を同梱し、利用者環境の Python / uv は使いません。
 ビルド環境と CI の検証範囲は [Rust のインストーラー](doc/development/rust-desktop-backend.md#インストーラー)を参照してください。
@@ -83,7 +82,7 @@ macOS は 14.6 以降の Apple Silicon / Intel に対応します。
 npm ci
 ```
 
-旧 Python 構成を使う場合は、追加で `uv sync --directory python --locked` を実行します。
+文書変換ワーカーの開発依存は `uv sync --project python-worker --locked` で準備します。
 
 ### Desktop development
 
@@ -97,22 +96,13 @@ frontendだけを起動する場合:
 npm run dev
 ```
 
-Python backendだけを起動する場合:
-
-```bash
-npm run dev:python
-```
-
 ### Rust ローカル文字起こし
 
 `npm run dev:rust` で、既存画面から Tauri 内の Rust バックエンドを直接利用できます。
 起動前に音声取得・推論 worker を差分ビルドするため、個別のビルド操作は不要です。
 Python を起動しない経路の手順と制約は [Rust バックエンドの直接接続](doc/development/rust-desktop-backend.md)を参照してください。
 
-既存 Python 経路の ReazonSpeech 音声認識だけを Rust worker に切り替えることもできます。
-起動方法と現在の範囲は [Rust ローカル文字起こし](doc/development/rust-local-speech.md)を参照してください。
-
-独立した `dev:native` 画面は音声処理の検証用です。既存アプリへの接続には上記の手順を使います。
+独立した `dev:native` 画面は音声処理の検証用です。手順は [Rust ローカル文字起こし](doc/development/rust-local-speech.md)を参照してください。
 
 ### 紹介サイト
 
@@ -127,7 +117,7 @@ production buildは`dist-website/`へ出力されます。
 
 ### ローカル backend の境界
 
-Tauri launcherがdesktop backendごとに生成するcapability tokenは、同一端末上のそのprocessへ届いた呼出しを確認するためだけのものです。これはhosted serviceの利用者認証ではありません。`npm run dev:python`で直接起動するPython backendと`python-server`は、ローカル開発・動作確認用であり、そのまま公開serviceとして運用することを想定していません。
+Tauri launcherがdesktop backendごとに生成するcapability tokenは、同一端末上のそのprocessへ届いた呼出しを確認するためだけのものです。これはhosted serviceの利用者認証ではありません。API は loopback に限定し、外部公開用のサーバーとしては扱いません。
 
 ### Build
 
@@ -143,7 +133,7 @@ npm run tauri build
 npm run check:release -- --tag v0.1.0
 ```
 
-`package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`、`python/pyproject.toml`、`openapi.json`のversionは同じ値にします。`v<version>`タグのpush、またはGitHub Actionsから`Release draft`を手動実行すると、Linux x64、Windows x64、macOS Apple Silicon / Intelのinstaller候補がdraft releaseへ追加されます。各artifactには`LICENSE`と`THIRD-PARTY-NOTICES.txt`を収録し、`uv`バイナリ自体は再配布しません。標準配布版は Rust と同梱 worker を使い、初回起動時の Python / uv の取得は不要です。
+`package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`、`python-worker/pyproject.toml`、`openapi.json`のversionは同じ値にします。`v<version>`タグのpush、またはGitHub Actionsから`Release draft`を手動実行すると、Linux x64、Windows x64、macOS Apple Silicon / Intelのinstaller候補がdraft releaseへ追加されます。各artifactには`LICENSE`と`THIRD-PARTY-NOTICES.txt`を収録し、`uv`バイナリ自体は再配布しません。標準配布版は Rust と同梱 worker を使い、初回起動時の Python / uv の取得は不要です。
 
 第三者ライセンス通知はlockfileから再生成し、差分と許可ポリシーをCIで検査します。
 
@@ -160,25 +150,23 @@ workflowは公開を自動化しません。draftを公開する前に対象OS�
 
 Rust 構成は AppData 配下の `settings.toml` を使用し、ファイル全体に `schema_version = 1` を持たせます。旧設定からは自動移行しません。設定の例と再設定手順は [Rust の設定手順](doc/development/rust-desktop-backend.md#設定の保存と反映)を参照してください。
 
-Python 構成は `python/config.default.toml` の既定値と AppData 配下の `config.toml` を使用します。
+Rust 構成の API キーは OS の認証情報ストアへ保存します。credential を issue、log、screenshot、文書へ記録しないでください。
 
-Rust 構成の API キーは OS の認証情報ストアへ保存します。Python 構成は Python `keyring` を使用し、開発・CI では `SECRET_STORE_BACKEND=file` を指定できます。credential を issue、log、screenshot、文書へ記録しないでください。
+「端末内・高精度」のWhisper modelは、アプリの音声設定からダウンロードできます。進捗表示と失敗時の再試行に対応し、保存先にはHugging Faceの標準共有cacheを使用するため、アプリ専用フォルダへmodelを重複保存しません。取得のキャンセルにも対応します。
 
-「端末内・高精度」のWhisper modelは、アプリの音声設定からダウンロードできます。進捗表示と失敗時の再試行に対応し、保存先にはHugging Faceの標準共有cacheを使用するため、アプリ専用フォルダへmodelを重複保存しません。Pythonバックエンドでは途中キャンセルできません。Rustバックエンドでは取得のキャンセルにも対応します。
-
-「端末内・日本語高精度」のReazonSpeech K2-v2 int8を音声認識の既定方式として使用します。modelは同じ画面からダウンロードでき、約153MBを使用してHugging Faceの標準共有cacheへ保存します。日本語の音声だけに対応し、1回の認識区間をmodelの上限である約30秒未満に分割します。Pythonバックエンドでは途中キャンセルできません。Rustバックエンドでは取得のキャンセルにも対応します。modelとReazonSpeechの利用条件はApache License 2.0です。
+「端末内・日本語高精度」のReazonSpeech K2-v2 int8を音声認識の既定方式として使用します。modelは同じ画面からダウンロードでき、約153MBを使用してHugging Faceの標準共有cacheへ保存します。日本語の音声だけに対応し、1回の認識区間をmodelの上限である約30秒未満に分割します。取得のキャンセルにも対応します。modelとReazonSpeechの利用条件はApache License 2.0です。
 
 Ollamaの既定endpointは`http://localhost:11434/v1`です。
 
-声の検出は既定でSilero VADを使用します。Torchは導入せず、同梱した約208KBのint8 ONNX modelをONNX Runtimeで直接実行します。処理は端末内で完結し、最小負荷を優先する場合は音声設定からWebRTC VADへ切り替えられます。Silero VAD modelの利用条件はMIT Licenseです。
+声の検出は既定でSilero VADを使用します。Torchは導入せず、同梱した約208KBのint8 ONNX modelをONNX Runtimeで直接実行します。処理は端末内で完結します。Silero VAD modelの利用条件はMIT Licenseです。
 
 音声デバイス、VAD、音声認識方式の設定は会議中には変更できず、進行中の会議は開始時のaudio runtimeを使い続けます。会議停止中にこれらの変更を保存すると、アプリ本体を再起動せずに音声subsystem全体を新設定で再生成します。stage単位のhot-swapは行わず、再生成に失敗した場合は変更前のaudio runtimeへ戻します。会議中に外部からconfig変更通知を受けた場合も、その会議の終了後まで再読み込みを保留します。
 
 ## Architecture and product authority
 
 - [Documentation index](./doc/README.md)
-- [Rust 音声コアの試作・移行検討](./test/rust-audio-core/README.md)（experimental。本番には未接続）
-- [Rust 音声バックエンドの移行試作](./test/rust-native-backend/README.md)（experimental。Silero + ReazonSpeech によるマイク / PCM / WAV の文字起こし）
+- [Rust 音声コアの試作・移行検討](./test/rust-audio-core/README.md)（音声ワーカーが利用する区間処理ライブラリ）
+- [Rust 音声バックエンドの移行試作](./test/rust-native-backend/README.md)（Silero + ReazonSpeech / Whisper の推論ワーカー）
 - [Product Vision](./doc/product/vision.md)
 - [Product Requirements and availability](./doc/product/prd.md)
 - [Product Surfaces](./doc/ui/product-surfaces.md)
@@ -198,9 +186,10 @@ Ollamaの既定endpointは`http://localhost:11434/v1`です。
 | --------- | ------------------------------------------ |
 | UI        | React 19, TypeScript, Vite, Tailwind CSS   |
 | Desktop   | Tauri 2                                    |
-| Backend   | Python 3.12–3.14, FastAPI, WebSocket       |
-| Audio     | soundcard / Silero VAD / WebRTC VAD        |
-| Local STT | faster-whisper / ReazonSpeech K2-v2 |
+| Backend   | Rust, Poem, HTTP / WebSocket |
+| Audio     | CPAL / Silero VAD / ONNX Runtime |
+| Local STT | whisper.cpp / ReazonSpeech K2-v2 |
+| Documents | 同梱 Python worker / MarkItDown |
 
 ## Contributing
 

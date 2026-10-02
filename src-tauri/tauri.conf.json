@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "net.ouvill.meeting-supporter",
   "build": {
-    "beforeDevCommand": "npm run prepare:python-resource && npm run dev",
+    "beforeDevCommand": "node scripts/prepare-rust-resources.mjs --dev && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run prepare:python-resource && npm run build",
+    "beforeBuildCommand": "npm run prepare:rust-resources && npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -40,7 +40,9 @@
     ],
     "security": {
       "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; media-src 'self' blob:",
-      "capabilities": ["default"]
+      "capabilities": [
+        "default"
+      ]
     }
   },
   "bundle": {
@@ -60,14 +62,17 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../generated/tauri/python": "python",
-      "../THIRD-PARTY-NOTICES.txt": "THIRD-PARTY-NOTICES.txt"
+      "../THIRD-PARTY-NOTICES.txt": "THIRD-PARTY-NOTICES.txt",
+      "../generated/rust-resources/native": "native",
+      "../generated/python-worker/dist/meeting-python-worker": "python-worker"
     }
   },
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["meeting-supporter"]
+        "schemes": [
+          "meeting-supporter"
+        ]
       }
     }
   }

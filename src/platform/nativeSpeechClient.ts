@@ -72,7 +72,7 @@ export function speechErrorMessage(value: unknown): string {
 }
 export async function runtimeMode() {
   return z
-    .enum(["rust", "python", "rust-backend"])
+    .enum(["rust", "rust-backend"])
     .parse(await invoke<unknown>("get_runtime_mode"));
 }
 export async function speechDefaults() {

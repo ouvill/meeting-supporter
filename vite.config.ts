@@ -37,8 +37,7 @@ export default defineConfig(async ({ mode }) => ({
       // traversing backend, Rust, generated, log, and documentation trees.
       ignored: [
         "**/src-tauri/**",
-        "**/python/**",
-        "**/python-server/**",
+        "**/python-worker/**",
         "**/generated/**",
         "**/logs/**",
         "**/dist*/**",

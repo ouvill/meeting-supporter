@@ -35,7 +35,7 @@ await run(process.execPath, [
   "--debug",
   "--no-bundle",
   "--features",
-  "rust-backend,webdriver",
+  "webdriver",
   "--config",
   "src-tauri/tauri.rust-wdio.conf.json",
 ]);

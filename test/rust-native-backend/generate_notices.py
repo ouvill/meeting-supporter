@@ -41,7 +41,7 @@ def main() -> None:
         raise RuntimeError("\n".join(errors))
     generated = auditor.render(packages)
     generated = generated.replace(
-        "Python packages are resolved from python/uv.lock with `uv sync --locked --no-dev`.",
+        "Python packages are resolved from python-worker/uv.lock with `uv sync --locked --no-dev`.",
         "Scope: Rust backend crates (including the ReazonSpeech feature) and embedded Silero.\n"
         "Native sherpa-onnx/ONNX Runtime and ReazonSpeech model files are externally supplied;\n"
         "their licenses and third-party notices must accompany any distribution of those artifacts.",

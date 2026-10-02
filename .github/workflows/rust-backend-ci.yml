@@ -5,6 +5,7 @@ on:
   push:
     branches: [main]
   workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -99,7 +100,7 @@ jobs:
       - name: Test the Rust Tauri composition
         env:
           TAURI_CONFIG: '{"bundle":{"resources":null}}'
-        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --features rust-backend,webdriver
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --features webdriver
       - name: Run Rust desktop without Python, models, or audio devices
         run: dbus-run-session -- xvfb-run -a npm run test:tauri:rust
       - name: Upload synthetic desktop failure logs

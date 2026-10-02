@@ -45,7 +45,6 @@ function failure(error: unknown): Error {
 }
 
 // The Registry and installations are owned by the Rust desktop runtime.
-// The Python backend does not expose these operations.
 export async function getAgentCatalog(
   refresh = false,
   signal?: AbortSignal,

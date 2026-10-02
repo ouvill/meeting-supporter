@@ -50,15 +50,13 @@ vi.mock("@tauri-apps/api/core", () => ({
       case "get_backend_bootstrap_status":
         return Promise.resolve({
           phase: "initializing",
-          message: "Pythonバックエンドを起動しています...",
+          message: "バックエンドを起動しています...",
         });
       case "is_backend_running":
         return Promise.resolve(false);
       case "get_api_port":
         return Promise.resolve(null);
       case "get_api_auth_token":
-        return Promise.resolve(null);
-      case "get_backend_crash_info":
         return Promise.resolve(null);
       default:
         return Promise.reject(new Error(`Unknown command: ${cmd}`));

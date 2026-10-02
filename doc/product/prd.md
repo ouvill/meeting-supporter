@@ -135,7 +135,7 @@ use-caseはruntime種別を知らず、runtimeはroute表示文言を決めな�
 - credential、会議本文、生成prompt、token、raw subprocess出力を診断表示やroute responseへ含めない。
 - 利用者の操作なしに外部へ発話しない。
 - local表示は実際の接続先に基づき、remote endpointをlocalと誤表示しない。
-- desktop backendのlocal capability tokenは、その端末のTauri launcherが起動したprocessへの呼出しを確認するだけで、hosted serviceの利用者認証ではない。直接起動するPython backendと`python-server`はローカル開発・動作確認用であり、そのまま公開serviceとして運用しない。
+- desktop backendのlocal capability tokenは、その端末のTauri launcherが起動したprocessへの呼出しを確認するだけで、hosted serviceの利用者認証ではない。Rust API は loopback に限定し、外部公開用サーバーとしては扱わない。
 
 ### Reliability
 

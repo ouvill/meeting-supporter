@@ -17,21 +17,12 @@ describe("BootstrapScreen", () => {
     ).toBeInTheDocument();
   });
 
-  it("maps an unexpected backend stop to a safe restart path without exposing process diagnostics", () => {
+  it("maps an backend startup failure to a safe restart path without exposing process diagnostics", () => {
     render(
-      <BootstrapScreen
-        phase="failed"
-        message="process exited with code 137"
-        crashInfo={{
-          unexpected: true,
-          exit_code: 137,
-          signal: null,
-          message: "process exited with code 137",
-        }}
-      />,
+      <BootstrapScreen phase="failed" message="process exited with code 137" />,
     );
 
-    expect(screen.getByText("会議サポートが停止しました")).toBeInTheDocument();
+    expect(screen.getByText("起動できませんでした")).toBeInTheDocument();
     expect(
       screen.getByText(
         "安全のため処理を停止しました。アプリを終了して、もう一度開いてください。",

@@ -14,7 +14,7 @@
           config.allowUnfree = true;
         };
 
-        # Expose libstdc++ for Python native extensions (numpy, faster-whisper, etc.)
+        # Expose libstdc++ for native workers and MarkItDown dependencies
         libPath = pkgs.lib.makeLibraryPath [
           pkgs.stdenv.cc.cc.lib
           pkgs.zlib
@@ -31,8 +31,8 @@
           name = "meeting-supporter";
 
           buildInputs = with pkgs; [
-            # Python toolchain
-            python313
+            # MarkItDown worker and build/test tools
+            python312
             uv
 
             # Node.js / frontend
@@ -47,7 +47,7 @@
             gnumake
             pkg-config
 
-            # Libraries required by Python native packages
+            # Libraries required by native workers
             zlib
             openssl
             libgcc.lib

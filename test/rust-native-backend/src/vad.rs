@@ -3,7 +3,7 @@ use crate::error::SpeechError;
 use ort::{session::Session, value::TensorRef};
 use std::{collections::VecDeque, path::Path};
 
-const MODEL: &[u8] = include_bytes!("../../../python/app/resources/silero_vad.int8.onnx");
+const MODEL: &[u8] = include_bytes!("../resources/silero_vad.int8.onnx");
 const WINDOW: usize = 512;
 
 pub struct VadState {

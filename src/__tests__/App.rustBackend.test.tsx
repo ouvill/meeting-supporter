@@ -18,7 +18,6 @@ vi.mock("../hooks/useBackendBootstrapStatus", () => ({
     apiPort: null,
     apiAuthToken: null,
     bootstrap: { phase: "starting", message: "Starting Rust backend..." },
-    crashInfo: null,
   }),
 }));
 vi.mock("../hooks/useMeetingSocket", () => ({

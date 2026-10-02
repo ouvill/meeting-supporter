@@ -2,7 +2,9 @@ THIRD-PARTY SOFTWARE NOTICES
 ============================
 
 Meeting Supporter includes or provisions the third-party software listed below.
-Python packages are resolved from python/uv.lock and python-worker/uv.lock with `uv sync --locked --no-dev`.
+Scope: Rust backend crates (including the ReazonSpeech feature) and embedded Silero.
+Native sherpa-onnx/ONNX Runtime and ReazonSpeech model files are externally supplied;
+their licenses and third-party notices must accompany any distribution of those artifacts.
 Corresponding source is available from each package URL. License and attribution
 texts come from locked artifacts, pinned sources, or reviewed license supplements.
 Identical texts are deduplicated.

@@ -22,10 +22,10 @@ export function isConnectionUsable(state: ConnectionUiState): boolean {
   );
 }
 
-export type VadEngine = "silero" | "webrtc";
+export type VadEngine = "silero";
 
 export function isVadEngine(value: unknown): value is VadEngine {
-  return value === "silero" || value === "webrtc";
+  return value === "silero";
 }
 
 export interface ReplyStyleFormItem {
@@ -45,7 +45,6 @@ export interface SettingsForm {
   sttLang: string;
   sttVadEngine: VadEngine;
   sttVadSensitivity: number;
-  sttVad: number;
   sttSilence: number;
   replyFeatureEnabled: boolean;
   replyAutoGenerate: boolean;
@@ -65,7 +64,6 @@ export const STT_FORM_FIELDS = [
   "sttLang",
   "sttVadEngine",
   "sttVadSensitivity",
-  "sttVad",
   "sttSilence",
 ] as const satisfies readonly (keyof SettingsForm)[];
 

@@ -17,12 +17,12 @@ Rust 移行の目的は、通常起動から Python 環境の準備を除去し�
 | 観察 | 設計上の課題 |
 |---|---|
 | [Tauri の起動](../../src-tauri/src/lib.rs)から Python 環境準備、子プロセス起動、health 待ちを経る | 画面の受付、永続化の準備、音声デバイス、モデル準備が異なるのに、起動の成否が一つに集約されやすい。 |
-| [AppState](../../python/app/core/state.py)を会議 lifecycle、STT controller、会話処理が共有する | 複数の所有者と lock の組み合わせで遷移を理解する必要がある。Rust で全体を `Arc<Mutex<AppState>>` に置換しても解消しない。 |
-| [会議 lifecycle](../../python/app/meetings/lifecycle.py)と [ReplyPipeline](../../python/app/services/reply_pipeline.py)が停止・キャンセル・保存を調整する | 開始中の停止、停止と最終結果の競合、旧会議の結果の拒否を全 adapter に通じる契約にする必要がある。 |
-| [音声パイプライン](../../python/app/audio/pipeline.py)が stage ごとの thread / queue を持つ | 純粋な変換ごとに thread を増やす必要はない。一方、capture、推論、録音の遅延・欠落ポリシーは同じにできない。 |
-| [SttPipeline](../../python/app/stt/pipeline.py)は全 backend の前に VadStage を挟む。一方、Remote 系は判定を使わず PCM を送り、Deepgram 系には provider 側の endpointing もある | `音声 → VAD → ASR` の固定形だけでは、複数機能を一括で担う実装の入力要件と確定責任を表せない。[DiarizationStage](../../python/app/stt/stages/diarization.py)は現在 pass-through の stub で、実際の話者推定は提供していない。 |
-| [履歴 service](../../python/app/meetings/service.py)がバックグラウンド保存と完了待ちを持つ | 「画面に表示済み」「保存済み」「会議が完了済み」を区別し、保存失敗を成功に見せない契約が必要である。 |
-| [BroadcastManager](../../python/app/services/broadcast.py)が接続先へ順に送信する | 遅い UI consumer と会議処理を切り離し、ウィンドウ再接続時の復元方法を明示する必要がある。 |
+| [AppState](https://github.com/ouvill/meeting-supporter/blob/8b269dc983a51a06138e25b10e5ce9b41f317797/python/app/core/state.py)を会議 lifecycle、STT controller、会話処理が共有する | 複数の所有者と lock の組み合わせで遷移を理解する必要がある。Rust で全体を `Arc<Mutex<AppState>>` に置換しても解消しない。 |
+| [会議 lifecycle](https://github.com/ouvill/meeting-supporter/blob/8b269dc983a51a06138e25b10e5ce9b41f317797/python/app/meetings/lifecycle.py)と [ReplyPipeline](https://github.com/ouvill/meeting-supporter/blob/8b269dc983a51a06138e25b10e5ce9b41f317797/python/app/services/reply_pipeline.py)が停止・キャンセル・保存を調整する | 開始中の停止、停止と最終結果の競合、旧会議の結果の拒否を全 adapter に通じる契約にする必要がある。 |
+| [音声パイプライン](https://github.com/ouvill/meeting-supporter/blob/8b269dc983a51a06138e25b10e5ce9b41f317797/python/app/audio/pipeline.py)が stage ごとの thread / queue を持つ | 純粋な変換ごとに thread を増やす必要はない。一方、capture、推論、録音の遅延・欠落ポリシーは同じにできない。 |
+| [SttPipeline](https://github.com/ouvill/meeting-supporter/blob/8b269dc983a51a06138e25b10e5ce9b41f317797/python/app/stt/pipeline.py)は全 backend の前に VadStage を挟む。一方、Remote 系は判定を使わず PCM を送り、Deepgram 系には provider 側の endpointing もある | `音声 → VAD → ASR` の固定形だけでは、複数機能を一括で担う実装の入力要件と確定責任を表せない。[DiarizationStage](https://github.com/ouvill/meeting-supporter/blob/8b269dc983a51a06138e25b10e5ce9b41f317797/python/app/stt/stages/diarization.py)は現在 pass-through の stub で、実際の話者推定は提供していない。 |
+| [履歴 service](https://github.com/ouvill/meeting-supporter/blob/8b269dc983a51a06138e25b10e5ce9b41f317797/python/app/meetings/service.py)がバックグラウンド保存と完了待ちを持つ | 「画面に表示済み」「保存済み」「会議が完了済み」を区別し、保存失敗を成功に見せない契約が必要である。 |
+| [BroadcastManager](https://github.com/ouvill/meeting-supporter/blob/8b269dc983a51a06138e25b10e5ce9b41f317797/python/app/services/broadcast.py)が接続先へ順に送信する | 遅い UI consumer と会議処理を切り離し、ウィンドウ再接続時の復元方法を明示する必要がある。 |
 
 [Rust + ONNX 試作](../../test/rust-native-backend/README.md)で、Python なしの操作受付とモデルの遅延ロード、既存 VAD との比較を確認した。ただし、その JSON Lines protocol、単一音声 worker、固定設定を製品設計として採用したわけではない。
 
@@ -487,7 +487,7 @@ Tauri から Rust ライブラリを直接利用する段階で、この中継�
 
 ### Tauri 内の直接接続
 
-`rust-backend` feature の `meeting-desktop-runtime` は、
+Tauri の必須依存である `meeting-desktop-runtime` は、
 会議・保存・音声制御の Rust ライブラリを同一プロセスから直接呼ぶ。
 既存画面の HTTP / WebSocket 契約を loopback adapter で維持し、
 この経路では Python と中継用 domain worker を起動しない。
@@ -496,8 +496,7 @@ Tauri から Rust ライブラリを直接利用する段階で、この中継�
 会議終了時は最終認識結果の保存タスクを join してから会議を完了する。
 保存結果が不明な場合は録音と未確定会議を保持し、UI の保存完了通知を抑止する。
 資料の取り込み・保存と録音の期限・容量による整理も Rust が処理します。
-通常画面の議事録などはまだ未接続であり、
-既定の Python 経路は維持する。
+旧 Python 経路の廃止は [ADR-021](021-retire-python-backend.md)、議事録生成の廃止と保存済み履歴の扱いは [ADR-019](019-local-speech-and-saved-history.md)に従う。
 [起動手順・対応範囲](../development/rust-desktop-backend.md)に現在の制約を記載する。
 
 この接続追加では ADR の Status を変更しない。

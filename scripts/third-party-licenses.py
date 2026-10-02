@@ -408,7 +408,7 @@ def archive_python_metadata(data: bytes, url: str) -> Any | None:
     return BytesParser(policy=email.policy.compat32).parsebytes(candidates[0])
 
 
-def python_packages(policy: dict[str, Any], project_dir: Path = ROOT / "python") -> list[Package]:
+def python_packages(policy: dict[str, Any], project_dir: Path = ROOT / "python-worker") -> list[Package]:
     exported = run(
         [
             "uv",
@@ -488,14 +488,6 @@ def python_packages(policy: dict[str, Any], project_dir: Path = ROOT / "python")
 
 def provisioned_packages(policy: dict[str, Any]) -> list[Package]:
     packages: list[Package] = []
-    runtime_source = (ROOT / "src-tauri" / "src" / "paths" / "uv.rs").read_text(
-        encoding="utf-8"
-    )
-    runtime_uv_version = re.search(
-        r'^const UV_VERSION: &str = "([^"]+)";$', runtime_source, re.MULTILINE
-    )
-    if not runtime_uv_version:
-        raise RuntimeError("src-tauri/src/paths/uv.rs does not declare UV_VERSION")
     worker_lock = tomllib.loads((ROOT / "python-worker" / "uv.lock").read_text(encoding="utf-8"))
     worker_build_version = next(p["version"] for p in worker_lock["package"] if p["name"] == "pyinstaller")
     worker_python_version = (ROOT / "python-worker" / ".python-version").read_text().strip()
@@ -504,12 +496,6 @@ def provisioned_packages(policy: dict[str, Any]) -> list[Package]:
             raise RuntimeError("PyInstaller license policy version differs from the worker lockfile")
         if artifact["name"] == "cpython" and artifact["version"] != worker_python_version:
             raise RuntimeError("CPython license policy version differs from the worker Python pin")
-        if artifact["name"] == "uv" and artifact["version"] != runtime_uv_version.group(
-            1
-        ):
-            raise RuntimeError(
-                f"uv policy version {artifact['version']} does not match runtime {runtime_uv_version.group(1)}"
-            )
         documents: list[tuple[str, str]] = []
         for license_file in artifact["license_files"]:
             request = urllib.request.Request(
@@ -713,7 +699,7 @@ def render(packages: list[Package]) -> str:
         "============================",
         "",
         "Meeting Supporter includes or provisions the third-party software listed below.",
-        "Python packages are resolved from python/uv.lock and python-worker/uv.lock with `uv sync --locked --no-dev`.",
+        "Python packages are resolved from python-worker/uv.lock with `uv sync --locked --no-dev`.",
         "Corresponding source is available from each package URL. License and attribution",
         "texts come from locked artifacts, pinned sources, or reviewed license supplements.",
         "Identical texts are deduplicated.",
@@ -776,7 +762,6 @@ def main() -> int:
                     "meeting-speech-runtime", "meeting-desktop-runtime",
                     "meeting-media-runtime", "meeting-session", "meeting-storage",
                 ],
-                features=["rust-backend"],
             )
             + cargo_packages(project_dir=ROOT / "crates" / "meeting-audio-runtime")
             + cargo_packages(project_dir=ROOT / "crates" / "meeting-storage")
@@ -793,7 +778,6 @@ def main() -> int:
             )
             + cargo_packages(project_dir=ROOT / "test" / "rust-whisper-backend")
             + python_packages(policy)
-            + python_packages(policy, ROOT / "python-worker")
             + provisioned_packages(policy)
         )
         # Desktop and workers have independent lockfiles but share crates.

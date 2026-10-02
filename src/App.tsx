@@ -1,5 +1,4 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { RuntimeContext } from "./platform/runtimeContext";
 import { runtimeMode } from "./platform/nativeSpeechClient";
 import {
   Suspense,
@@ -150,8 +149,8 @@ const NativeSpeechScreen = lazy(() =>
 );
 
 export default function App() {
-  const [mode, setMode] = useState<"rust" | "python" | "rust-backend" | null>(
-    () => (isTauri() ? null : "python"),
+  const [mode, setMode] = useState<"rust" | "rust-backend" | null>(() =>
+    isTauri() ? null : "rust-backend",
   );
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -189,14 +188,10 @@ export default function App() {
       </Suspense>
     );
   }
-  return (
-    <RuntimeContext.Provider value={mode}>
-      <PythonApp />
-    </RuntimeContext.Provider>
-  );
+  return <DesktopApp />;
 }
 
-function PythonApp() {
+function DesktopApp() {
   if (
     import.meta.env.DEV &&
     isConversationSupportPreviewEnabled(
@@ -375,8 +370,7 @@ function MainWindowContent({
 
 function MainWindowApp() {
   const settingsReturnFocusRef = useRef<HTMLElement | null>(null);
-  const { apiPort, apiAuthToken, bootstrap, crashInfo } =
-    useBackendBootstrapStatus();
+  const { apiPort, apiAuthToken, bootstrap } = useBackendBootstrapStatus();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => {
     settingsReturnFocusRef.current =
@@ -426,7 +420,6 @@ function MainWindowApp() {
           <BootstrapScreen
             phase={bootstrap.phase}
             message={bootstrap.message}
-            crashInfo={crashInfo}
           />
         ) : (
           <ConfiguredClientBoundary
@@ -436,7 +429,6 @@ function MainWindowApp() {
               <BootstrapScreen
                 phase={bootstrap.phase}
                 message={bootstrap.message}
-                crashInfo={crashInfo}
               />
             }
           >

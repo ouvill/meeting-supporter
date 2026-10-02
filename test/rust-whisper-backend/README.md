@@ -87,8 +87,8 @@ Large-v2 Q8_0 の取得は途中で停止し、推論していません。
 
 ## faster-whisper との CPU 比較
 
-`faster_whisper_probe.py` は既存 `python/.venv` の faster-whisper 1.2.1 / CTranslate2 4.7.1 を使う比較用 CLI です。
-モデルパスを明示するローカル実行専用で、ダウンロードは行いません。
+以下は移植時の比較記録です。比較用 Python CLI は撤去しています。
+当時のスクリプトと環境は [比較時のソース](https://github.com/ouvill/meeting-supporter/blob/8b269dc983a51a06138e25b10e5ce9b41f317797/test/rust-whisper-backend/README.md)を参照してください。
 両実装を CPU 4 threads、Greedy / best-of 1、temperature 0、VAD なし、過去の認識文を引き継がない設定に揃えました。
 faster-whisper は `compute_type="int8"` を要求し、実際には `int8_float32` で動作しています。
 Q8_0 と CTranslate2 INT8 は同一の量子化方式ではなく、decoder の細部や既定フィルタも異なるため、実用構成同士の比較です。
@@ -114,23 +114,6 @@ faster-whisper の Python / ライブラリ import は別途約 0.21〜0.23 秒�
 revision `0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf` です。
 `model.bin` の SHA-256 は `e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da` を照合しました。
 この配布モデルは取得後、ロード時に INT8 へ変換されます。GGML のモデルファイルは流用できません。
-
-取得が必要な場合だけ、以下を実行します。`HF_HUB_DISABLE_XET=1` はこの検証環境で転送が停滞した高速転送経路を避ける指定です。
-
-```bash
-faster_model="$(HF_HUB_DISABLE_XET=1 uv tool run --from huggingface-hub==1.11.0 hf download \
-  mobiuslabsgmbh/faster-whisper-large-v3-turbo \
-  model.bin config.json preprocessor_config.json tokenizer.json vocabulary.json \
-  --revision 0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf --format quiet)"
-
-OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 HF_HUB_OFFLINE=1 \
-  python/.venv/bin/python test/rust-whisper-backend/faster_whisper_probe.py \
-  --model "$faster_model" --wav /path/to/sample.wav \
-  --language ja --threads 4 --runs 2
-```
-
-モデルが既にある場合は `faster_model` にその snapshot ディレクトリを指定してください。
-実測では一時ディレクトリの HF キャッシュを使い、ユーザーの録音・設定・認証情報は使用していません。
 
 ## GPU ビルド
 

@@ -27,15 +27,15 @@ jobs:
       - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           enable-cache: true
-          cache-dependency-glob: python/uv.lock
+          cache-dependency-glob: python-worker/uv.lock
 
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
 
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Install production Python dependencies
-        working-directory: python
+      - name: Install MarkItDown worker dependencies
+        working-directory: python-worker
         run: uv sync --locked --no-dev
 
       - name: Audit licenses and generated notices

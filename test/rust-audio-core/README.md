@@ -1,27 +1,7 @@
 # Rust 音声コアの試作
 
-## 結論
-
-この測定は会議中の音声前処理だけを対象にしています。起動時間・配布・バックエンド全体の Rust 化は、[Rust バックエンドと ONNX 基盤の移行試作](../rust-native-backend/README.md)を参照してください。
-
-発話区間の切り出しと認識入力の準備は Rust に移植できます。ただし、この処理だけの移植で体感速度が大きく改善する根拠はありません。合成音声による測定では、Python も 5 分相当の音声を約 12 ms で処理しました。まず実機で区間ごとの待ち時間を測り、移植範囲を決めることを推奨します。
-
-この試作は本番アプリに接続していません。Rust ライブラリと標準入出力によるリプレイ CLI を提供します。新しい Rust の外部依存はありません。製品の依存関係、API、設定、音声認識モデルは変更していません。
-
-## 移植対象の検討
-
-| 処理 | 現状と判断 |
-|---|---|
-| 発話の切り出し・入力判定 | Python の状態管理と NumPy による変換。境界が明確で比較しやすいため今回の対象です。 |
-| 音声取得・配信・録音 | 複数の Python スレッドと Queue を通ります。Rust に集約する余地がありますが、OS ごとのデバイス、音声欠落、停止処理の検証が必要です。 |
-| Silero / WebRTC VAD | ONNX Runtime / WebRTC のネイティブ処理です。呼び出し元を移植するだけでは推論自体の高速化は保証されません。 |
-| Whisper / ReazonSpeech | CTranslate2 / sherpa-onnx のネイティブ処理です。同じモデル・実行設定での比較が必要です。 |
-| クラウド STT・返答生成 | 外部推論や通信を含みます。ネットワーク待ち、最初の応答までの時間、キャンセルを測る必要があります。 |
-| FastAPI・履歴・設定 | Rust への移植は可能ですが、速度の根拠が不足しています。認証、保存形式、フロントエンドの契約まで移植範囲が広がります。 |
-
-調査元は [音声パイプライン](../../python/app/audio/pipeline.py)、[VAD](../../python/app/stt/stages/vad.py)、[ReazonSpeech stage](../../python/app/stt/stages/stt_reazonspeech.py)、[モデル境界](../../python/app/stt/reazonspeech_model.py)です。
-
-ReazonSpeech の既定無音待ちは `int(0.4 * 1000 / 30) = 13` フレーム、約 390 ms です。共有推論ワーカーは直列で、最大 16 件のキューを持ちます。モデルには `num_threads=1` を指定しています。これらはコード上の観察であり、実機のボトルネックを特定した結果ではありません。発話終了判定や認識品質を変える調整は、言語の移植とは別に評価する必要があります。
+Rust 音声ワーカーが利用する、発話区間の切り出しと認識入力の準備を担当するライブラリです。
+標準アプリの起動・配布は [Rust バックエンド](../../doc/development/rust-desktop-backend.md)を参照してください。
 
 ## 実装と互換性
 
@@ -34,26 +14,17 @@ ReazonSpeech の既定無音待ちは `int(0.4 * 1000 / 30) = 13` フレーム�
 - 音声サンプルは比較ケースで完全一致しました。ただし Rust の RMS 累積は `f64`、Python の NumPy dot は `float32` です。閾値に極めて近い入力では採否が異なる可能性があり、完全互換とはみなしません。
 - デバイス取得、VAD 推論、文字起こし、UI の途中状態通知、キューのあふれ、タイムスタンプ欠落、スレッド停止、保存は試作の対象外です。
 
-実運用に組み込むなら、Tauri からライブラリを直接呼び出すか、Python と同一プロセスで接続する方式が候補です。30 ms ごとにプロセスを起動する方式は避けます。今回の CLI は測定用で、ライブ配信のプロトコルや障害回復を定義していません。
+音声ワーカーがこのライブラリを直接呼びます。CLI は単体リプレイ用で、ライブ配信のプロトコルや障害回復を定義しません。
 
-## 再現方法
-
-リポジトリのルートで実行します。Rust 1.88 以上、C リンカー、Python 3.12–3.14、uv が必要です。以下の Python 依存バージョンは比較時の製品 lockfile に合わせています。モデルのダウンロード、実音声、API キーは不要です。
+## 検証
 
 ```bash
 cargo test --locked --manifest-path test/rust-audio-core/Cargo.toml
 cargo clippy --locked --all-targets --manifest-path test/rust-audio-core/Cargo.toml -- -D warnings
-cargo build --release --locked --manifest-path test/rust-audio-core/Cargo.toml
-uv venv --python 3.14 test/rust-audio-core/.venv
-uv pip install --python test/rust-audio-core/.venv/bin/python numpy==2.4.4 pydantic==2.13.2
-test/rust-audio-core/.venv/bin/python test/rust-audio-core/compare.py
 ```
 
-Windows では Python のパスを `.venv/Scripts/python.exe` にし、`--binary test/rust-audio-core/target/release/meeting-audio-core.exe` を指定します。Windows と macOS での実行は未検証です。
-
-[compare.py](compare.py) は現行 `ReazonSpeechStage._run()` を直接実行し、認識エンジンへの enqueue だけを収集関数に置き換えます。デバイス・全プロバイダーを一括 import する package 初期化はスキップしますが、参照する stage のロジックは変更も複製もしていません。比較はキューを事前充填した同期リプレイで、スレッド競合やリアルタイム実行の試験ではありません。
-
-無音、短い発話、無音境界、前置音声、連続発話の強制分割、EOF、設定変更、PCM の正負端点、閾値付近の振幅、固定 seed の乱数を含む 60 ケースを比較します。採用された区間の終端フレーム位置・個数・全サンプルを検証します。不正入力 3 ケースの拒否と、Rust 単体テスト 4 件も確認しました。
+旧 Python 実装との比較スクリプトは撤去しています。以下は移植時の測定記録です。
+当時の条件と再現手順は [比較時のソース](https://github.com/ouvill/meeting-supporter/blob/8b269dc983a51a06138e25b10e5ce9b41f317797/test/rust-audio-core/README.md)を参照してください。
 
 ## 測定結果
 
@@ -68,13 +39,6 @@ Windows では Python のパスを `.venv/Scripts/python.exe` にし、`--binary
 Python の計時範囲は Queue 取り出し、状態管理、NumPy 変換、途中通知の生成、出力収集です。Rust core は `push` / `finish` の時間を合計し、フレームごとの時計計測を含みます。CLI 起動と読み書きは除外します。Rust の最終列はプロセス起動・音声の送受信を含み、Python 側での出力解析は含みません。入力生成・Python の import・キュー充填は計測外です。
 
 比較する層が異なるため、比率を Rust 言語そのものの優位性やアプリ全体の高速化率とは解釈できません。今回の発話・無音ケースではコアの差は 5 分あたり約 7.5 ms、1 フレーム平均で約 0.75 µs でした。プロセス境界を足すと逆に遅くなりました。
-
-## 推奨する移行順序
-
-- 実機で、取得→VAD→区間確定→推論キュー待ち→推論完了→UI 表示を単調時計で計測します。起動時間、CPU、RSS、音声欠落数も分け、音声や発話本文を計測ログに残さないようにします。
-- 推論待ちが支配的なら、モデル・実行デバイス・スレッド数・区切り方を同じ精度条件で比較します。Rust 化だけを対策にしません。
-- Python の配信・コピー・スケジューリングが支配的なら、このライブラリを起点に、取得から区間確定までをまとめて Rust 化します。まず明示的な実験スイッチで接続し、既存経路を比較用に維持します。
-- 本番採用前に RMS 閾値の互換方針を決め、両話者同時入力、キュー満杯、キャンセル、機器再接続、各 OS、モデル入力の一致、配布ビルドを検証します。
 
 ## CLI の実験用形式
 

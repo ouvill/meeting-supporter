@@ -1,18 +1,15 @@
 import { AlertTriangle, LoaderCircle, Mic } from "lucide-react";
-import type { BackendCrashInfo } from "../platform/backendBootstrapClient";
 import { InlineNotice } from "./ui/InlineNotice";
 import { Surface } from "./ui/Surface";
 
 interface Props {
   phase: string;
   message: string;
-  crashInfo?: BackendCrashInfo | null;
 }
 
 export function BootstrapScreen(props: Props) {
-  const { phase, crashInfo } = props;
+  const { phase } = props;
   const failed = phase === "failed";
-  const unexpectedlyStopped = failed && crashInfo?.unexpected === true;
 
   return (
     <main
@@ -38,11 +35,7 @@ export function BootstrapScreen(props: Props) {
           </div>
 
           <p className="mt-5 font-display text-lg font-bold tracking-[0.02em] text-ink">
-            {failed
-              ? unexpectedlyStopped
-                ? "会議サポートが停止しました"
-                : "起動できませんでした"
-              : "準備しています…"}
+            {failed ? "起動できませんでした" : "準備しています…"}
           </p>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-ink-muted">
             {failed
