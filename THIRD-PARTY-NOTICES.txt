@@ -50,7 +50,7 @@ NPM COMPONENTS (46)
 - @radix-ui/react-use-size 1.1.2 | MIT | https://registry.npmjs.org/@radix-ui/react-use-size/-/react-use-size-1.1.2.tgz
 - @radix-ui/react-visually-hidden 1.2.7 | MIT | https://registry.npmjs.org/@radix-ui/react-visually-hidden/-/react-visually-hidden-1.2.7.tgz
 - @radix-ui/rect 1.1.2 | MIT | https://registry.npmjs.org/@radix-ui/rect/-/rect-1.1.2.tgz
-- @tauri-apps/api 2.11.0 | Apache-2.0 OR MIT | https://registry.npmjs.org/@tauri-apps/api/-/api-2.11.0.tgz
+- @tauri-apps/api 2.12.1 | Apache-2.0 OR MIT | https://registry.npmjs.org/@tauri-apps/api/-/api-2.12.1.tgz
 - @tauri-apps/plugin-dialog 2.7.1 | MIT OR Apache-2.0 | https://registry.npmjs.org/@tauri-apps/plugin-dialog/-/plugin-dialog-2.7.1.tgz
 - @tauri-apps/plugin-opener 2.5.3 | MIT OR Apache-2.0 | https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.5.3.tgz
 - @types/react 19.2.14 | MIT | https://registry.npmjs.org/@types/react/-/react-19.2.14.tgz
@@ -66,7 +66,7 @@ NPM COMPONENTS (46)
 - zod 4.4.1 | MIT | https://registry.npmjs.org/zod/-/zod-4.4.1.tgz
 - zustand 5.0.12 | MIT | https://registry.npmjs.org/zustand/-/zustand-5.0.12.tgz
 
-CARGO COMPONENTS (658)
+CARGO COMPONENTS (652)
 ---------------------
 - adler2 2.0.1 | 0BSD OR MIT OR Apache-2.0 | https://crates.io/api/v1/crates/adler2/2.0.1/download
 - agent-client-protocol 2.2.0 | Apache-2.0 | https://crates.io/api/v1/crates/agent-client-protocol/2.2.0/download
@@ -74,8 +74,8 @@ CARGO COMPONENTS (658)
 - agent-client-protocol-schema 1.9.1 | Apache-2.0 | https://crates.io/api/v1/crates/agent-client-protocol-schema/1.9.1/download
 - aho-corasick 1.1.4 | Unlicense OR MIT | https://crates.io/api/v1/crates/aho-corasick/1.1.4/download
 - aho-corasick 1.1.5 | Unlicense OR MIT | https://crates.io/api/v1/crates/aho-corasick/1.1.5/download
-- alloc-no-stdlib 2.0.4 | BSD-3-Clause | https://crates.io/api/v1/crates/alloc-no-stdlib/2.0.4/download
-- alloc-stdlib 0.2.2 | BSD-3-Clause | https://crates.io/api/v1/crates/alloc-stdlib/0.2.2/download
+- alloc-no-stdlib 3.0.0 | BSD-3-Clause | https://crates.io/api/v1/crates/alloc-no-stdlib/3.0.0/download
+- alloc-stdlib 0.3.0 | BSD-3-Clause | https://crates.io/api/v1/crates/alloc-stdlib/0.3.0/download
 - allocator-api2 0.2.21 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/allocator-api2/0.2.21/download
 - alsa 0.11.0 | Apache-2.0/MIT | https://crates.io/api/v1/crates/alsa/0.11.0/download
 - alsa-sys 0.4.0 | MIT | https://crates.io/api/v1/crates/alsa-sys/0.4.0/download
@@ -116,8 +116,8 @@ CARGO COMPONENTS (658)
 - block2 0.6.2 | MIT | https://crates.io/api/v1/crates/block2/0.6.2/download
 - blocking 1.6.2 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/blocking/1.6.2/download
 - blocking 1.7.0 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/blocking/1.7.0/download
-- brotli 8.0.2 | BSD-3-Clause AND MIT | https://crates.io/api/v1/crates/brotli/8.0.2/download
-- brotli-decompressor 5.0.0 | BSD-3-Clause/MIT | https://crates.io/api/v1/crates/brotli-decompressor/5.0.0/download
+- brotli 9.0.0 | BSD-3-Clause AND MIT | https://crates.io/api/v1/crates/brotli/9.0.0/download
+- brotli-decompressor 6.0.1 | BSD-3-Clause/MIT | https://crates.io/api/v1/crates/brotli-decompressor/6.0.1/download
 - byteorder 1.5.0 | Unlicense OR MIT | https://crates.io/api/v1/crates/byteorder/1.5.0/download
 - bytes 1.11.1 | MIT | https://crates.io/api/v1/crates/bytes/1.11.1/download
 - bytes 1.12.1 | MIT | https://crates.io/api/v1/crates/bytes/1.12.1/download
@@ -126,7 +126,7 @@ CARGO COMPONENTS (658)
 - camino 1.2.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/camino/1.2.2/download
 - cargo-platform 0.1.9 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/cargo-platform/0.1.9/download
 - cargo_metadata 0.19.2 | MIT | https://crates.io/api/v1/crates/cargo_metadata/0.19.2/download
-- cfb 0.7.3 | MIT | https://crates.io/api/v1/crates/cfb/0.7.3/download
+- cfb 0.14.0 | MIT | https://crates.io/api/v1/crates/cfb/0.14.0/download
 - cfg-if 1.0.4 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/cfg-if/1.0.4/download
 - cfg-if 1.0.5 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/cfg-if/1.0.5/download
 - chrono 0.4.44 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/chrono/0.4.44/download
@@ -160,10 +160,9 @@ CARGO COMPONENTS (658)
 - crossbeam-utils 0.8.23 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/crossbeam-utils/0.8.23/download
 - crunchy 0.2.4 | MIT | https://crates.io/api/v1/crates/crunchy/0.2.4/download
 - crypto-common 0.1.7 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/crypto-common/0.1.7/download
-- cssparser 0.36.0 | MPL-2.0 | https://crates.io/api/v1/crates/cssparser/0.36.0/download
-- cssparser-macros 0.6.1 | MPL-2.0 | https://crates.io/api/v1/crates/cssparser-macros/0.6.1/download
-- ctor 0.8.0 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/ctor/0.8.0/download
-- ctor-proc-macro 0.0.7 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/ctor-proc-macro/0.0.7/download
+- cssparser 0.37.0 | MPL-2.0 | https://crates.io/api/v1/crates/cssparser/0.37.0/download
+- cssparser-macros 0.7.1 | MPL-2.0 | https://crates.io/api/v1/crates/cssparser-macros/0.7.1/download
+- ctor 1.0.13 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/ctor/1.0.13/download
 - ctrlc 3.5.2 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/ctrlc/3.5.2/download
 - darling 0.20.11 | MIT | https://crates.io/api/v1/crates/darling/0.20.11/download
 - darling 0.23.0 | MIT | https://crates.io/api/v1/crates/darling/0.23.0/download
@@ -183,6 +182,7 @@ CARGO COMPONENTS (658)
 - derive_more-impl 2.1.1 | MIT | https://crates.io/api/v1/crates/derive_more-impl/2.1.1/download
 - digest 0.10.7 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/digest/0.10.7/download
 - dirs 6.0.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/dirs/6.0.0/download
+- dirs 7.0.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/dirs/7.0.0/download
 - dirs-sys 0.5.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/dirs-sys/0.5.0/download
 - dispatch2 0.3.1 | Zlib OR Apache-2.0 OR MIT | https://crates.io/api/v1/crates/dispatch2/0.3.1/download
 - displaydoc 0.2.5 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/displaydoc/0.2.5/download
@@ -190,7 +190,7 @@ CARGO COMPONENTS (658)
 - dlopen2 0.8.2 | MIT | https://crates.io/api/v1/crates/dlopen2/0.8.2/download
 - dlopen2_derive 0.4.3 | MIT | https://crates.io/api/v1/crates/dlopen2_derive/0.4.3/download
 - dlv-list 0.5.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/dlv-list/0.5.2/download
-- dom_query 0.27.0 | MIT | https://crates.io/api/v1/crates/dom_query/0.27.0/download
+- dom_query 0.28.0 | MIT | https://crates.io/api/v1/crates/dom_query/0.28.0/download
 - dotenvy 0.15.7 | MIT | https://crates.io/api/v1/crates/dotenvy/0.15.7/download
 - dpi 0.1.2 | Apache-2.0 AND MIT | https://crates.io/api/v1/crates/dpi/0.1.2/download
 - dtoa 1.0.11 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/dtoa/1.0.11/download
@@ -285,7 +285,7 @@ CARGO COMPONENTS (658)
 - heck 0.5.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/heck/0.5.0/download
 - hex 0.4.3 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/hex/0.4.3/download
 - hound 3.5.1 | Apache-2.0 | https://crates.io/api/v1/crates/hound/3.5.1/download
-- html5ever 0.38.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/html5ever/0.38.0/download
+- html5ever 0.39.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/html5ever/0.39.0/download
 - http 1.4.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/http/1.4.0/download
 - http 1.5.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/http/1.5.0/download
 - http-body 1.0.1 | MIT | https://crates.io/api/v1/crates/http-body/1.0.1/download
@@ -321,7 +321,7 @@ CARGO COMPONENTS (658)
 - indexmap 1.9.3 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/indexmap/1.9.3/download
 - indexmap 2.14.0 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/indexmap/2.14.0/download
 - indexmap 2.14.2 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/indexmap/2.14.2/download
-- infer 0.19.0 | MIT | https://crates.io/api/v1/crates/infer/0.19.0/download
+- infer 0.22.0 | MIT | https://crates.io/api/v1/crates/infer/0.22.0/download
 - ipnet 2.12.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/ipnet/2.12.0/download
 - ipnet 2.12.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/ipnet/2.12.2/download
 - is-docker 0.2.0 | MIT | https://crates.io/api/v1/crates/is-docker/0.2.0/download
@@ -331,10 +331,10 @@ CARGO COMPONENTS (658)
 - itoa 1.0.18 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/itoa/1.0.18/download
 - javascriptcore-rs 1.1.2 | MIT | https://crates.io/api/v1/crates/javascriptcore-rs/1.1.2/download
 - javascriptcore-rs-sys 1.1.1 | MIT | https://crates.io/api/v1/crates/javascriptcore-rs-sys/1.1.1/download
-- json-patch 3.0.1 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/json-patch/3.0.1/download
-- jsonptr 0.6.3 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/jsonptr/0.6.3/download
+- json-patch 4.2.0 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/json-patch/4.2.0/download
+- jsonptr 0.7.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/jsonptr/0.7.1/download
 - jsonwebtoken 10.3.0 | MIT | https://crates.io/api/v1/crates/jsonwebtoken/10.3.0/download
-- keyboard-types 0.7.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/keyboard-types/0.7.0/download
+- keyboard-types 0.8.3 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/keyboard-types/0.8.3/download
 - keyring 3.6.3 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/keyring/3.6.3/download
 - libc 0.2.186 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/libc/0.2.186/download
 - libc 0.2.189 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/libc/0.2.189/download
@@ -350,7 +350,7 @@ CARGO COMPONENTS (658)
 - log 0.4.29 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/log/0.4.29/download
 - log 0.4.34 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/log/0.4.34/download
 - mach2 0.6.0 | BSD-2-Clause OR MIT OR Apache-2.0 | https://crates.io/api/v1/crates/mach2/0.6.0/download
-- markup5ever 0.38.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/markup5ever/0.38.0/download
+- markup5ever 0.39.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/markup5ever/0.39.0/download
 - matrixmultiply 0.3.11 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/matrixmultiply/0.3.11/download
 - memchr 2.8.0 | Unlicense OR MIT | https://crates.io/api/v1/crates/memchr/2.8.0/download
 - memchr 2.8.3 | Unlicense OR MIT | https://crates.io/api/v1/crates/memchr/2.8.3/download
@@ -362,7 +362,7 @@ CARGO COMPONENTS (658)
 - miniz_oxide 0.9.1 | MIT OR Zlib OR Apache-2.0 | https://crates.io/api/v1/crates/miniz_oxide/0.9.1/download
 - mio 1.2.0 | MIT | https://crates.io/api/v1/crates/mio/1.2.0/download
 - mio 1.2.3 | MIT | https://crates.io/api/v1/crates/mio/1.2.3/download
-- muda 0.19.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/muda/0.19.1/download
+- muda 0.20.0 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/muda/0.20.0/download
 - multer 3.1.0 | MIT | https://crates.io/api/v1/crates/multer/3.1.0/download
 - multiversion_no_op 1.0.0 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/multiversion_no_op/1.0.0/download
 - ndarray 0.17.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/ndarray/0.17.2/download
@@ -386,6 +386,7 @@ CARGO COMPONENTS (658)
 - objc2-encode 4.1.0 | MIT | https://crates.io/api/v1/crates/objc2-encode/4.1.0/download
 - objc2-exception-helper 0.1.1 | Zlib OR Apache-2.0 OR MIT | https://crates.io/api/v1/crates/objc2-exception-helper/0.1.1/download
 - objc2-foundation 0.3.2 | MIT | https://crates.io/api/v1/crates/objc2-foundation/0.3.2/download
+- objc2-quartz-core 0.3.2 | Zlib OR Apache-2.0 OR MIT | https://crates.io/api/v1/crates/objc2-quartz-core/0.3.2/download
 - objc2-web-kit 0.3.2 | Zlib OR Apache-2.0 OR MIT | https://crates.io/api/v1/crates/objc2-web-kit/0.3.2/download
 - once_cell 1.21.4 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/once_cell/1.21.4/download
 - once_cell_polyfill 1.70.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/once_cell_polyfill/1.70.2/download
@@ -488,7 +489,7 @@ CARGO COMPONENTS (658)
 - scopeguard 1.2.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/scopeguard/1.2.0/download
 - security-framework 3.7.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/security-framework/3.7.0/download
 - security-framework-sys 2.17.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/security-framework-sys/2.17.0/download
-- selectors 0.36.1 | MPL-2.0 | https://crates.io/api/v1/crates/selectors/0.36.1/download
+- selectors 0.38.0 | MPL-2.0 | https://crates.io/api/v1/crates/selectors/0.38.0/download
 - semver 1.0.28 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/semver/1.0.28/download
 - serde 1.0.228 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/serde/1.0.228/download
 - serde 1.0.229 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/serde/1.0.229/download
@@ -554,19 +555,19 @@ CARGO COMPONENTS (658)
 - synstructure 0.14.0 | MIT | https://crates.io/api/v1/crates/synstructure/0.14.0/download
 - system-configuration 0.7.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/system-configuration/0.7.0/download
 - system-configuration-sys 0.6.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/system-configuration-sys/0.6.0/download
-- tao 0.35.2 | Apache-2.0 | https://crates.io/api/v1/crates/tao/0.35.2/download
+- tao 0.37.1 | Apache-2.0 | https://crates.io/api/v1/crates/tao/0.37.1/download
 - tar 0.4.46 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/tar/0.4.46/download
-- tauri 2.11.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri/2.11.1/download
-- tauri-codegen 2.6.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-codegen/2.6.1/download
-- tauri-macros 2.6.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-macros/2.6.1/download
+- tauri 2.12.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri/2.12.1/download
+- tauri-codegen 2.7.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-codegen/2.7.1/download
+- tauri-macros 2.7.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-macros/2.7.1/download
 - tauri-plugin-deep-link 2.4.9 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-plugin-deep-link/2.4.9/download
 - tauri-plugin-dialog 2.7.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-plugin-dialog/2.7.1/download
 - tauri-plugin-fs 2.5.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-plugin-fs/2.5.1/download
 - tauri-plugin-opener 2.5.4 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-plugin-opener/2.5.4/download
 - tauri-plugin-single-instance 2.4.3 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-plugin-single-instance/2.4.3/download
-- tauri-runtime 2.11.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-runtime/2.11.1/download
-- tauri-runtime-wry 2.11.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-runtime-wry/2.11.1/download
-- tauri-utils 2.9.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-utils/2.9.1/download
+- tauri-runtime 2.12.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-runtime/2.12.1/download
+- tauri-runtime-wry 2.12.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-runtime-wry/2.12.1/download
+- tauri-utils 2.10.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/tauri-utils/2.10.1/download
 - tempfile 3.27.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/tempfile/3.27.0/download
 - tendril 0.5.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/tendril/0.5.0/download
 - thiserror 1.0.69 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/thiserror/1.0.69/download
@@ -620,11 +621,6 @@ CARGO COMPONENTS (658)
 - typenum 1.20.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/typenum/1.20.0/download
 - typenum 1.20.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/typenum/1.20.1/download
 - uncased 0.9.10 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/uncased/0.9.10/download
-- unic-char-property 0.9.0 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/unic-char-property/0.9.0/download
-- unic-char-range 0.9.0 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/unic-char-range/0.9.0/download
-- unic-common 0.9.0 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/unic-common/0.9.0/download
-- unic-ucd-ident 0.9.0 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/unic-ucd-ident/0.9.0/download
-- unic-ucd-version 0.9.0 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/unic-ucd-version/0.9.0/download
 - unicase 2.9.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/unicase/2.9.0/download
 - unicode-ident 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://crates.io/api/v1/crates/unicode-ident/1.0.24/download
 - unicode-ident 1.0.26 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://crates.io/api/v1/crates/unicode-ident/1.0.26/download
@@ -636,7 +632,7 @@ CARGO COMPONENTS (658)
 - ureq 3.3.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/ureq/3.3.0/download
 - ureq-proto 0.6.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/ureq-proto/0.6.0/download
 - url 2.5.8 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/url/2.5.8/download
-- urlpattern 0.3.0 | MIT | https://crates.io/api/v1/crates/urlpattern/0.3.0/download
+- urlpattern 0.6.0 | MIT | https://crates.io/api/v1/crates/urlpattern/0.6.0/download
 - utf-8 0.7.6 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/utf-8/0.7.6/download
 - utf8-zero 0.8.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/utf8-zero/0.8.1/download
 - utf8_iter 1.0.4 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/utf8_iter/1.0.4/download
@@ -645,19 +641,20 @@ CARGO COMPONENTS (658)
 - uuid 1.26.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/uuid/1.26.1/download
 - walkdir 2.5.0 | Unlicense/MIT | https://crates.io/api/v1/crates/walkdir/2.5.0/download
 - want 0.3.1 | MIT | https://crates.io/api/v1/crates/want/0.3.1/download
+- web-time 1.1.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/web-time/1.1.0/download
 - web_atoms 0.2.4 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/web_atoms/0.2.4/download
 - webkit2gtk 2.0.2 | MIT | https://crates.io/api/v1/crates/webkit2gtk/2.0.2/download
 - webkit2gtk-sys 2.0.2 | MIT | https://crates.io/api/v1/crates/webkit2gtk-sys/2.0.2/download
 - webpki-roots 1.0.8 | CDLA-Permissive-2.0 | https://crates.io/api/v1/crates/webpki-roots/1.0.8/download
-- webview2-com 0.38.2 | MIT | https://crates.io/api/v1/crates/webview2-com/0.38.2/download
+- webview2-com 0.39.1 | MIT | https://crates.io/api/v1/crates/webview2-com/0.39.1/download
 - webview2-com-macros 0.8.1 | MIT | https://crates.io/api/v1/crates/webview2-com-macros/0.8.1/download
-- webview2-com-sys 0.38.2 | MIT | https://crates.io/api/v1/crates/webview2-com-sys/0.38.2/download
+- webview2-com-sys 0.39.1 | MIT | https://crates.io/api/v1/crates/webview2-com-sys/0.39.1/download
 - whisper-rs 0.16.0 | Unlicense | https://crates.io/api/v1/crates/whisper-rs/0.16.0/download
 - whisper-rs-sys 0.15.0 | Unlicense | https://crates.io/api/v1/crates/whisper-rs-sys/0.15.0/download
 - wildmatch 2.6.1 | MIT | https://crates.io/api/v1/crates/wildmatch/2.6.1/download
 - winapi 0.3.9 | MIT/Apache-2.0 | https://crates.io/api/v1/crates/winapi/0.3.9/download
 - winapi-util 0.1.11 | Unlicense OR MIT | https://crates.io/api/v1/crates/winapi-util/0.1.11/download
-- window-vibrancy 0.6.0 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/window-vibrancy/0.6.0/download
+- window-vibrancy 0.8.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/window-vibrancy/0.8.1/download
 - windows 0.61.3 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows/0.61.3/download
 - windows 0.62.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows/0.62.2/download
 - windows-collections 0.2.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-collections/0.2.0/download
@@ -678,15 +675,12 @@ CARGO COMPONENTS (658)
 - windows-result 0.4.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-result/0.4.1/download
 - windows-strings 0.4.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-strings/0.4.2/download
 - windows-strings 0.5.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-strings/0.5.1/download
-- windows-sys 0.59.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-sys/0.59.0/download
 - windows-sys 0.60.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-sys/0.60.2/download
 - windows-sys 0.61.2 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-sys/0.61.2/download
-- windows-targets 0.52.6 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-targets/0.52.6/download
 - windows-targets 0.53.5 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-targets/0.53.5/download
 - windows-threading 0.1.0 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-threading/0.1.0/download
 - windows-threading 0.2.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-threading/0.2.1/download
 - windows-version 0.1.7 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows-version/0.1.7/download
-- windows_x86_64_msvc 0.52.6 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows_x86_64_msvc/0.52.6/download
 - windows_x86_64_msvc 0.53.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/windows_x86_64_msvc/0.53.1/download
 - winnow 0.5.40 | MIT | https://crates.io/api/v1/crates/winnow/0.5.40/download
 - winnow 0.7.15 | MIT | https://crates.io/api/v1/crates/winnow/0.7.15/download
@@ -694,7 +688,7 @@ CARGO COMPONENTS (658)
 - winnow 1.0.4 | MIT | https://crates.io/api/v1/crates/winnow/1.0.4/download
 - writeable 0.6.3 | Unicode-3.0 | https://crates.io/api/v1/crates/writeable/0.6.3/download
 - writeable 0.6.4 | Unicode-3.0 | https://crates.io/api/v1/crates/writeable/0.6.4/download
-- wry 0.55.1 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/wry/0.55.1/download
+- wry 0.57.0 | Apache-2.0 OR MIT | https://crates.io/api/v1/crates/wry/0.57.0/download
 - x11 2.21.0 | MIT | https://crates.io/api/v1/crates/x11/2.21.0/download
 - x11-dl 2.21.0 | MIT | https://crates.io/api/v1/crates/x11-dl/2.21.0/download
 - xattr 1.6.1 | MIT OR Apache-2.0 | https://crates.io/api/v1/crates/xattr/1.6.1/download
@@ -764,8 +758,8 @@ LICENSE AND ATTRIBUTION TEXTS
 [1] SHA-256 008f1b11c6d18763126e46b92fe95de75dc318df884a0aaa795a54ea53ad7aa7
 Used by:
   - cargo:webview2-com-macros@0.8.1 (LICENSE (https://github.com/wravery/webview2-rs@dffa41a8a46d3f5565eefbff2de57d38d399f158))
-  - cargo:webview2-com-sys@0.38.2 (LICENSE (https://github.com/wravery/webview2-rs@b74dc5e2b394044bea5191052868ce7a106c202c))
-  - cargo:webview2-com@0.38.2 (LICENSE (https://github.com/wravery/webview2-rs@b74dc5e2b394044bea5191052868ce7a106c202c))
+  - cargo:webview2-com-sys@0.39.1 (LICENSE (https://github.com/wravery/webview2-rs@edc2caf886175ccaebe86078c9cfe1ae2a187328))
+  - cargo:webview2-com@0.39.1 (LICENSE (https://github.com/wravery/webview2-rs@edc2caf886175ccaebe86078c9cfe1ae2a187328))
 
 MIT License
 
@@ -861,7 +855,7 @@ licences; see files named LICENSE.*.txt for details.
 
 [4] SHA-256 055a1711063672c832485672bf05e5d58306a5761cc182a26fc9d10187882b6d
 Used by:
-  - cargo:jsonptr@0.6.3 (LICENSE-MIT)
+  - cargo:jsonptr@0.7.1 (LICENSE-MIT)
 
 MIT License
 
@@ -2630,7 +2624,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 [29] SHA-256 19328c46c44f54ceb009d22439de53222d4b51071b1150a91ee64faac3b14741
 Used by:
-  - cargo:json-patch@3.0.1 (LICENSE-MIT)
+  - cargo:json-patch@4.2.0 (LICENSE-MIT)
 
 MIT License
 
@@ -2779,6 +2773,7 @@ Used by:
   - cargo:objc2-encode@4.1.0 (LICENSE.md (https://github.com/madsmtm/objc2@8d214f5477365ffcbcbb7de058c86ed9a518efb7))
   - cargo:objc2-exception-helper@0.1.1 (LICENSE.md (https://github.com/madsmtm/objc2@8d214f5477365ffcbcbb7de058c86ed9a518efb7))
   - cargo:objc2-foundation@0.3.2 (LICENSE.md (https://github.com/madsmtm/objc2@7b1abfd750a2cacaea71d6a56ecfb83cb7de560b))
+  - cargo:objc2-quartz-core@0.3.2 (LICENSE.md (https://github.com/madsmtm/objc2@7b1abfd750a2cacaea71d6a56ecfb83cb7de560b))
   - cargo:objc2-web-kit@0.3.2 (LICENSE.md (https://github.com/madsmtm/objc2@7b1abfd750a2cacaea71d6a56ecfb83cb7de560b))
   - cargo:objc2@0.6.4 (LICENSE.md (https://github.com/madsmtm/objc2@8852b424193ca41602281b3d7540d7c8ed51e49a))
 
@@ -4076,7 +4071,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 [54] SHA-256 26235c41e314fb0da35b33b2bb5bcbc4dd523839f8eeca52efcd43586f441fb5
 Used by:
-  - cargo:wry@0.55.1 (LICENSE.spdx)
+  - cargo:wry@0.57.0 (LICENSE.spdx)
 
 SPDXVersion: SPDX-2.1
 DataLicense: CC0-1.0
@@ -4702,7 +4697,7 @@ Apache License
 
 [61] SHA-256 28694f36acab4f505232fc18954400c323a43402098abd2ce0f8510d510ed04d
 Used by:
-  - cargo:tao@0.35.2 (LICENSE.spdx)
+  - cargo:tao@0.37.1 (LICENSE.spdx)
 
 SPDXVersion: SPDX-2.1
 DataLicense: CC0-1.0
@@ -4771,7 +4766,7 @@ of these licenses, at your option.
 
 [64] SHA-256 2a57418d6b10947fe0dfbec3a600269e2745136c125cbf15b256e5ae18af23cb
 Used by:
-  - cargo:brotli@8.0.2 (LICENSE.MIT)
+  - cargo:brotli@9.0.0 (LICENSE.MIT)
 
 Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
 
@@ -5432,8 +5427,8 @@ Used by:
   - cargo:rustc-hash@2.1.3 (LICENSE-MIT)
   - cargo:rustix@1.1.4 (LICENSE-MIT)
   - cargo:rustix@1.1.5 (LICENSE-MIT)
-  - cargo:selectors@0.36.1 (malloc_size_of/LICENSE-MIT (https://github.com/servo/stylo@635e1a19d02960588a00e189bd4bd5bdb150ec3d))
-  - cargo:selectors@0.36.1 (servo_arc/LICENSE-MIT (https://github.com/servo/stylo@635e1a19d02960588a00e189bd4bd5bdb150ec3d))
+  - cargo:selectors@0.38.0 (malloc_size_of/LICENSE-MIT (https://github.com/servo/stylo@572ecba2d1600e7c3d490586692a209faf703baa))
+  - cargo:selectors@0.38.0 (servo_arc/LICENSE-MIT (https://github.com/servo/stylo@572ecba2d1600e7c3d490586692a209faf703baa))
   - cargo:semver@1.0.28 (LICENSE-MIT)
   - cargo:serde-untagged@0.1.9 (LICENSE-MIT)
   - cargo:serde@1.0.228 (LICENSE-MIT)
@@ -5460,11 +5455,6 @@ Used by:
   - cargo:thiserror@2.0.18 (LICENSE-MIT)
   - cargo:thiserror@2.0.21 (LICENSE-MIT)
   - cargo:typeid@1.0.3 (LICENSE-MIT)
-  - cargo:unic-char-property@0.9.0 (LICENSE-MIT (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-char-range@0.9.0 (LICENSE-MIT (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-common@0.9.0 (LICENSE-MIT (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-ucd-ident@0.9.0 (LICENSE-MIT (https://github.com/open-i18n/rust-unic/@8a6ce83063d90b91ae2ce59eddb803edd393fca9))
-  - cargo:unic-ucd-version@0.9.0 (LICENSE-MIT (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
   - cargo:unicode-ident@1.0.24 (LICENSE-MIT)
   - cargo:unicode-ident@1.0.26 (LICENSE-MIT)
   - cargo:unsafe-libyaml@0.2.11 (LICENSE-MIT)
@@ -5504,7 +5494,7 @@ DEALINGS IN THE SOFTWARE.
 
 [73] SHA-256 31dbbab009f1b2e59a1622d5955dfafc38ebe834000215b49d954c6f85fe927c
 Used by:
-  - cargo:keyboard-types@0.7.0 (LICENSE-MIT)
+  - cargo:keyboard-types@0.8.3 (LICENSE-MIT)
 
 Copyright (c) 2017 Pyfisch
 
@@ -5554,7 +5544,35 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[75] SHA-256 33ed9a8ecf556f161ec5d7e8761712f404d082bf9eeb8f6085d43517b5938be4
+[75] SHA-256 32ae0b6c9e4c00e6df1a408331fce92676e82f5bc1b7fd43f0273a60a0eb646e
+Used by:
+  - cargo:web-time@1.1.0 (LICENSE-MIT)
+
+MIT License
+
+Copyright (c) 2023 dAxpeDDa
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+------------------------------------------------------------------------------
+
+[76] SHA-256 33ed9a8ecf556f161ec5d7e8761712f404d082bf9eeb8f6085d43517b5938be4
 Used by:
   - cargo:form_urlencoded@1.2.2 (LICENSE-MIT)
 
@@ -5586,7 +5604,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[76] SHA-256 3444712f3370b1c8e01c59c8fc887e4ebcdf5fa0276fc9af6146ab6068028c54
+[77] SHA-256 3444712f3370b1c8e01c59c8fc887e4ebcdf5fa0276fc9af6146ab6068028c54
 Used by:
   - cargo:iana-time-zone@0.1.65 (LICENSE-MIT)
 
@@ -5618,10 +5636,10 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[77] SHA-256 35af0fd883383c93182e1905fcfab6ee99d70fdc34254ab8da24b9c8ac2e69f1
+[78] SHA-256 35af0fd883383c93182e1905fcfab6ee99d70fdc34254ab8da24b9c8ac2e69f1
 Used by:
-  - cargo:html5ever@0.38.0 (LICENSE-MIT)
-  - cargo:markup5ever@0.38.0 (LICENSE-MIT)
+  - cargo:html5ever@0.39.0 (LICENSE-MIT)
+  - cargo:markup5ever@0.39.0 (LICENSE-MIT)
   - cargo:web_atoms@0.2.4 (LICENSE-MIT)
 
 Copyright (c) 2014 The html5ever Project Developers
@@ -5652,7 +5670,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[78] SHA-256 361d7912957842f2ce61c774b14afba41ae91df84882982e6f7e749e01c07c91
+[79] SHA-256 361d7912957842f2ce61c774b14afba41ae91df84882982e6f7e749e01c07c91
 Used by:
   - cargo:unicode-ident@1.0.24 (LICENSE-UNICODE)
   - cargo:unicode-ident@1.0.26 (LICENSE-UNICODE)
@@ -5699,7 +5717,7 @@ authorization of the copyright holder.
 
 ------------------------------------------------------------------------------
 
-[79] SHA-256 36dbd32f27adb0d2477b3d3f6ecbde9ca9ad8d72e24766bebe3ea631d235a7ef
+[80] SHA-256 36dbd32f27adb0d2477b3d3f6ecbde9ca9ad8d72e24766bebe3ea631d235a7ef
 Used by:
   - cargo:rubato@0.16.2 (LICENSE.txt)
 
@@ -5725,7 +5743,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[80] SHA-256 37412fff76e3ad06d95d677566b2b771ad595aada257e204eaf040ca938bcb62
+[81] SHA-256 37412fff76e3ad06d95d677566b2b771ad595aada257e204eaf040ca938bcb62
 Used by:
   - cargo:security-framework-sys@2.17.0 (LICENSE-MIT)
   - cargo:security-framework@3.7.0 (LICENSE-MIT)
@@ -5753,7 +5771,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[81] SHA-256 37653ea50ac84bb5e93bf59d801df1ecbe17f0042a30bfe335e3b20f4a4465fa
+[82] SHA-256 37653ea50ac84bb5e93bf59d801df1ecbe17f0042a30bfe335e3b20f4a4465fa
 Used by:
   - cargo:dotenvy@0.15.7 (LICENSE)
 
@@ -5781,7 +5799,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[82] SHA-256 381f992f70f7089ddd7c450295f7a3c5e7ee776ded8771991281a6b146c5e5b9
+[83] SHA-256 381f992f70f7089ddd7c450295f7a3c5e7ee776ded8771991281a6b146c5e5b9
 Used by:
   - cargo:try-lock@0.2.5 (LICENSE)
 
@@ -5808,7 +5826,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[83] SHA-256 384a8fa756d4ca7e5df8639719e5ee7e279b2b27d2ccecbbe4222733050d4423
+[84] SHA-256 384a8fa756d4ca7e5df8639719e5ee7e279b2b27d2ccecbbe4222733050d4423
 Used by:
   - npm:zustand@5.0.12 (LICENSE)
 
@@ -5836,7 +5854,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[84] SHA-256 3a036676ec8c0dba1c24b96f83595456280b7a754ddee64585dd8048ed2b087f
+[85] SHA-256 3a036676ec8c0dba1c24b96f83595456280b7a754ddee64585dd8048ed2b087f
 Used by:
   - cargo:synstructure@0.13.2 (LICENSE)
   - cargo:synstructure@0.14.0 (LICENSE)
@@ -5851,7 +5869,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ------------------------------------------------------------------------------
 
-[85] SHA-256 3a738a7fc3616453db94bc2f8f4efabd792769004984b30f6440c85e7d9319e7
+[86] SHA-256 3a738a7fc3616453db94bc2f8f4efabd792769004984b30f6440c85e7d9319e7
 Used by:
   - cargo:jsonwebtoken@10.3.0 (LICENSE)
 
@@ -5879,7 +5897,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[86] SHA-256 3ac27594ed56fd079c95a71f8beabc498c5b997ec31e91f4a18e59a5974adb2a
+[87] SHA-256 3ac27594ed56fd079c95a71f8beabc498c5b997ec31e91f4a18e59a5974adb2a
 Used by:
   - cargo:rustls-webpki@0.103.13 (LICENSE)
   - cargo:rustls-webpki@0.103.15 (LICENSE)
@@ -5906,7 +5924,7 @@ third-party/chromium/LICENSE.
 
 ------------------------------------------------------------------------------
 
-[87] SHA-256 3bfacc197ff245b6217891d481f11cf9be791a06baa086ba1f80c80a2273e947
+[88] SHA-256 3bfacc197ff245b6217891d481f11cf9be791a06baa086ba1f80c80a2273e947
 Used by:
   - cargo:core-foundation-sys@0.8.7 (LICENSE-MIT)
   - cargo:core-foundation@0.10.1 (LICENSE-MIT)
@@ -5943,7 +5961,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[88] SHA-256 3c75c16642b4abc66380645dfe8f09103c32a6ba92d8bc6669bde20edbb8189b
+[89] SHA-256 3c75c16642b4abc66380645dfe8f09103c32a6ba92d8bc6669bde20edbb8189b
 Used by:
   - python:numpy@2.5.3 (.spin/LICENSE)
 
@@ -5979,9 +5997,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[89] SHA-256 3ce3e2561c6a4cd41b435e1358d71aab5dbfe6b91a7e9b8b57df9a605c0ab87a
+[90] SHA-256 3ce3e2561c6a4cd41b435e1358d71aab5dbfe6b91a7e9b8b57df9a605c0ab87a
 Used by:
-  - cargo:cfb@0.7.3 (LICENSE)
+  - cargo:cfb@0.14.0 (LICENSE)
 
 MIT License
 
@@ -6007,7 +6025,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[90] SHA-256 3d5b63706380c8c746b862cba2ff5eb9fefd7fc81fbfac2964006c3f319573d2
+[91] SHA-256 3d5b63706380c8c746b862cba2ff5eb9fefd7fc81fbfac2964006c3f319573d2
 Used by:
   - npm:clsx@2.1.1 (license)
 
@@ -6023,7 +6041,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ------------------------------------------------------------------------------
 
-[91] SHA-256 3e1bef82aa0dfee4504ad211f7e4895153e3191db6ab179f94a7e20f990a0b67
+[92] SHA-256 3e1bef82aa0dfee4504ad211f7e4895153e3191db6ab179f94a7e20f990a0b67
 Used by:
   - cargo:tokio-stream@0.1.19 (LICENSE)
   - cargo:tokio-util@0.7.18 (LICENSE)
@@ -6055,7 +6073,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[92] SHA-256 3f5ac6903d0b5abf4ed5f9e4ca73c94a857f6e9c598f89277607d686bf680d6c
+[93] SHA-256 3f5ac6903d0b5abf4ed5f9e4ca73c94a857f6e9c598f89277607d686bf680d6c
 Used by:
   - python:magika@0.6.3 (licenses/magika-0.6.3.txt (reviewed supplement))
 
@@ -6267,7 +6285,7 @@ Source: https://raw.githubusercontent.com/google/magika/a04562a9bb5d52c809a44249
 
 ------------------------------------------------------------------------------
 
-[93] SHA-256 4031faf6212ee74481b2597dc84fb61568d6a732480c3efdf317f2ac83d330b4
+[94] SHA-256 4031faf6212ee74481b2597dc84fb61568d6a732480c3efdf317f2ac83d330b4
 Used by:
   - cargo:sha1@0.10.7 (LICENSE-MIT)
   - cargo:sha2@0.10.9 (LICENSE-MIT)
@@ -6302,7 +6320,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[94] SHA-256 410f62c80f1b6d1c40fcdb820f08e723cf9eb09d5a68f88fcf49fc507c8a1df2
+[95] SHA-256 410f62c80f1b6d1c40fcdb820f08e723cf9eb09d5a68f88fcf49fc507c8a1df2
 Used by:
   - cargo:atk@0.18.2 (COPYRIGHT)
   - cargo:cairo-rs@0.18.5 (COPYRIGHT)
@@ -6333,7 +6351,7 @@ library.
 
 ------------------------------------------------------------------------------
 
-[95] SHA-256 4247075817677c99f5de6953fdf6fa29fbfe646b37efe125a29bfada244ce020
+[96] SHA-256 4247075817677c99f5de6953fdf6fa29fbfe646b37efe125a29bfada244ce020
 Used by:
   - cargo:enumflags2_derive@0.7.12 (LICENSE-APACHE)
 
@@ -6408,7 +6426,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[96] SHA-256 425d689e26130d9d5f6cf66300a29936ba2009d44fe19e786c5ae55e1d12f3d4
+[97] SHA-256 425d689e26130d9d5f6cf66300a29936ba2009d44fe19e786c5ae55e1d12f3d4
 Used by:
   - python:mpmath@1.3.0 (LICENSE)
 
@@ -6442,7 +6460,7 @@ DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[97] SHA-256 42d8a095dbffdf17dba2e5ab859b56bf19909eace29d1ece1357e2044a7ab8f6
+[98] SHA-256 42d8a095dbffdf17dba2e5ab859b56bf19909eace29d1ece1357e2044a7ab8f6
 Used by:
   - cargo:new_debug_unreachable@1.0.6 (LICENSE-MIT)
   - cargo:ordered-float@5.5.0 (LICENSE-MIT)
@@ -6475,7 +6493,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[98] SHA-256 430e912c26cec30cdf52f4367b6d15dd3f898d2a19db349a62a9f3095ca98a5b
+[99] SHA-256 430e912c26cec30cdf52f4367b6d15dd3f898d2a19db349a62a9f3095ca98a5b
 Used by:
   - cargo:rustls-pki-types@1.15.0 (LICENSE-APACHE)
   - cargo:rustls-pki-types@1.15.1 (LICENSE-APACHE)
@@ -6684,7 +6702,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[99] SHA-256 4428cd87371acbd49f9f6380125492cd1e89df621d2fd7f55e30a0891f96a433
+[100] SHA-256 4428cd87371acbd49f9f6380125492cd1e89df621d2fd7f55e30a0891f96a433
 Used by:
   - cargo:equivalent@1.0.2 (LICENSE-MIT)
 
@@ -6716,7 +6734,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[100] SHA-256 442d0fe8507a9593f9db68fba83ff37bd7a191f55d4a3da855f019bd6c32f586
+[101] SHA-256 442d0fe8507a9593f9db68fba83ff37bd7a191f55d4a3da855f019bd6c32f586
 Used by:
   - cargo:alsa-sys@0.4.0 (LICENSE)
 
@@ -6744,7 +6762,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[101] SHA-256 4498464c2864825d7bb4c83e2ac4e9dbb533d49964fbf218c24f8d44ee4e87a9
+[102] SHA-256 4498464c2864825d7bb4c83e2ac4e9dbb533d49964fbf218c24f8d44ee4e87a9
 Used by:
   - cargo:anstream@1.0.0 (LICENSE-MIT)
   - cargo:anstyle-parse@1.0.0 (LICENSE-MIT)
@@ -6797,7 +6815,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[102] SHA-256 4592fdb8ac55589fb8e47ef7b772c8987a16992fbb778047897c71fe9c0fbc61
+[103] SHA-256 4592fdb8ac55589fb8e47ef7b772c8987a16992fbb778047897c71fe9c0fbc61
 Used by:
   - cargo:ndarray@0.17.2 (LICENSE-MIT)
 
@@ -6831,7 +6849,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[103] SHA-256 4603441e4a5a2a389f21ba187cff8354a6e0c48b749d227976cc2d218d17a3f3
+[104] SHA-256 4603441e4a5a2a389f21ba187cff8354a6e0c48b749d227976cc2d218d17a3f3
 Used by:
   - cargo:javascriptcore-rs-sys@1.1.1 (LICENSE)
   - cargo:soup3-sys@0.5.0 (LICENSE)
@@ -6861,7 +6879,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[104] SHA-256 47248d1ec833e0771ddacb65f2cf9978785f4a9976b5b0b69d1e33c60a50be55
+[105] SHA-256 47248d1ec833e0771ddacb65f2cf9978785f4a9976b5b0b69d1e33c60a50be55
 Used by:
   - cargo:zerocopy@0.8.53 (LICENSE-BSD)
   - cargo:zerocopy@0.8.59 (LICENSE-BSD)
@@ -6893,7 +6911,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[105] SHA-256 473867fcf89f75954018ee72124015779a1b9ca0d1a33328f2ddcf538690c067
+[106] SHA-256 473867fcf89f75954018ee72124015779a1b9ca0d1a33328f2ddcf538690c067
 Used by:
   - cargo:ring@0.17.14 (LICENSE-BoringSSL)
 
@@ -7171,7 +7189,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[106] SHA-256 478d530cbce79fc122b1a7c067ad706b000ef79ae914a4d060195f0f23b4a50d
+[107] SHA-256 478d530cbce79fc122b1a7c067ad706b000ef79ae914a4d060195f0f23b4a50d
 Used by:
   - cargo:getrandom@0.2.17 (LICENSE-MIT)
 
@@ -7204,7 +7222,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[107] SHA-256 47c8d25246e6cb7b53b7992247a5f3bd181ef782526b19e220ad7e7e05797ae0
+[108] SHA-256 47c8d25246e6cb7b53b7992247a5f3bd181ef782526b19e220ad7e7e05797ae0
 Used by:
   - cargo:cookie@0.18.1 (LICENSE-MIT)
 
@@ -7237,7 +7255,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[108] SHA-256 4867fa6c6a50fd9fce52312c9c69e5735a739427551e17ac629c2a0235972917
+[109] SHA-256 4867fa6c6a50fd9fce52312c9c69e5735a739427551e17ac629c2a0235972917
 Used by:
   - python:charset-normalizer@3.5.1 (LICENSE)
 
@@ -7265,7 +7283,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[109] SHA-256 48d36a6709db4f01ec2b5d9130df3981192fd7c232bbb9c216626e550a0876dc
+[110] SHA-256 48d36a6709db4f01ec2b5d9130df3981192fd7c232bbb9c216626e550a0876dc
 Used by:
   - cargo:async-broadcast@0.7.2 (LICENSE-MIT)
   - cargo:futures-concurrency@7.7.1 (LICENSE-MIT)
@@ -7294,7 +7312,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[110] SHA-256 49f5cc2a2e4db6cc86cc1c853cbf00af70abd12c55dae8d6561f26ccd1bfd162
+[111] SHA-256 49f5cc2a2e4db6cc86cc1c853cbf00af70abd12c55dae8d6561f26ccd1bfd162
 Used by:
   - cargo:aws-lc-sys@0.45.0 (LICENSE)
 
@@ -7617,7 +7635,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ------------------------------------------------------------------------------
 
-[111] SHA-256 4a4d43f3f90d1d8b5f55a3598015779f5aa94baa203a0e5a7b7c853f7d2426ea
+[112] SHA-256 4a4d43f3f90d1d8b5f55a3598015779f5aa94baa203a0e5a7b7c853f7d2426ea
 Used by:
   - cargo:derive_more-impl@2.1.1 (LICENSE)
   - cargo:derive_more@2.1.1 (LICENSE)
@@ -7646,7 +7664,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[112] SHA-256 4b05c4b43039d82b9ef8f3fb6cbf97f8312485eb9e6546a8171b37b73e048b08
+[113] SHA-256 4b05c4b43039d82b9ef8f3fb6cbf97f8312485eb9e6546a8171b37b73e048b08
 Used by:
   - cargo:powerfmt@0.2.0 (LICENSE-Apache)
 
@@ -7854,7 +7872,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[113] SHA-256 4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1
+[114] SHA-256 4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1
 Used by:
   - cargo:dtoa-short@0.3.5 (LICENSE)
 
@@ -8234,7 +8252,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 ------------------------------------------------------------------------------
 
-[114] SHA-256 4b9435aedff290e13460190d883c84720e0bdd7ad178c9e5bbcb409c6d967a9d
+[115] SHA-256 4b9435aedff290e13460190d883c84720e0bdd7ad178c9e5bbcb409c6d967a9d
 Used by:
   - python:coloredlogs@15.0.1 (LICENSE.txt)
 
@@ -8261,7 +8279,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[115] SHA-256 4bddfb319e32f90fe9905aee729bfa0dfca9f5ee9d65a8ceddd14d0597f2b566
+[116] SHA-256 4bddfb319e32f90fe9905aee729bfa0dfca9f5ee9d65a8ceddd14d0597f2b566
 Used by:
   - cargo:http-body-util@0.1.3 (LICENSE)
 
@@ -8293,7 +8311,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[116] SHA-256 4bf96504d6e83ce5c6fc7167f1795d9ceaa68e70ab86bc5d08ab93184262bbbe
+[117] SHA-256 4bf96504d6e83ce5c6fc7167f1795d9ceaa68e70ab86bc5d08ab93184262bbbe
 Used by:
   - cargo:alsa@0.11.0 (LICENSE-APACHE)
   - cargo:fdeflate@0.3.7 (LICENSE-APACHE)
@@ -8307,21 +8325,21 @@ Used by:
   - cargo:raw-window-handle@0.6.2 (LICENSE-APACHE.md)
   - cargo:simdutf8@0.1.5 (LICENSE-Apache)
   - cargo:sync_wrapper@1.0.2 (LICENSE)
-  - cargo:tauri-codegen@2.6.1 (LICENSE_APACHE-2.0)
-  - cargo:tauri-macros@2.6.1 (LICENSE_APACHE-2.0)
+  - cargo:tauri-codegen@2.7.1 (LICENSE-APACHE-2.0)
+  - cargo:tauri-macros@2.7.1 (LICENSE-APACHE-2.0)
   - cargo:tauri-plugin-deep-link@2.4.9 (LICENSE_APACHE-2.0)
   - cargo:tauri-plugin-dialog@2.7.1 (LICENSE_APACHE-2.0)
   - cargo:tauri-plugin-fs@2.5.1 (LICENSE_APACHE-2.0)
   - cargo:tauri-plugin-opener@2.5.4 (LICENSE_APACHE-2.0)
   - cargo:tauri-plugin-single-instance@2.4.3 (LICENSE_APACHE-2.0)
-  - cargo:tauri-runtime-wry@2.11.1 (LICENSE_APACHE-2.0)
-  - cargo:tauri-runtime@2.11.1 (LICENSE_APACHE-2.0)
-  - cargo:tauri-utils@2.9.1 (LICENSE_APACHE-2.0)
-  - cargo:tauri@2.11.1 (LICENSE_APACHE-2.0)
+  - cargo:tauri-runtime-wry@2.12.1 (LICENSE-APACHE-2.0)
+  - cargo:tauri-runtime@2.12.1 (LICENSE-APACHE-2.0)
+  - cargo:tauri-utils@2.10.1 (LICENSE-APACHE-2.0)
+  - cargo:tauri@2.12.1 (LICENSE-APACHE-2.0)
   - cargo:time-core@0.1.8 (LICENSE-Apache)
   - cargo:time-macros@0.2.27 (LICENSE-Apache)
   - cargo:time@0.3.47 (LICENSE-Apache)
-  - npm:@tauri-apps/api@2.11.0 (LICENSE_APACHE-2.0)
+  - npm:@tauri-apps/api@2.12.1 (LICENSE-APACHE-2.0)
   - python:packaging@26.3 (LICENSE.APACHE)
 
 Apache License
@@ -8503,7 +8521,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[117] SHA-256 4c4e6eed8b86b56fa8f22056ff64bbaae60df3fd0a0101a289729b4477bae1d4
+[118] SHA-256 4c4e6eed8b86b56fa8f22056ff64bbaae60df3fd0a0101a289729b4477bae1d4
 Used by:
   - cargo:bit-set@0.8.0 (LICENSE-MIT)
   - cargo:bit-vec@0.8.0 (LICENSE-MIT)
@@ -8536,7 +8554,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[118] SHA-256 4d83b119f786daf6af23876c0861ffb53f624b6086424c511e608b2025370a2d
+[119] SHA-256 4d83b119f786daf6af23876c0861ffb53f624b6086424c511e608b2025370a2d
 Used by:
   - cargo:num-conv@0.2.1 (LICENSE-MIT)
 
@@ -8562,7 +8580,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[119] SHA-256 4f2ac128e429d9646bf481baaa120eb561234f980503d337c710c06d0af6bbf9
+[120] SHA-256 4f2ac128e429d9646bf481baaa120eb561234f980503d337c710c06d0af6bbf9
 Used by:
   - cargo:indexmap@1.9.3 (LICENSE-MIT)
   - cargo:indexmap@2.14.0 (LICENSE-MIT)
@@ -8596,7 +8614,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[120] SHA-256 4fca82098ab206401848c7cff1c75755cc90af3fd42cee9099ac2186c73d0f85
+[121] SHA-256 4fca82098ab206401848c7cff1c75755cc90af3fd42cee9099ac2186c73d0f85
 Used by:
   - python:lxml@6.1.3 (LICENSE.txt)
 
@@ -8634,7 +8652,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[121] SHA-256 51f778ffff2c0705f0392f4202c932c7c93124850ced31abb7eef1e937da42c4
+[122] SHA-256 51f778ffff2c0705f0392f4202c932c7c93124850ced31abb7eef1e937da42c4
 Used by:
   - cargo:bytes@1.11.1 (LICENSE)
   - cargo:bytes@1.12.1 (LICENSE)
@@ -8667,7 +8685,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[122] SHA-256 537db907352420cef04106e138b6b9a62c23c0acdb5909319deb6d4183b339d0
+[123] SHA-256 537db907352420cef04106e138b6b9a62c23c0acdb5909319deb6d4183b339d0
 Used by:
   - cargo:core-graphics@0.25.0 (COPYRIGHT)
 
@@ -8679,7 +8697,7 @@ copied, modified, or distributed except according to those terms.
 
 ------------------------------------------------------------------------------
 
-[123] SHA-256 53b796ce5ff2909b97cc8a25a520646b0b2ba444e2cb713a052842f9e0d61709
+[124] SHA-256 53b796ce5ff2909b97cc8a25a520646b0b2ba444e2cb713a052842f9e0d61709
 Used by:
   - cargo:futures-intrusive@0.5.0 (LICENSE-MIT)
 
@@ -8711,7 +8729,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[124] SHA-256 557930f3a6b348321984ce42bd53128746d410ceecde616e955b484c8a79f42e
+[125] SHA-256 557930f3a6b348321984ce42bd53128746d410ceecde616e955b484c8a79f42e
 Used by:
   - cargo:async-stream-impl@0.3.6 (LICENSE)
   - cargo:async-stream@0.3.6 (LICENSE)
@@ -8770,7 +8788,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[125] SHA-256 5658bfdd9d4563a638cda05d7db004a200b38235bfa28a45484e3397049032a3
+[126] SHA-256 5658bfdd9d4563a638cda05d7db004a200b38235bfa28a45484e3397049032a3
 Used by:
   - cargo:as-any@0.3.2 (LICENSE-MIT)
 
@@ -8784,7 +8802,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ------------------------------------------------------------------------------
 
-[126] SHA-256 56a2dbba8cdf6db50dd358d308d768bc6f6f7c1ee4706f8af7e39f6ca144be85
+[127] SHA-256 56a2dbba8cdf6db50dd358d308d768bc6f6f7c1ee4706f8af7e39f6ca144be85
 Used by:
   - cargo:pathdiff@0.2.3 (LICENSE-APACHE)
 
@@ -8992,7 +9010,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[127] SHA-256 56da75134ea97dc17eb841f939794a3d82e71e20269c029c9840475841d63611
+[128] SHA-256 56da75134ea97dc17eb841f939794a3d82e71e20269c029c9840475841d63611
 Used by:
   - cargo:whisper-rs-sys@0.15.0 (licenses/whisper-cpp-1.8.3.txt (reviewed supplement))
 
@@ -9020,7 +9038,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[128] SHA-256 57895cdbc8febf233f2296b27ee98593e57f974896a4216b4a9629f5bd953f1d
+[129] SHA-256 57895cdbc8febf233f2296b27ee98593e57f974896a4216b4a9629f5bd953f1d
 Used by:
   - cargo:core_detect@1.0.0 (LICENSE-MIT)
 
@@ -9052,7 +9070,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[129] SHA-256 57f841bc9767b5b843e0c0c471bd50a95ddb00f13b1f4a2c6d6f57a7dbfdc1f3
+[130] SHA-256 57f841bc9767b5b843e0c0c471bd50a95ddb00f13b1f4a2c6d6f57a7dbfdc1f3
 Used by:
   - cargo:http-body-util@0.1.5 (LICENSE)
   - cargo:http-body@1.1.0 (LICENSE)
@@ -9085,7 +9103,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[130] SHA-256 5a7d13c6710cdec29e74eb3172b80712049c34099ab7259661ada051fc90777b
+[131] SHA-256 5a7d13c6710cdec29e74eb3172b80712049c34099ab7259661ada051fc90777b
 Used by:
   - cargo:crossbeam-channel@0.5.15 (LICENSE-MIT)
   - cargo:crossbeam-queue@0.3.14 (LICENSE-MIT)
@@ -9122,7 +9140,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[131] SHA-256 5b0ae40d1a35f7ae6591a28e44771240e6a88cb03a66c9189a45b9681639b466
+[132] SHA-256 5b0ae40d1a35f7ae6591a28e44771240e6a88cb03a66c9189a45b9681639b466
 Used by:
   - cargo:plist@1.9.0 (LICENCE)
 
@@ -9148,7 +9166,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[132] SHA-256 5c07409e7457212808b3bc8775a3aa15599017f283cb7fd317687e47e639d983
+[133] SHA-256 5c07409e7457212808b3bc8775a3aa15599017f283cb7fd317687e47e639d983
 Used by:
   - cargo:tokio-tungstenite@0.27.0 (LICENSE)
 
@@ -9175,7 +9193,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[133] SHA-256 5c3866f31ed28362d86aa475660b5bc4d8f064188261fbbfa421fab5da09198c
+[134] SHA-256 5c3866f31ed28362d86aa475660b5bc4d8f064188261fbbfa421fab5da09198c
 Used by:
   - cargo:reqwest@0.13.3 (LICENSE-APACHE)
   - cargo:reqwest@0.13.5 (LICENSE-APACHE)
@@ -9384,7 +9402,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[134] SHA-256 5c3e23dd0e4099122371a2af97b153b4bce99e498cc43398f07be7668cca7dc2
+[135] SHA-256 5c3e23dd0e4099122371a2af97b153b4bce99e498cc43398f07be7668cca7dc2
 Used by:
   - cargo:fixedbitset@0.5.7 (LICENSE-MIT)
 
@@ -9416,7 +9434,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[135] SHA-256 5e05b024f653a5ce199e77cbbbd42fb5553562ec714b819421ed0c3e552a75d7
+[136] SHA-256 5e05b024f653a5ce199e77cbbbd42fb5553562ec714b819421ed0c3e552a75d7
 Used by:
   - cargo:stable_deref_trait@1.2.1 (LICENSE-MIT)
 
@@ -9448,9 +9466,9 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[136] SHA-256 5f89ce4ac63b1c6047860d26210d61c5a7ace16ec3fe4a612c4c2c0c6635a96a
+[137] SHA-256 5f89ce4ac63b1c6047860d26210d61c5a7ace16ec3fe4a612c4c2c0c6635a96a
 Used by:
-  - cargo:jsonptr@0.6.3 (LICENSE-APACHE)
+  - cargo:jsonptr@0.7.1 (LICENSE-APACHE)
 
 Apache License
                            Version 2.0, January 2004
@@ -9656,7 +9674,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[137] SHA-256 5f9689aff91a90591cc1e7144ab7119c9475ea24e0f04da15cf109710b2ea465
+[138] SHA-256 5f9689aff91a90591cc1e7144ab7119c9475ea24e0f04da15cf109710b2ea465
 Used by:
   - cargo:headers@0.4.2 (LICENSE)
 
@@ -9682,7 +9700,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[138] SHA-256 5ff5253f2cb9347c4b3b1c8ecc5057c4b534ae21fab479f8ac77409bb6d6efa4
+[139] SHA-256 5ff5253f2cb9347c4b3b1c8ecc5057c4b534ae21fab479f8ac77409bb6d6efa4
 Used by:
   - cargo:block-buffer@0.10.4 (LICENSE-MIT)
 
@@ -9714,7 +9732,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[139] SHA-256 60ae21e45c3d7bab0f3c12472c21083ec0a9f1b03dfe7c22497b16f5509af3bf
+[140] SHA-256 60ae21e45c3d7bab0f3c12472c21083ec0a9f1b03dfe7c22497b16f5509af3bf
 Used by:
   - cargo:atoi@2.0.0 (LICENSE)
 
@@ -9739,35 +9757,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-------------------------------------------------------------------------------
-
-[140] SHA-256 616e44b46185fd0492cb81f5168715953b16b909025448cb8352f1caddd839df
-Used by:
-  - cargo:unic-char-property@0.9.0 (AUTHORS (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-char-range@0.9.0 (AUTHORS (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-common@0.9.0 (AUTHORS (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-ucd-ident@0.9.0 (AUTHORS (https://github.com/open-i18n/rust-unic/@8a6ce83063d90b91ae2ce59eddb803edd393fca9))
-  - cargo:unic-ucd-version@0.9.0 (AUTHORS (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-
-Alex Crichton <alex@alexcrichton.com>
-Andrew Hobden <andrew@hoverbear.org>
-Anthony Ramine <n.oxyde@gmail.com>
-Behnam Esfahbod <behnam@zwnj.org>
-Calum Forster <calumforster@live.co.uk>
-Christopher Durham <cad97@cad97.com>
-Corey Farwell <coreyf@rwell.org>
-Daniel Lockyer <thisisdaniellockyer@gmail.com>
-Emilio Cobos Álvarez <ecoal95@gmail.com>
-Keith Yeung <kungfukeith11@gmail.com>
-Manish Goregaokar <manishsmail@gmail.com>
-Matt Brubeck <mbrubeck@limpet.net>
-Michael Howell <michael@notriddle.com>
-Pyfisch <pyfisch@gmail.com>
-Raph Levien <raph@google.com>
-Riad S. Wahby <kwantam@gmail.com>
-Simon Sapin <simon.sapin@exyr.org>
-Valentin Gosu <valentin.gosu@gmail.com>
 
 ------------------------------------------------------------------------------
 
@@ -10468,9 +10457,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 [153] SHA-256 6c91ec82929f91ffa341a9928e5c98b44767c6a1bb8d7789edad88d3fa5681af
 Used by:
-  - cargo:alloc-no-stdlib@2.0.4 (LICENSE)
-  - cargo:alloc-stdlib@0.2.2 (LICENSE (https://github.com/dropbox/rust-alloc-no-stdlib@6032b6a9b20e03737135c55a0270ccffcc1438ef))
-  - cargo:brotli-decompressor@5.0.0 (LICENSE)
+  - cargo:alloc-no-stdlib@3.0.0 (LICENSE)
+  - cargo:alloc-stdlib@0.3.0 (LICENSE (https://github.com/dropbox/rust-alloc-no-stdlib@0a81fd6928ea3b33c8cd484aa4575d50ffb98012))
+  - cargo:brotli-decompressor@6.0.1 (LICENSE)
+  - cargo:brotli@9.0.0 (LICENSE.BSD-3-Clause)
 
 Copyright (c) 2016 Dropbox, Inc.
 All rights reserved.
@@ -10626,19 +10616,18 @@ Used by:
   - cargo:colorchoice@1.0.5 (LICENSE-APACHE)
   - cargo:crc32fast@1.5.0 (LICENSE-APACHE)
   - cargo:crc32fast@1.5.2 (LICENSE-APACHE)
-  - cargo:ctor-proc-macro@0.0.7 (LICENSE-APACHE)
-  - cargo:ctor@0.8.0 (LICENSE-APACHE)
+  - cargo:ctor@1.0.13 (LICENSE-APACHE)
   - cargo:dpi@0.1.2 (LICENSE)
   - cargo:foreign-types-macros@0.2.3 (LICENSE-APACHE)
   - cargo:foreign-types-shared@0.3.1 (LICENSE-APACHE)
   - cargo:foreign-types@0.5.0 (LICENSE-APACHE)
   - cargo:hex@0.4.3 (LICENSE-APACHE)
   - cargo:is_terminal_polyfill@1.70.2 (LICENSE-APACHE)
-  - cargo:json-patch@3.0.1 (LICENSE-APACHE)
+  - cargo:json-patch@4.2.0 (LICENSE-APACHE)
   - cargo:once_cell_polyfill@1.70.2 (LICENSE-APACHE)
   - cargo:serde_spanned@0.6.9 (LICENSE-APACHE)
   - cargo:serde_spanned@1.1.1 (LICENSE-APACHE)
-  - cargo:tao@0.35.2 (LICENSE)
+  - cargo:tao@0.37.1 (LICENSE)
   - cargo:toml@0.8.2 (LICENSE-APACHE)
   - cargo:toml@0.8.23 (LICENSE-APACHE)
   - cargo:toml@1.1.2+spec-1.1.0 (LICENSE-APACHE)
@@ -11107,6 +11096,7 @@ SOFTWARE.
 Used by:
   - cargo:dirs-sys@0.5.0 (LICENSE-APACHE)
   - cargo:dirs@6.0.0 (LICENSE-APACHE)
+  - cargo:dirs@7.0.0 (LICENSE-APACHE)
 
 Apache License
                         Version 2.0, January 2004
@@ -11287,7 +11277,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 
 [165] SHA-256 7554701d1e74fc434f68c522b1dd743c8c16d816a4b761b5213f367b898884c8
 Used by:
-  - cargo:dom_query@0.27.0 (LICENSE)
+  - cargo:dom_query@0.28.0 (LICENSE)
 
 MIT License
 
@@ -11521,7 +11511,7 @@ SOFTWARE.
 
 [171] SHA-256 7804ded9273b80f1e440aea015205b483552f7eaca89ac87f130c55045d284a7
 Used by:
-  - cargo:infer@0.19.0 (LICENSE)
+  - cargo:infer@0.22.0 (LICENSE)
 
 MIT License
 
@@ -11603,17 +11593,14 @@ Used by:
   - cargo:windows-result@0.4.1 (license-apache-2.0)
   - cargo:windows-strings@0.4.2 (license-apache-2.0)
   - cargo:windows-strings@0.5.1 (license-apache-2.0)
-  - cargo:windows-sys@0.59.0 (license-apache-2.0)
   - cargo:windows-sys@0.60.2 (license-apache-2.0)
   - cargo:windows-sys@0.61.2 (license-apache-2.0)
-  - cargo:windows-targets@0.52.6 (license-apache-2.0)
   - cargo:windows-targets@0.53.5 (license-apache-2.0)
   - cargo:windows-threading@0.1.0 (license-apache-2.0)
   - cargo:windows-threading@0.2.1 (license-apache-2.0)
   - cargo:windows-version@0.1.7 (license-apache-2.0)
   - cargo:windows@0.61.3 (license-apache-2.0)
   - cargo:windows@0.62.2 (license-apache-2.0)
-  - cargo:windows_x86_64_msvc@0.52.6 (license-apache-2.0)
   - cargo:windows_x86_64_msvc@0.53.1 (license-apache-2.0)
 
 Apache License
@@ -12303,7 +12290,34 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[178] SHA-256 7ce10c2326699bc36617a292cdfef50a53e6f662972b7b3e9c7ef627b457b7f5
+[178] SHA-256 7c667b0cf9860e6a1e3f221a84c0162f35268665acf88dce521ed665ed1e7b93
+Used by:
+  - npm:@tauri-apps/api@2.12.1 (LICENSE.spdx)
+
+SPDXVersion: SPDX-2.1
+DataLicense: CC0-1.0
+PackageName: tauri
+DataFormat: SPDXRef-1
+PackageSupplier: Organization: The Tauri Programme in the Commons Conservancy
+PackageHomePage: https://tauri.app
+PackageLicenseDeclared: Apache-2.0
+PackageLicenseDeclared: MIT
+PackageCopyrightText: 2019-2025, The Tauri Programme in the Commons Conservancy
+PackageSummary: <text>Tauri is a rust project that enables developers to make secure
+and small desktop applications using a web frontend.
+                </text>
+PackageComment: <text>The package includes the following libraries; see
+Relationship information.
+                </text>
+Created: 2019-05-20T09:00:00Z
+PackageDownloadLocation: git://github.com/tauri-apps/tauri
+PackageDownloadLocation: git+https://github.com/tauri-apps/tauri.git
+PackageDownloadLocation: git+ssh://github.com/tauri-apps/tauri.git
+Creator: Person: Daniel Thompson-Yvetot
+
+------------------------------------------------------------------------------
+
+[179] SHA-256 7ce10c2326699bc36617a292cdfef50a53e6f662972b7b3e9c7ef627b457b7f5
 Used by:
   - python:pyreadline3@3.5.6 (LICENSE.md)
 
@@ -12363,7 +12377,7 @@ DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[179] SHA-256 7d4bef28325e0a52a5da0c8f3b9bbb935fc552f054cbfbccc1e10d8101c3e2d0
+[180] SHA-256 7d4bef28325e0a52a5da0c8f3b9bbb935fc552f054cbfbccc1e10d8101c3e2d0
 Used by:
   - cargo:minimal-lexical@0.2.1 (LICENSE.md)
 
@@ -12407,7 +12421,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[180] SHA-256 7d9f551458e84cf849649d2659dff470445dd14e1a9a37098da9eca6f7a13f62
+[181] SHA-256 7d9f551458e84cf849649d2659dff470445dd14e1a9a37098da9eca6f7a13f62
 Used by:
   - cargo:signature@2.2.0 (LICENSE-MIT)
 
@@ -12439,7 +12453,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[181] SHA-256 7dc2f64024477c92b147ae4a93bbcef90031b33ba0de6a84bd570d59e6c0688b
+[182] SHA-256 7dc2f64024477c92b147ae4a93bbcef90031b33ba0de6a84bd570d59e6c0688b
 Used by:
   - cargo:encoding_rs@0.8.42 (LICENSE-MIT)
   - cargo:multiversion_no_op@1.0.0 (LICENSE-MIT)
@@ -12473,7 +12487,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[182] SHA-256 7e1b38c60796dd9949d6f26bd124e353a4a709b70e90810e2608f30195454da0
+[183] SHA-256 7e1b38c60796dd9949d6f26bd124e353a4a709b70e90810e2608f30195454da0
 Used by:
   - cargo:bit-set@0.8.0 (LICENSE-APACHE)
   - cargo:bit-vec@0.8.0 (LICENSE-APACHE)
@@ -12684,7 +12698,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[183] SHA-256 7f194ae45c2525a57443f7edabd392e8218109ee81a4bce70d385104c87c1a71
+[184] SHA-256 7f194ae45c2525a57443f7edabd392e8218109ee81a4bce70d385104c87c1a71
 Used by:
   - cargo:smallvec@1.15.1 (LICENSE-MIT)
   - cargo:smallvec@1.16.2 (LICENSE-MIT)
@@ -12717,7 +12731,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[184] SHA-256 7f91c2a4eddb48282e1f4c1e6a8f9e7d1842655212bcb9b5c0f9f8044aaf0ac5
+[185] SHA-256 7f91c2a4eddb48282e1f4c1e6a8f9e7d1842655212bcb9b5c0f9f8044aaf0ac5
 Used by:
   - cargo:errno@0.3.14 (LICENSE-MIT)
 
@@ -12749,7 +12763,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[185] SHA-256 7fb46adff9025f553b882b84ce593c37008d1e83019e4fdd6b21f8c800d0c485
+[186] SHA-256 7fb46adff9025f553b882b84ce593c37008d1e83019e4fdd6b21f8c800d0c485
 Used by:
   - python:requests@2.34.2 (LICENSE)
 
@@ -12930,7 +12944,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[186] SHA-256 7fdbca77dec6709aaa7ce778f43f3e8c5c860302c029f989dddc141bb036c87a
+[187] SHA-256 7fdbca77dec6709aaa7ce778f43f3e8c5c860302c029f989dddc141bb036c87a
 Used by:
   - cargo:time-core@0.1.8 (LICENSE-MIT)
   - cargo:time-macros@0.2.27 (LICENSE-MIT)
@@ -12958,7 +12972,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[187] SHA-256 80cdd90699e446abbe50d005e6c4de2a827a5f6dce34deacce04900c7a825ecf
+[188] SHA-256 80cdd90699e446abbe50d005e6c4de2a827a5f6dce34deacce04900c7a825ecf
 Used by:
   - cargo:png@0.17.16 (LICENSE-MIT)
   - cargo:png@0.18.1 (LICENSE-MIT)
@@ -12991,7 +13005,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[188] SHA-256 81976b4834c3cbdd402a84b6592c03d5c3cecfc9f904c1d8baeae55ccbadf684
+[189] SHA-256 81976b4834c3cbdd402a84b6592c03d5c3cecfc9f904c1d8baeae55ccbadf684
 Used by:
   - cargo:raw-window-handle@0.6.2 (LICENSE-ZLIB.md)
 
@@ -13009,7 +13023,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 
 ------------------------------------------------------------------------------
 
-[189] SHA-256 832514b1a88a49695e2102aa4551067844555a1c6e0e60749afb28a758303e32
+[190] SHA-256 832514b1a88a49695e2102aa4551067844555a1c6e0e60749afb28a758303e32
 Used by:
   - python:flatbuffers@25.12.19 (dart/LICENSE (https://github.com/google/flatbuffers@7e163021e59cca4f8e1e35a7c828b5c6b7915953))
 
@@ -13217,7 +13231,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[190] SHA-256 836ed921bbad486c21fe437f1f565aef73cf20f242f7344eae04b01ed53a2d57
+[191] SHA-256 836ed921bbad486c21fe437f1f565aef73cf20f242f7344eae04b01ed53a2d57
 Used by:
   - cargo:zeroize@1.9.0 (LICENSE-MIT)
 
@@ -13249,7 +13263,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[191] SHA-256 84e1bbfebd74e4196cfa0ea5cf58e677aa24b47c6661adbb19fb07920d089d1d
+[192] SHA-256 84e1bbfebd74e4196cfa0ea5cf58e677aa24b47c6661adbb19fb07920d089d1d
 Used by:
   - cargo:cfg-if@1.0.4 (LICENSE-MIT)
   - cargo:cfg-if@1.0.5 (LICENSE-MIT)
@@ -13288,7 +13302,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[192] SHA-256 8502803cebb30a728a7589325d3a9fa666d259013201558c1362d8900596a0de
+[193] SHA-256 8502803cebb30a728a7589325d3a9fa666d259013201558c1362d8900596a0de
 Used by:
   - cargo:httparse@1.10.1 (LICENSE-MIT)
 
@@ -13314,9 +13328,9 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[193] SHA-256 859a90323b684e4618786eb5affa0454d3a14872d433f0bb7e70e8e6f05d8ad4
+[194] SHA-256 859a90323b684e4618786eb5affa0454d3a14872d433f0bb7e70e8e6f05d8ad4
 Used by:
-  - cargo:muda@0.19.1 (LICENSE-MIT)
+  - cargo:muda@0.20.0 (LICENSE-MIT)
 
 MIT License
 
@@ -13342,7 +13356,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[194] SHA-256 85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179
+[195] SHA-256 85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179
 Used by:
   - cargo:allocator-api2@0.2.21 (LICENSE-APACHE)
   - cargo:anyhow@1.0.102 (LICENSE-APACHE)
@@ -13578,9 +13592,9 @@ END OF TERMS AND CONDITIONS
 
 ------------------------------------------------------------------------------
 
-[195] SHA-256 86eb6a41ef640b92ac12ed824f287f4c41101d31ac58c85d4d37ffeaa1a8b239
+[196] SHA-256 86eb6a41ef640b92ac12ed824f287f4c41101d31ac58c85d4d37ffeaa1a8b239
 Used by:
-  - cargo:wry@0.55.1 (LICENSE-MIT)
+  - cargo:wry@0.57.0 (LICENSE-MIT)
 
 MIT License
 
@@ -13606,7 +13620,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[196] SHA-256 8793aa4141de4b16b6fdd5f7eb3d30e78ccd6fcb13292202f11a9050c0da7f5d
+[197] SHA-256 8793aa4141de4b16b6fdd5f7eb3d30e78ccd6fcb13292202f11a9050c0da7f5d
 Used by:
   - cargo:winnow@0.5.40 (LICENSE-MIT)
   - cargo:winnow@0.7.15 (LICENSE-MIT)
@@ -13634,7 +13648,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[197] SHA-256 87ebb37988efc3285a41635c6a9fd38147e1e581b5f0556a284d5ab8fa5cdd4c
+[198] SHA-256 87ebb37988efc3285a41635c6a9fd38147e1e581b5f0556a284d5ab8fa5cdd4c
 Used by:
   - cargo:typenum@1.20.0 (LICENSE-MIT)
   - cargo:typenum@1.20.1 (LICENSE-MIT)
@@ -13663,7 +13677,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[198] SHA-256 881c9fe2d29b216aac4499364653fda35310c7212321b54dc4f8af51fa1d5d36
+[199] SHA-256 881c9fe2d29b216aac4499364653fda35310c7212321b54dc4f8af51fa1d5d36
 Used by:
   - cargo:http@1.4.0 (LICENSE-APACHE)
   - cargo:http@1.5.0 (LICENSE-APACHE)
@@ -13872,19 +13886,19 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[199] SHA-256 89ff9689dcf9dd53968785d05a26f7898bb169dbfcada8d032b3e68cf0d55607
+[200] SHA-256 89ff9689dcf9dd53968785d05a26f7898bb169dbfcada8d032b3e68cf0d55607
 Used by:
-  - cargo:tauri-codegen@2.6.1 (LICENSE_MIT)
-  - cargo:tauri-macros@2.6.1 (LICENSE_MIT)
+  - cargo:tauri-codegen@2.7.1 (LICENSE-MIT)
+  - cargo:tauri-macros@2.7.1 (LICENSE-MIT)
   - cargo:tauri-plugin-deep-link@2.4.9 (LICENSE_MIT)
   - cargo:tauri-plugin-dialog@2.7.1 (LICENSE_MIT)
   - cargo:tauri-plugin-fs@2.5.1 (LICENSE_MIT)
   - cargo:tauri-plugin-opener@2.5.4 (LICENSE_MIT)
-  - cargo:tauri-runtime-wry@2.11.1 (LICENSE_MIT)
-  - cargo:tauri-runtime@2.11.1 (LICENSE_MIT)
-  - cargo:tauri-utils@2.9.1 (LICENSE_MIT)
-  - cargo:tauri@2.11.1 (LICENSE_MIT)
-  - npm:@tauri-apps/api@2.11.0 (LICENSE_MIT)
+  - cargo:tauri-runtime-wry@2.12.1 (LICENSE-MIT)
+  - cargo:tauri-runtime@2.12.1 (LICENSE-MIT)
+  - cargo:tauri-utils@2.10.1 (LICENSE-MIT)
+  - cargo:tauri@2.12.1 (LICENSE-MIT)
+  - npm:@tauri-apps/api@2.12.1 (LICENSE-MIT)
 
 MIT License
 
@@ -13910,7 +13924,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[200] SHA-256 8a08757a7c385903176a9d8c55086bb58d61d203fe770b4e4521b361900ee451
+[201] SHA-256 8a08757a7c385903176a9d8c55086bb58d61d203fe770b4e4521b361900ee451
 Used by:
   - cargo:javascriptcore-rs@1.1.2 (LICENSE)
 
@@ -13939,7 +13953,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[201] SHA-256 8d1f81ea4e87111d557b185d58d996e7bcb974c19c364197fffd4e814fd9b6fa
+[202] SHA-256 8d1f81ea4e87111d557b185d58d996e7bcb974c19c364197fffd4e814fd9b6fa
 Used by:
   - cargo:lock_api@0.4.14 (LICENSE-MIT)
   - cargo:parking_lot@0.12.5 (LICENSE-MIT)
@@ -13973,7 +13987,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[202] SHA-256 8d2ca3a111ce03ed21afea5c77ad0ba3e2a184fae548532fed671e7a40861801
+[203] SHA-256 8d2ca3a111ce03ed21afea5c77ad0ba3e2a184fae548532fed671e7a40861801
 Used by:
   - cargo:dbus@0.9.11 (LICENSE-APACHE)
   - cargo:libdbus-sys@0.2.7 (LICENSE-APACHE)
@@ -14182,7 +14196,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[203] SHA-256 8d8291caf1cee26d23acf3eb67c9f9a2d58f1c681b16a4fbe8cbfb9e3c0b5a9b
+[204] SHA-256 8d8291caf1cee26d23acf3eb67c9f9a2d58f1c681b16a4fbe8cbfb9e3c0b5a9b
 Used by:
   - cargo:ryu@1.0.23 (LICENSE-BOOST)
 
@@ -14212,7 +14226,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[204] SHA-256 8eb2ee7b6ef9b192f018ab1ff1cb6c3a1710165a2c164080227de07769c5e590
+[205] SHA-256 8eb2ee7b6ef9b192f018ab1ff1cb6c3a1710165a2c164080227de07769c5e590
 Used by:
   - python:click@8.5.0 (docs/license.md)
 
@@ -14226,7 +14240,7 @@ language: text
 
 ------------------------------------------------------------------------------
 
-[205] SHA-256 8ee77b53f70150c23a51858d303c3c53d250780a6e2b72d38f869826043e9bae
+[206] SHA-256 8ee77b53f70150c23a51858d303c3c53d250780a6e2b72d38f869826043e9bae
 Used by:
   - cargo:httpdate@1.0.3 (LICENSE-MIT)
 
@@ -14252,7 +14266,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[206] SHA-256 8fd8980cab8977a58aecdb4c48857aa6b70a64250cc923b3eeb0ecd903c51def
+[207] SHA-256 8fd8980cab8977a58aecdb4c48857aa6b70a64250cc923b3eeb0ecd903c51def
 Used by:
   - cargo:strsim@0.11.1 (LICENSE)
 
@@ -14282,7 +14296,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[207] SHA-256 917d5dc3470e527b8be458c7ce07949ce2eab9e414c54532f9680c4bd5f61230
+[208] SHA-256 917d5dc3470e527b8be458c7ce07949ce2eab9e414c54532f9680c4bd5f61230
 Used by:
   - cargo:mach2@0.6.0 (LICENSE-MIT)
 
@@ -14314,7 +14328,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[208] SHA-256 94b1870d380ccf537d5bdfda2de882965c9afb814acc375cb1b47fc1a0014ee3
+[209] SHA-256 94b1870d380ccf537d5bdfda2de882965c9afb814acc375cb1b47fc1a0014ee3
 Used by:
   - cargo:getrandom@0.4.2 (LICENSE-MIT)
   - cargo:getrandom@0.4.3 (LICENSE-MIT)
@@ -14348,7 +14362,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[209] SHA-256 94fd157f47cb02b81ad3558ec26cf299534af60fb7ce627edfcfd51c3240783e
+[210] SHA-256 94fd157f47cb02b81ad3558ec26cf299534af60fb7ce627edfcfd51c3240783e
 Used by:
   - python:markdownify@1.2.3 (LICENSE)
 
@@ -14376,7 +14390,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[210] SHA-256 954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76
+[211] SHA-256 954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76
 Used by:
   - cargo:async-channel@2.5.0 (LICENSE-APACHE)
   - cargo:async-executor@1.14.0 (LICENSE-APACHE)
@@ -14439,7 +14453,7 @@ Used by:
   - cargo:hashbrown@0.17.1 (LICENSE-APACHE)
   - cargo:heck@0.4.1 (LICENSE-APACHE)
   - cargo:heck@0.5.0 (LICENSE-APACHE)
-  - cargo:html5ever@0.38.0 (LICENSE-APACHE)
+  - cargo:html5ever@0.39.0 (LICENSE-APACHE)
   - cargo:httparse@1.10.1 (LICENSE-APACHE)
   - cargo:hyper-rustls@0.27.10 (LICENSE-APACHE)
   - cargo:idna@1.1.0 (LICENSE-APACHE)
@@ -14448,17 +14462,17 @@ Used by:
   - cargo:indexmap@2.14.0 (LICENSE-APACHE)
   - cargo:indexmap@2.14.2 (LICENSE-APACHE)
   - cargo:itertools@0.14.0 (LICENSE-APACHE)
-  - cargo:keyboard-types@0.7.0 (LICENSE-APACHE)
+  - cargo:keyboard-types@0.8.3 (LICENSE-APACHE)
   - cargo:libpulse-binding@2.30.1 (LICENSE-APACHE)
   - cargo:libpulse-sys@1.23.0 (LICENSE-APACHE)
   - cargo:linux-raw-sys@0.12.1 (LICENSE-APACHE)
   - cargo:lock_api@0.4.14 (LICENSE-APACHE)
   - cargo:log@0.4.29 (LICENSE-APACHE)
   - cargo:log@0.4.34 (LICENSE-APACHE)
-  - cargo:markup5ever@0.38.0 (LICENSE-APACHE)
+  - cargo:markup5ever@0.39.0 (LICENSE-APACHE)
   - cargo:matrixmultiply@0.3.11 (LICENSE-APACHE)
   - cargo:mime@0.3.17 (LICENSE-APACHE)
-  - cargo:muda@0.19.1 (LICENSE-APACHE)
+  - cargo:muda@0.20.0 (LICENSE-APACHE)
   - cargo:ndarray@0.17.2 (LICENSE-APACHE)
   - cargo:num-bigint@0.4.8 (LICENSE-APACHE)
   - cargo:num-complex@0.4.6 (LICENSE-APACHE)
@@ -14497,8 +14511,8 @@ Used by:
   - cargo:scopeguard@1.2.0 (LICENSE-APACHE)
   - cargo:security-framework-sys@2.17.0 (LICENSE-APACHE)
   - cargo:security-framework@3.7.0 (LICENSE-APACHE)
-  - cargo:selectors@0.36.1 (malloc_size_of/LICENSE-APACHE (https://github.com/servo/stylo@635e1a19d02960588a00e189bd4bd5bdb150ec3d))
-  - cargo:selectors@0.36.1 (servo_arc/LICENSE-APACHE (https://github.com/servo/stylo@635e1a19d02960588a00e189bd4bd5bdb150ec3d))
+  - cargo:selectors@0.38.0 (malloc_size_of/LICENSE-APACHE (https://github.com/servo/stylo@572ecba2d1600e7c3d490586692a209faf703baa))
+  - cargo:selectors@0.38.0 (servo_arc/LICENSE-APACHE (https://github.com/servo/stylo@572ecba2d1600e7c3d490586692a209faf703baa))
   - cargo:serde_with@3.21.0 (LICENSE-APACHE)
   - cargo:serde_with@3.24.0 (LICENSE-APACHE)
   - cargo:serde_with_macros@3.21.0 (LICENSE-APACHE)
@@ -14519,11 +14533,6 @@ Used by:
   - cargo:tendril@0.5.0 (LICENSE-APACHE)
   - cargo:toml_datetime@0.6.3 (LICENSE-APACHE)
   - cargo:tungstenite@0.27.0 (LICENSE-APACHE)
-  - cargo:unic-char-property@0.9.0 (LICENSE-APACHE (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-char-range@0.9.0 (LICENSE-APACHE (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-common@0.9.0 (LICENSE-APACHE (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-ucd-ident@0.9.0 (LICENSE-APACHE (https://github.com/open-i18n/rust-unic/@8a6ce83063d90b91ae2ce59eddb803edd393fca9))
-  - cargo:unic-ucd-version@0.9.0 (LICENSE-APACHE (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
   - cargo:unicase@2.9.0 (LICENSE-APACHE)
   - cargo:unicode-segmentation@1.13.2 (LICENSE-APACHE)
   - cargo:unicode-segmentation@1.13.3 (LICENSE-APACHE)
@@ -14532,8 +14541,8 @@ Used by:
   - cargo:uuid@1.23.1 (LICENSE-APACHE)
   - cargo:uuid@1.26.1 (LICENSE-APACHE)
   - cargo:web_atoms@0.2.4 (LICENSE-APACHE)
-  - cargo:window-vibrancy@0.6.0 (LICENSE-APACHE)
-  - cargo:wry@0.55.1 (LICENSE-APACHE)
+  - cargo:window-vibrancy@0.8.1 (LICENSE-APACHE)
+  - cargo:wry@0.57.0 (LICENSE-APACHE)
   - cargo:xattr@1.6.1 (LICENSE-APACHE)
 
 Apache License
@@ -14740,7 +14749,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[211] SHA-256 95573f040b56af53b368e25454c8cd660dfa72ab6999327e6120095846650ebd
+[212] SHA-256 95573f040b56af53b368e25454c8cd660dfa72ab6999327e6120095846650ebd
 Used by:
   - cargo:ico@0.5.0 (LICENSE)
 
@@ -14768,7 +14777,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[212] SHA-256 9599127e421e16595d107a20935532cdb97ff570fbb0b06ed3aa67b04d0185a2
+[213] SHA-256 9599127e421e16595d107a20935532cdb97ff570fbb0b06ed3aa67b04d0185a2
 Used by:
   - cargo:crc32fast@1.5.0 (LICENSE-MIT)
   - cargo:crc32fast@1.5.2 (LICENSE-MIT)
@@ -14797,7 +14806,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[213] SHA-256 95bc0839fe9ffb3baf1b5ad8f5c347b58a07196387b3939c9f121d48461443dc
+[214] SHA-256 95bc0839fe9ffb3baf1b5ad8f5c347b58a07196387b3939c9f121d48461443dc
 Used by:
   - python:protobuf@7.36.2 (LICENSE)
 
@@ -14836,7 +14845,7 @@ support library is itself covered by the above license.
 
 ------------------------------------------------------------------------------
 
-[214] SHA-256 97e5a9e306ee7a866919dfe20c07b23fc021369913241ec3b8708e3bcb2d7fc3
+[215] SHA-256 97e5a9e306ee7a866919dfe20c07b23fc021369913241ec3b8708e3bcb2d7fc3
 Used by:
   - python:numpy@2.5.3 (LICENSE.txt)
 
@@ -14873,7 +14882,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[215] SHA-256 98ed0ad9db8a72957b9c45941fe2ed31933a3beacbd193e662df483d0643a13d
+[216] SHA-256 98ed0ad9db8a72957b9c45941fe2ed31933a3beacbd193e662df483d0643a13d
 Used by:
   - cargo:zerocopy@0.8.53 (LICENSE-APACHE)
   - cargo:zerocopy@0.8.59 (LICENSE-APACHE)
@@ -15082,7 +15091,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[216] SHA-256 9b531f5ced1b395b125eb2cbf9693e2621f5724d1fdfd052919238b1f1b67f53
+[217] SHA-256 9b531f5ced1b395b125eb2cbf9693e2621f5724d1fdfd052919238b1f1b67f53
 Used by:
   - cargo:crc-catalog@2.5.0 (Apache-2.0.txt)
 
@@ -15290,7 +15299,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[217] SHA-256 9b689eac99cd74074238eacc6355aa7f26971ad99fcef4a2fa0fdb1c80407a3a
+[218] SHA-256 9b689eac99cd74074238eacc6355aa7f26971ad99fcef4a2fa0fdb1c80407a3a
 Used by:
   - cargo:clap@4.6.7 (LICENSE-APACHE)
   - cargo:clap_builder@4.6.7 (LICENSE-APACHE)
@@ -15501,7 +15510,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[218] SHA-256 9be39331309bc958aab10457c1a8459c038ae95662f26dfcf6c9088e2b3d653f
+[219] SHA-256 9be39331309bc958aab10457c1a8459c038ae95662f26dfcf6c9088e2b3d653f
 Used by:
   - cargo:sqlx-core@0.8.6 (LICENSE-APACHE)
   - cargo:sqlx-macros-core@0.8.6 (LICENSE-APACHE)
@@ -15713,7 +15722,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[219] SHA-256 9c5127ab88e8f55b26f7846eefbe1f582b9c2c596c65bfbb9a622b0c6f678d13
+[220] SHA-256 9c5127ab88e8f55b26f7846eefbe1f582b9c2c596c65bfbb9a622b0c6f678d13
 Used by:
   - cargo:digest@0.10.7 (LICENSE-MIT)
 
@@ -15745,7 +15754,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[220] SHA-256 9d8e882729a53481b83a5fba9da762bec38a289be159690c607a5375778331ee
+[221] SHA-256 9d8e882729a53481b83a5fba9da762bec38a289be159690c607a5375778331ee
 Used by:
   - cargo:ipnet@2.12.0 (LICENSE-APACHE)
   - cargo:ipnet@2.12.2 (LICENSE-APACHE)
@@ -15954,7 +15963,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[221] SHA-256 9db9de9edfd0ae7c1a5ac724191c0899dc218273f62c717e004ef037501646c2
+[222] SHA-256 9db9de9edfd0ae7c1a5ac724191c0899dc218273f62c717e004ef037501646c2
 Used by:
   - cargo:data-encoding@2.11.1 (LICENSE)
 
@@ -15983,7 +15992,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[222] SHA-256 9dde4a6ad496606322ae0b61b70dc7123fa231be543caa0896d567e34d20fbf8
+[223] SHA-256 9dde4a6ad496606322ae0b61b70dc7123fa231be543caa0896d567e34d20fbf8
 Used by:
   - cargo:hex@0.4.3 (LICENSE-MIT)
 
@@ -16010,7 +16019,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[223] SHA-256 a03d4daa4f46496a592dbf6734f5ee16ed52f1eb7a56ae4648d609ebf0efd0b7
+[224] SHA-256 a03d4daa4f46496a592dbf6734f5ee16ed52f1eb7a56ae4648d609ebf0efd0b7
 Used by:
   - cargo:zerocopy@0.8.53 (LICENSE-MIT)
   - cargo:zerocopy@0.8.59 (LICENSE-MIT)
@@ -16043,7 +16052,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[224] SHA-256 a0e7d0739e030804991c24558d6630ab5c4d8782f91073e5b5f8d317b03568cd
+[225] SHA-256 a0e7d0739e030804991c24558d6630ab5c4d8782f91073e5b5f8d317b03568cd
 Used by:
   - cargo:zbus@5.15.0 (LICENSE)
   - cargo:zbus_macros@5.15.0 (LICENSE)
@@ -16079,7 +16088,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[225] SHA-256 a1fff344297822d3e229f6943007694a29e6bede5b83349cb7c39117f4302e3c
+[226] SHA-256 a1fff344297822d3e229f6943007694a29e6bede5b83349cb7c39117f4302e3c
 Used by:
   - cargo:untrusted@0.9.0 (LICENSE.txt)
 
@@ -16099,7 +16108,7 @@ Used by:
 
 ------------------------------------------------------------------------------
 
-[226] SHA-256 a21c914647d33e48cb4d213dfb0749dbb45491514da9d3a8ffc4763cf456217d
+[227] SHA-256 a21c914647d33e48cb4d213dfb0749dbb45491514da9d3a8ffc4763cf456217d
 Used by:
   - cargo:adler2@2.0.1 (LICENSE-0BSD)
 
@@ -16118,7 +16127,7 @@ OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[227] SHA-256 a29c4d8a8e7cebc9cc2da596d149a14e1f42f2cbf020d1384b8695bb25bb597d
+[228] SHA-256 a29c4d8a8e7cebc9cc2da596d149a14e1f42f2cbf020d1384b8695bb25bb597d
 Used by:
   - cargo:embed_plist@1.2.2 (LICENSE-MIT)
 
@@ -16146,7 +16155,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[228] SHA-256 a302dc760d97dc623f8549327a3db1793dd22efc5cce07ec583c278c50b4c3b7
+[229] SHA-256 a302dc760d97dc623f8549327a3db1793dd22efc5cce07ec583c278c50b4c3b7
 Used by:
   - cargo:mime@0.3.17 (LICENSE-MIT)
 
@@ -16172,7 +16181,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[229] SHA-256 a3320aa8d192a02cc2c9f31ebcceb861d71b737acdff1397d0d8a49361e86e73
+[230] SHA-256 a3320aa8d192a02cc2c9f31ebcceb861d71b737acdff1397d0d8a49361e86e73
 Used by:
   - cargo:hyper-rustls@0.27.10 (LICENSE-MIT)
   - cargo:rustls-native-certs@0.8.4 (LICENSE-MIT)
@@ -16207,7 +16216,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[230] SHA-256 a3720e987e6153ddfd56ddac9cf503c204c2f1608a3a354aae5560a59662d8b4
+[231] SHA-256 a3720e987e6153ddfd56ddac9cf503c204c2f1608a3a354aae5560a59662d8b4
 Used by:
   - cargo:dasp_sample@0.11.0 (LICENSE-MIT (https://github.com/rustaudio/sample.git@97c3bb9b2363c0b46ac1633858bf1054fd02a980))
 
@@ -16235,7 +16244,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[231] SHA-256 a69edb2155ca65cd0d352e7fc1a71a53b94f222b8772cb4e06b3d7f6aaa3fe64
+[232] SHA-256 a69edb2155ca65cd0d352e7fc1a71a53b94f222b8772cb4e06b3d7f6aaa3fe64
 Used by:
   - cargo:tungstenite@0.27.0 (LICENSE-MIT)
 
@@ -16262,7 +16271,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[232] SHA-256 a7c537a25fc829c9a799b702891df70bea4d5937f3f3432c869390f122cf5415
+[233] SHA-256 a7c537a25fc829c9a799b702891df70bea4d5937f3f3432c869390f122cf5415
 Used by:
   - cargo:async-broadcast@0.7.2 (LICENSE-APACHE)
   - cargo:futures-concurrency@7.7.1 (LICENSE-APACHE)
@@ -16460,7 +16469,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[233] SHA-256 aa69fda6dd940f9fd2a7dcd6154bfc6f8e17f582794baf366e81004b01cc7f85
+[234] SHA-256 aa69fda6dd940f9fd2a7dcd6154bfc6f8e17f582794baf366e81004b01cc7f85
 Used by:
   - cargo:raw-window-handle@0.6.2 (LICENSE-MIT.md)
 
@@ -16488,7 +16497,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[234] SHA-256 aaac889d0a4a18753c87911502e36f2e04185d0c8bab33b42895c8bcc2570cfd
+[235] SHA-256 aaac889d0a4a18753c87911502e36f2e04185d0c8bab33b42895c8bcc2570cfd
 Used by:
   - cargo:signal-hook-registry@1.4.8 (LICENSE-MIT)
 
@@ -16520,7 +16529,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[235] SHA-256 ac8e43d7cbc8e9cd44d3de1768e364b4aa12d9407d734c8d692d69d7dd084cd0
+[236] SHA-256 ac8e43d7cbc8e9cd44d3de1768e364b4aa12d9407d734c8d692d69d7dd084cd0
 Used by:
   - cargo:dasp_sample@0.11.0 (LICENSE-APACHE (https://github.com/rustaudio/sample.git@97c3bb9b2363c0b46ac1633858bf1054fd02a980))
 
@@ -16540,7 +16549,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[236] SHA-256 ac9859ce4e9a80a4846ee0b453981427f4fc2ba9ac7d0e568de61ab80a53d86d
+[237] SHA-256 ac9859ce4e9a80a4846ee0b453981427f4fc2ba9ac7d0e568de61ab80a53d86d
 Used by:
   - cargo:miniz_oxide@0.8.9 (LICENSE-MIT.md)
   - cargo:miniz_oxide@0.9.1 (LICENSE-MIT.md)
@@ -16572,7 +16581,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[237] SHA-256 acddfb05f07ab0048f60a6080856befa9a37cd2f2e4aaef35bd3fe5cba145b62
+[238] SHA-256 acddfb05f07ab0048f60a6080856befa9a37cd2f2e4aaef35bd3fe5cba145b62
 Used by:
   - cargo:tokio-rustls@0.26.6 (LICENSE-APACHE)
 
@@ -16780,7 +16789,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[238] SHA-256 ad4fcfaf8d5b12b97409c137a03d4a4e4b21024c65c54f976cc3b609c1bd5b0f
+[239] SHA-256 ad4fcfaf8d5b12b97409c137a03d4a4e4b21024c65c54f976cc3b609c1bd5b0f
 Used by:
   - cargo:generic-array@0.14.7 (LICENSE)
 
@@ -16808,7 +16817,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[239] SHA-256 ae61683b7dd6c160185ac0635b2fd42ac028a74f680aa90be4fd1a17ef13fa10
+[240] SHA-256 ae61683b7dd6c160185ac0635b2fd42ac028a74f680aa90be4fd1a17ef13fa10
 Used by:
   - cargo:http-body@1.0.1 (LICENSE)
 
@@ -16840,7 +16849,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[240] SHA-256 ae9791f02f2bbe0ce17b434753af97be6e5284b6f8e9f22db3c1f0f11b2e015a
+[241] SHA-256 ae9791f02f2bbe0ce17b434753af97be6e5284b6f8e9f22db3c1f0f11b2e015a
 Used by:
   - cargo:const-random-macro@0.1.16 (LICENSE-MIT)
   - cargo:const-random@0.1.18 (LICENSE-MIT)
@@ -16877,7 +16886,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[241] SHA-256 aed7b1758e35afa0cd0fde059d61950747ca11cd0e5e169cb21c11608daed772
+[242] SHA-256 aed7b1758e35afa0cd0fde059d61950747ca11cd0e5e169cb21c11608daed772
 Used by:
   - cargo:convert_case@0.10.0 (LICENSE)
 
@@ -16905,7 +16914,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[242] SHA-256 af6da3f3f6b4929e02f81fd890835fd6d70ffddae12a8d735c0d7f294ac5ffd7
+[243] SHA-256 af6da3f3f6b4929e02f81fd890835fd6d70ffddae12a8d735c0d7f294ac5ffd7
 Used by:
   - cargo:hyper-rustls@0.27.10 (LICENSE-ISC)
   - cargo:rustls-native-certs@0.8.4 (LICENSE-ISC)
@@ -16930,7 +16939,7 @@ THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[243] SHA-256 afceb0fbc62baddb3de56e9d74074536f84847d493ff0ce736adafcd497c0f46
+[244] SHA-256 afceb0fbc62baddb3de56e9d74074536f84847d493ff0ce736adafcd497c0f46
 Used by:
   - python:packaging@26.3 (LICENSE.BSD)
 
@@ -16960,7 +16969,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[244] SHA-256 b1181a40b2a7b25cf66fd01481713bc1005df082c53ef73e851e55071b102744
+[245] SHA-256 b1181a40b2a7b25cf66fd01481713bc1005df082c53ef73e851e55071b102744
 Used by:
   - cargo:foldhash@0.1.5 (LICENSE)
   - cargo:foldhash@0.2.0 (LICENSE)
@@ -16987,7 +16996,7 @@ the following restrictions:
 
 ------------------------------------------------------------------------------
 
-[245] SHA-256 b1d6d97b0476a82862312e776bd4f2b902fb6c53e46f28166ccd2f63b17d4f8a
+[246] SHA-256 b1d6d97b0476a82862312e776bd4f2b902fb6c53e46f28166ccd2f63b17d4f8a
 Used by:
   - cargo:encoding_rs@0.8.42 (LICENSE-WHATWG)
 
@@ -17020,7 +17029,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[246] SHA-256 b25c1d68b3530dcc000a7bfa7780656ecab42a5d217a9c04301e022d88560344
+[247] SHA-256 b25c1d68b3530dcc000a7bfa7780656ecab42a5d217a9c04301e022d88560344
 Used by:
   - npm:tailwind-merge@3.6.0 (LICENSE.md)
 
@@ -17048,7 +17057,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[247] SHA-256 b2653abd3fa13ffab682a75b4eb3400afbc313f55241d8c0a13737b8c3287ac1
+[248] SHA-256 b2653abd3fa13ffab682a75b4eb3400afbc313f55241d8c0a13737b8c3287ac1
 Used by:
   - cargo:ort-sys@2.0.0-rc.12 (LICENSE-MIT)
   - cargo:ort@2.0.0-rc.12 (LICENSE-MIT)
@@ -17078,7 +17087,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[248] SHA-256 b2a541f10560a218c2a8b9506c3b5c7ac40d2c99e2d2845eae3c4cf16c70000f
+[249] SHA-256 b2a541f10560a218c2a8b9506c3b5c7ac40d2c99e2d2845eae3c4cf16c70000f
 Used by:
   - cargo:ppv-lite86@0.2.21 (LICENSE-MIT)
 
@@ -17110,7 +17119,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[249] SHA-256 b2dbc9dd617f04cdfbdc34387f0832bdf563bc84dcc63897366ea0ff36bdc012
+[250] SHA-256 b2dbc9dd617f04cdfbdc34387f0832bdf563bc84dcc63897366ea0ff36bdc012
 Used by:
   - cargo:libpulse-binding@2.30.1 (LICENSE-MIT)
   - cargo:libpulse-sys@1.23.0 (LICENSE-MIT)
@@ -17137,7 +17146,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[250] SHA-256 b420d8add23b5cf7663f17f012b06a4c16b722c5dd8fb049b285417214b5702e
+[251] SHA-256 b420d8add23b5cf7663f17f012b06a4c16b722c5dd8fb049b285417214b5702e
 Used by:
   - cargo:futures-channel@0.3.32 (LICENSE-MIT)
   - cargo:futures-channel@0.3.34 (LICENSE-MIT)
@@ -17187,9 +17196,9 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[251] SHA-256 b46700117441967dccaa4f348e7d774953a3863861efe1fe86f5af8ad73fa1be
+[252] SHA-256 b46700117441967dccaa4f348e7d774953a3863861efe1fe86f5af8ad73fa1be
 Used by:
-  - cargo:window-vibrancy@0.6.0 (LICENSE-MIT)
+  - cargo:window-vibrancy@0.8.1 (LICENSE-MIT)
 
 MIT License
 
@@ -17215,7 +17224,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[252] SHA-256 b4839ecf405b5fa4a20f234ae6b686ab7f245e7eec8eb634174b833ea86a4653
+[253] SHA-256 b4839ecf405b5fa4a20f234ae6b686ab7f245e7eec8eb634174b833ea86a4653
 Used by:
   - cargo:deranged@0.5.8 (LICENSE-Apache)
 
@@ -17423,7 +17432,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[253] SHA-256 b54bf787564a84f0f407c0414ce91894863bea374011d8e4a3ed8796bcf34a76
+[254] SHA-256 b54bf787564a84f0f407c0414ce91894863bea374011d8e4a3ed8796bcf34a76
 Used by:
   - cargo:sqlx-core@0.8.6 (LICENSE-MIT)
   - cargo:sqlx-macros-core@0.8.6 (LICENSE-MIT)
@@ -17459,7 +17468,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[254] SHA-256 b5ca961ec84fc51985a066eca8200d6717145311fecfcd9fe4a4e73fb7c4eb02
+[255] SHA-256 b5ca961ec84fc51985a066eca8200d6717145311fecfcd9fe4a4e73fb7c4eb02
 Used by:
   - python:certifi@2026.7.22 (LICENSE)
 
@@ -17486,7 +17495,7 @@ one at http://mozilla.org/MPL/2.0/.
 
 ------------------------------------------------------------------------------
 
-[255] SHA-256 b5dae953242620882b4803d63538e87d69fd3ea38efed9754bfa9253bd03da41
+[256] SHA-256 b5dae953242620882b4803d63538e87d69fd3ea38efed9754bfa9253bd03da41
 Used by:
   - cargo:serde_urlencoded@0.7.1 (LICENSE-MIT)
 
@@ -17518,7 +17527,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[256] SHA-256 b5e6923cd7c0e4a493cb1b0a26ddbad80effa363dd8dbf0ff8077117ff68f5d9
+[257] SHA-256 b5e6923cd7c0e4a493cb1b0a26ddbad80effa363dd8dbf0ff8077117ff68f5d9
 Used by:
   - cargo:keyring@3.6.3 (LICENSE-MIT)
 
@@ -17550,7 +17559,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[257] SHA-256 b674d8333f8330a090fafb6e79595763d0373aae3c8f0b983879aa0887defc46
+[258] SHA-256 b674d8333f8330a090fafb6e79595763d0373aae3c8f0b983879aa0887defc46
 Used by:
   - cargo:rust-ini@0.21.3 (LICENSE)
 
@@ -17566,7 +17575,215 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ------------------------------------------------------------------------------
 
-[258] SHA-256 b7f455413bfe5f9d7da501a4468d4c5f866a432c325947e98cc9535e8b26cd6d
+[259] SHA-256 b7bb0c98ad20c5e4749a3d9c5c2ed94af7f3792b91ac5939bddb007f9c02df08
+Used by:
+  - cargo:web-time@1.1.0 (LICENSE-APACHE)
+
+Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2023 dAxpeDDa
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+------------------------------------------------------------------------------
+
+[260] SHA-256 b7f455413bfe5f9d7da501a4468d4c5f866a432c325947e98cc9535e8b26cd6d
 Used by:
   - cargo:tauri-plugin-single-instance@2.4.3 (LICENSE_MIT)
 
@@ -17594,7 +17811,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[259] SHA-256 b80715c9990dd25650de7bac1eb4034568e582945eb1ee74764a8afe1b5d36e1
+[261] SHA-256 b80715c9990dd25650de7bac1eb4034568e582945eb1ee74764a8afe1b5d36e1
 Used by:
   - python:sympy@1.14.0 (AUTHORS)
 
@@ -18980,9 +19197,9 @@ KJaybhaye <krushnajaybhaye01@gmail.com>
 
 ------------------------------------------------------------------------------
 
-[260] SHA-256 b99f9d43803f2ac979c50949df630bd8eeaf2fcd1b9fdb9093710d70f5dfb63d
+[262] SHA-256 b99f9d43803f2ac979c50949df630bd8eeaf2fcd1b9fdb9093710d70f5dfb63d
 Used by:
-  - cargo:muda@0.19.1 (LICENSE.spdx)
+  - cargo:muda@0.20.0 (LICENSE.spdx)
 
 SPDXVersion: SPDX-2.1
 DataLicense: CC0-1.0
@@ -19006,7 +19223,7 @@ Creator: Person: Daniel Thompson-Yvetot
 
 ------------------------------------------------------------------------------
 
-[261] SHA-256 b9b039b5058cfe9680025ca12f8591df832666baef9f469ea8ba24e73a7fee60
+[263] SHA-256 b9b039b5058cfe9680025ca12f8591df832666baef9f469ea8ba24e73a7fee60
 Used by:
   - cargo:nix@0.30.1 (LICENSE)
   - cargo:nix@0.31.3 (LICENSE)
@@ -19035,7 +19252,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[262] SHA-256 ba688422eec320f9c4efae1a8fd54216dc2a0c077b8ff5b2a259912c8bc6c456
+[264] SHA-256 ba688422eec320f9c4efae1a8fd54216dc2a0c077b8ff5b2a259912c8bc6c456
 Used by:
   - cargo:matrixmultiply@0.3.11 (LICENSE-MIT)
 
@@ -19069,9 +19286,9 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[263] SHA-256 bb8278137f730fd0445c79e2144df32b6a4a8226ec01194a50a7ded93a070a2d
+[265] SHA-256 bb8278137f730fd0445c79e2144df32b6a4a8226ec01194a50a7ded93a070a2d
 Used by:
-  - cargo:window-vibrancy@0.6.0 (LICENSE.spdx)
+  - cargo:window-vibrancy@0.8.1 (LICENSE.spdx)
 
 SPDXVersion: SPDX-2.1
 DataLicense: CC0-1.0
@@ -19095,7 +19312,7 @@ Creator: Person: Daniel Thompson-Yvetot
 
 ------------------------------------------------------------------------------
 
-[264] SHA-256 bbf1ea3140c4d068c74adfcd77c4a8538d51b5027b5cd246896511d2314c12a6
+[266] SHA-256 bbf1ea3140c4d068c74adfcd77c4a8538d51b5027b5cd246896511d2314c12a6
 Used by:
   - cargo:libloading@0.9.0 (LICENSE)
 
@@ -19114,10 +19331,9 @@ THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[265] SHA-256 bccaa8b6c09f94e81f06696e179dbe058464bbdfbc823b6d49cada1d71e84ac3
+[267] SHA-256 bccaa8b6c09f94e81f06696e179dbe058464bbdfbc823b6d49cada1d71e84ac3
 Used by:
-  - cargo:ctor-proc-macro@0.0.7 (LICENSE-MIT)
-  - cargo:ctor@0.8.0 (LICENSE-MIT)
+  - cargo:ctor@1.0.13 (LICENSE-MIT)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -19127,7 +19343,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ------------------------------------------------------------------------------
 
-[266] SHA-256 bdcf37a4554aff6459fa3b548273030a8d278f4d657f5258c11858b976034cc9
+[268] SHA-256 bdcf37a4554aff6459fa3b548273030a8d278f4d657f5258c11858b976034cc9
 Used by:
   - cargo:ureq-proto@0.6.0 (LICENSE-MIT.txt)
 
@@ -19141,7 +19357,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ------------------------------------------------------------------------------
 
-[267] SHA-256 bde59a7e336fcb583f03ede4e7ae63fed99f1148dcee7a7717904d76f116cb84
+[269] SHA-256 bde59a7e336fcb583f03ede4e7ae63fed99f1148dcee7a7717904d76f116cb84
 Used by:
   - cargo:reqwest@0.13.3 (LICENSE-MIT)
   - cargo:reqwest@0.13.5 (LICENSE-MIT)
@@ -19168,7 +19384,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[268] SHA-256 be61dfc96bbff04feb039bddcab80efae9b5640d45ac2e17a82ef2f5e674785a
+[270] SHA-256 be61dfc96bbff04feb039bddcab80efae9b5640d45ac2e17a82ef2f5e674785a
 Used by:
   - npm:class-variance-authority@0.7.1 (LICENSE)
 
@@ -19365,7 +19581,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[269] SHA-256 bec1ff6c886313105aabc29823670c41f1baf3f2c97cefe41b0261b3a52d2237
+[271] SHA-256 bec1ff6c886313105aabc29823670c41f1baf3f2c97cefe41b0261b3a52d2237
 Used by:
   - cargo:crc@3.4.0 (LICENSE-MIT)
 
@@ -19393,7 +19609,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[270] SHA-256 bff63d312e63cb1684d7136a8799f7684ca4281d817ce39889ca7357d91f6852
+[272] SHA-256 bff63d312e63cb1684d7136a8799f7684ca4281d817ce39889ca7357d91f6852
 Used by:
   - python:charset-normalizer@3.5.1 (data/NOTICE.md)
 
@@ -19409,7 +19625,7 @@ You SHALL NOT modify any of those files without explicit approval.
 
 ------------------------------------------------------------------------------
 
-[271] SHA-256 c0fdcda1a4ffc5fd63c452e40ce25e54f2098669e3415033b228773eea24a871
+[273] SHA-256 c0fdcda1a4ffc5fd63c452e40ce25e54f2098669e3415033b228773eea24a871
 Used by:
   - cargo:tokio-macros@2.7.0 (LICENSE)
   - cargo:tokio-macros@2.7.2 (LICENSE)
@@ -19439,31 +19655,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[272] SHA-256 c193d216d646a101f91edd7c786f856d105b58d87bb7b3f97ac6837a2da56045
-Used by:
-  - cargo:unic-char-property@0.9.0 (COPYRIGHT.md (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-char-range@0.9.0 (COPYRIGHT.md (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-common@0.9.0 (COPYRIGHT.md (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-  - cargo:unic-ucd-ident@0.9.0 (COPYRIGHT.md (https://github.com/open-i18n/rust-unic/@8a6ce83063d90b91ae2ce59eddb803edd393fca9))
-  - cargo:unic-ucd-version@0.9.0 (COPYRIGHT.md (https://github.com/open-i18n/rust-unic/@5878605364af97a3358368a6eaef02104af2e016))
-
-* Copyright 2011-2015 The Rust Project developers.
-* Copyright 2013-2016 The rust-url developers.
-* Copyright 2015-2017 The Servo Project developers.
-* Copyright 2017 The UNIC Project developers.
-
-See [AUTHORS](AUTHORS) for the list of developers.
-
-Licensed under the Apache License, Version 2.0
-([LICENSE-APACHE](LICENSE-APACHE) or
-<http://www.apache.org/licenses/LICENSE-2.0>) or the MIT license
-([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>), at your
-option.  All files in the project carrying such notice may not be copied,
-modified, or distributed except according to those terms.
-
-------------------------------------------------------------------------------
-
-[273] SHA-256 c1c40cec33872aab2c2564f6abe1b28ec28571beadc128ba6a3bdbd015b39dec
+[274] SHA-256 c1c40cec33872aab2c2564f6abe1b28ec28571beadc128ba6a3bdbd015b39dec
 Used by:
   - cargo:wildmatch@2.6.1 (LICENSE)
 
@@ -19491,7 +19683,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[274] SHA-256 c1e08ee9a7288bf649d6a78f6079006333df4212f5fcda85be1a0a451f71852d
+[275] SHA-256 c1e08ee9a7288bf649d6a78f6079006333df4212f5fcda85be1a0a451f71852d
 Used by:
   - cargo:tracing-attributes@0.1.31 (LICENSE)
   - cargo:tracing-core@0.1.36 (LICENSE)
@@ -19526,7 +19718,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[275] SHA-256 c32d63bfd5fb6b610f6da894361bf358c3f36c96a856c97490c275a0db70c1b2
+[276] SHA-256 c32d63bfd5fb6b610f6da894361bf358c3f36c96a856c97490c275a0db70c1b2
 Used by:
   - cargo:rfc7239@0.1.3 (licenses/rfc7239-0.1.3.txt (reviewed supplement))
 
@@ -19543,7 +19735,7 @@ No copyright notice is invented or removed from the upstream source.
 
 ------------------------------------------------------------------------------
 
-[276] SHA-256 c3ca23514163a6fe592466d3a6c4dd28ba8998dc1f012916ebf64bdb7764c1d4
+[277] SHA-256 c3ca23514163a6fe592466d3a6c4dd28ba8998dc1f012916ebf64bdb7764c1d4
 Used by:
   - cargo:open@5.3.5 (LICENSE.md)
 
@@ -19575,7 +19767,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[277] SHA-256 c3d108ad1285178cfa15bc88c1a8aeebfd1ddae3e3b622ea61eadf1fdbb2d4fa
+[278] SHA-256 c3d108ad1285178cfa15bc88c1a8aeebfd1ddae3e3b622ea61eadf1fdbb2d4fa
 Used by:
   - python:defusedxml@0.7.1 (LICENSE)
 
@@ -19630,7 +19822,7 @@ Agreement.
 
 ------------------------------------------------------------------------------
 
-[278] SHA-256 c43e20176655c7a74c12af7470b65065fac4c81cfd511c69520fcc7f738a3f91
+[279] SHA-256 c43e20176655c7a74c12af7470b65065fac4c81cfd511c69520fcc7f738a3f91
 Used by:
   - cargo:parking@2.2.1 (LICENSE-THIRD-PARTY)
 
@@ -19646,7 +19838,7 @@ copied, modified, or distributed except according to those terms.
 
 ------------------------------------------------------------------------------
 
-[279] SHA-256 c48b7333c00b9776f5571ecaaabf73b9a5343b049bdad89ed05894b45cdc7cc5
+[280] SHA-256 c48b7333c00b9776f5571ecaaabf73b9a5343b049bdad89ed05894b45cdc7cc5
 Used by:
   - cargo:fnv@1.0.7 (LICENSE-MIT)
 
@@ -19678,7 +19870,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[280] SHA-256 c4fcfa1b48ff5d5b8b269a7d016e491c029d737f362e4d402947cf2514008e5d
+[281] SHA-256 c4fcfa1b48ff5d5b8b269a7d016e491c029d737f362e4d402947cf2514008e5d
 Used by:
   - provisioned:onnxruntime-native@1.28.2 (ThirdPartyNotices.txt)
 
@@ -25806,7 +25998,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ------------------------------------------------------------------------------
 
-[281] SHA-256 c5e7f780f961f850c7ac6e80e29b6aa3e5c3a503677eb7b7a9826fc6d735eb2e
+[282] SHA-256 c5e7f780f961f850c7ac6e80e29b6aa3e5c3a503677eb7b7a9826fc6d735eb2e
 Used by:
   - cargo:rustls-pki-types@1.15.0 (LICENSE-MIT)
   - cargo:rustls-pki-types@1.15.1 (LICENSE-MIT)
@@ -25839,7 +26031,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[282] SHA-256 c7495b7b3a525563d3a3f4003277a9db6ef7fd02ce4a3bd4b8103944c4037a32
+[283] SHA-256 c7495b7b3a525563d3a3f4003277a9db6ef7fd02ce4a3bd4b8103944c4037a32
 Used by:
   - cargo:proc-macro-error-attr@1.0.4 (LICENSE-MIT)
   - cargo:proc-macro-error@1.0.4 (LICENSE-MIT)
@@ -25868,10 +26060,10 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[283] SHA-256 c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30
+[284] SHA-256 c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30
 Used by:
-  - cargo:cssparser-macros@0.6.1 (LICENSE)
-  - cargo:cssparser@0.36.0 (LICENSE)
+  - cargo:cssparser-macros@0.7.1 (LICENSE)
+  - cargo:cssparser@0.37.0 (LICENSE)
 
 Mozilla Public License Version 2.0
 ==================================
@@ -26249,7 +26441,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 ------------------------------------------------------------------------------
 
-[284] SHA-256 c7bef13aca70157a06008bcee737fa87b5870582c59ef60cb1750c3112e3cb98
+[285] SHA-256 c7bef13aca70157a06008bcee737fa87b5870582c59ef60cb1750c3112e3cb98
 Used by:
   - python:markitdown@0.1.8 (licenses/markitdown-0.1.8.txt (reviewed supplement))
 
@@ -26280,7 +26472,7 @@ Source: https://raw.githubusercontent.com/microsoft/markitdown/b8f79c57ebc0044be
 
 ------------------------------------------------------------------------------
 
-[285] SHA-256 c7f51f2c5828fbbc96739552ced1e32fdba931432e805cd589ca75e73ba0b18f
+[286] SHA-256 c7f51f2c5828fbbc96739552ced1e32fdba931432e805cd589ca75e73ba0b18f
 Used by:
   - cargo:shell-words@1.1.1 (LICENSE-APACHE)
 
@@ -26488,7 +26680,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[286] SHA-256 c804065b0956d00a65ce119456ec48ee456f5446b904b07ee85225ba5a88ce41
+[287] SHA-256 c804065b0956d00a65ce119456ec48ee456f5446b904b07ee85225ba5a88ce41
 Used by:
   - cargo:mio@1.2.0 (LICENSE)
   - cargo:mio@1.2.3 (LICENSE)
@@ -26515,7 +26707,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[287] SHA-256 c859d211879e327ddaf0d0956e4e4e09b0c18bdbd895b033d5be627f0af3b64f
+[288] SHA-256 c859d211879e327ddaf0d0956e4e4e09b0c18bdbd895b033d5be627f0af3b64f
 Used by:
   - cargo:cookie@0.18.1 (LICENSE-APACHE)
 
@@ -26724,7 +26916,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[288] SHA-256 c9067b1cc20b89f5ab1a690ef204e81cc030a636ee11d60613ea03c62e326e27
+[289] SHA-256 c9067b1cc20b89f5ab1a690ef204e81cc030a636ee11d60613ea03c62e326e27
 Used by:
   - cargo:foreign-types-macros@0.2.3 (LICENSE-MIT)
   - cargo:foreign-types-shared@0.3.1 (LICENSE-MIT)
@@ -26752,7 +26944,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[289] SHA-256 c935506fff2ef821003680006758f03bd869f1ae051b11c5879a0c24b0c07ecf
+[290] SHA-256 c935506fff2ef821003680006758f03bd869f1ae051b11c5879a0c24b0c07ecf
 Used by:
   - cargo:ipnet@2.12.0 (LICENSE-MIT)
   - cargo:ipnet@2.12.2 (LICENSE-MIT)
@@ -26767,7 +26959,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ------------------------------------------------------------------------------
 
-[290] SHA-256 c96302294382bf166f3963bdbce0760aa2b9f0abaa2a7bdb296de7a1c7b51867
+[291] SHA-256 c96302294382bf166f3963bdbce0760aa2b9f0abaa2a7bdb296de7a1c7b51867
 Used by:
   - cargo:libc@0.2.186 (LICENSE-MIT)
   - cargo:libc@0.2.189 (LICENSE-MIT)
@@ -26800,7 +26992,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[291] SHA-256 c96b6c561a14c61982eac65ab86d7ca5251a0026922eb4abb767adbbf015925a
+[292] SHA-256 c96b6c561a14c61982eac65ab86d7ca5251a0026922eb4abb767adbbf015925a
 Used by:
   - python:cobble@0.1.4 (licenses/cobble-0.1.4.txt (reviewed supplement))
 
@@ -26829,7 +27021,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ------------------------------------------------------------------------------
 
-[292] SHA-256 cbe14c697e441581e2ddbbaf98239d299728b72559ed3cd94e14cf7b36adcca7
+[293] SHA-256 cbe14c697e441581e2ddbbaf98239d299728b72559ed3cd94e14cf7b36adcca7
 Used by:
   - cargo:ringbuf@0.4.8 (LICENSE-MIT)
 
@@ -26861,7 +27053,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[293] SHA-256 cc367a7134c2b07d995a2f8dea591094a1d100e49c68513f729fdf3eaf580a21
+[294] SHA-256 cc367a7134c2b07d995a2f8dea591094a1d100e49c68513f729fdf3eaf580a21
 Used by:
   - cargo:rand@0.8.6 (LICENSE-MIT)
   - cargo:rand@0.9.5 (LICENSE-MIT)
@@ -26899,7 +27091,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[294] SHA-256 cc8f3c8ab396de7fa549e3907319281cf13d0a4a456a2b0695c5b61d877dba68
+[295] SHA-256 cc8f3c8ab396de7fa549e3907319281cf13d0a4a456a2b0695c5b61d877dba68
 Used by:
   - cargo:darling@0.20.11 (LICENSE)
   - cargo:darling@0.23.0 (LICENSE)
@@ -26935,7 +27127,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[295] SHA-256 cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae
+[296] SHA-256 cde87abe221f413fede55ded0f17985f37b8fdc23e5f6cba9a3955437facb3ae
 Used by:
   - cargo:icu_collections@2.2.0 (LICENSE)
   - cargo:icu_collections@2.3.0 (LICENSE)
@@ -27022,7 +27214,7 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 
 ------------------------------------------------------------------------------
 
-[296] SHA-256 ce4a94c006fa5d157d196768fdba0b21d26f58e5599e8fccfa9ea374433e4ece
+[297] SHA-256 ce4a94c006fa5d157d196768fdba0b21d26f58e5599e8fccfa9ea374433e4ece
 Used by:
   - cargo:chrono@0.4.44 (LICENSE.txt)
   - cargo:chrono@0.4.45 (LICENSE.txt)
@@ -27269,7 +27461,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[297] SHA-256 cef8c2ddacb45ebd44ba3368abdff69e32fed5b11c3670fa4bfb8ca21c067b77
+[298] SHA-256 cef8c2ddacb45ebd44ba3368abdff69e32fed5b11c3670fa4bfb8ca21c067b77
 Used by:
   - cargo:dbus-secret-service@4.1.0 (LICENSE-MIT)
 
@@ -27301,7 +27493,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[298] SHA-256 cf9b17822d1fcd4ff32ccbe14183386fb3adf6f2ff92dc184130823f7fc28173
+[299] SHA-256 cf9b17822d1fcd4ff32ccbe14183386fb3adf6f2ff92dc184130823f7fc28173
 Used by:
   - npm:react-dom@19.2.5 (LICENSE)
   - npm:react@19.2.5 (LICENSE)
@@ -27331,7 +27523,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[299] SHA-256 d00b78b78a53f353a1ba8953997b08d1a740528e721f90ce1adb4f2a66f1beaa
+[300] SHA-256 d00b78b78a53f353a1ba8953997b08d1a740528e721f90ce1adb4f2a66f1beaa
 Used by:
   - python:beautifulsoup4@4.15.0 (LICENSE)
 
@@ -27369,7 +27561,7 @@ Isaac Muse
 
 ------------------------------------------------------------------------------
 
-[300] SHA-256 d10fa7c720bcb4daad01d60873373dc82a099cb71dde5d143e8d7f6b99325e2e
+[301] SHA-256 d10fa7c720bcb4daad01d60873373dc82a099cb71dde5d143e8d7f6b99325e2e
 Used by:
   - cargo:crossbeam-channel@0.5.15 (LICENSE-THIRD-PARTY)
 
@@ -27969,7 +28161,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[301] SHA-256 d30183ec6610abca89d6095d5f1dc56ea50248a1001cbb4549fadc3a582f6f9a
+[302] SHA-256 d30183ec6610abca89d6095d5f1dc56ea50248a1001cbb4549fadc3a582f6f9a
 Used by:
   - cargo:webpki-roots@1.0.8 (LICENSE)
 
@@ -28037,7 +28229,7 @@ insights.
 
 ------------------------------------------------------------------------------
 
-[302] SHA-256 d5652808cd243d91a66041cdde30e1f173dbb6940635a05941011179edde9b40
+[303] SHA-256 d5652808cd243d91a66041cdde30e1f173dbb6940635a05941011179edde9b40
 Used by:
   - cargo:mach2@0.6.0 (LICENSE-BSD)
 
@@ -28067,7 +28259,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[303] SHA-256 d5f702470f20a182bb9551e34333627603a4219b83868ad1806cea061c082fd4
+[304] SHA-256 d5f702470f20a182bb9551e34333627603a4219b83868ad1806cea061c082fd4
 Used by:
   - cargo:headers-core@0.3.0 (LICENSE)
 
@@ -28093,7 +28285,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[304] SHA-256 d9da1a97dd07b64f1850bd8bc15ed79a78bde803c1dc43372f23b3cdfd28ca29
+[305] SHA-256 d9da1a97dd07b64f1850bd8bc15ed79a78bde803c1dc43372f23b3cdfd28ca29
 Used by:
   - cargo:is-docker@0.2.0 (LICENSE)
   - cargo:is-wsl@0.4.0 (LICENSE)
@@ -28122,7 +28314,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[305] SHA-256 da6b30502badfa054473f2f0df66b8014e0636c1ccfe9725fc25efcde2b626ad
+[306] SHA-256 da6b30502badfa054473f2f0df66b8014e0636c1ccfe9725fc25efcde2b626ad
 Used by:
   - cargo:tower-layer@0.3.3 (LICENSE)
   - cargo:tower-service@0.3.3 (LICENSE)
@@ -28156,7 +28348,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[306] SHA-256 dacccca566e33ff8dffb8e338d90d050605a270b616ce785484ae7cb21a76983
+[307] SHA-256 dacccca566e33ff8dffb8e338d90d050605a270b616ce785484ae7cb21a76983
 Used by:
   - python:onnxruntime@1.20.1 (ThirdPartyNotices.txt)
 
@@ -34671,7 +34863,7 @@ https://github.com/intel/neural-speed
 
 ------------------------------------------------------------------------------
 
-[307] SHA-256 db2c904eb5685e69d3ea20f1f8187c8ed82b44077221fd99c4a68234739de941
+[308] SHA-256 db2c904eb5685e69d3ea20f1f8187c8ed82b44077221fd99c4a68234739de941
 Used by:
   - cargo:utf8parse@0.2.2 (LICENSE-MIT)
 
@@ -34703,7 +34895,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[308] SHA-256 dc08c5cf03ec0697c576cacfd00b330ec595916626dd0567792e70382eff600f
+[309] SHA-256 dc08c5cf03ec0697c576cacfd00b330ec595916626dd0567792e70382eff600f
 Used by:
   - cargo:crc@3.4.0 (LICENSE-APACHE)
 
@@ -34911,7 +35103,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[309] SHA-256 ddab6a3a953e6a77e6de4e3734faf968605584b745f891e5adcc614f6b8b1321
+[310] SHA-256 ddab6a3a953e6a77e6de4e3734faf968605584b745f891e5adcc614f6b8b1321
 Used by:
   - python:click@8.5.0 (LICENSE.txt)
 
@@ -34946,7 +35138,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[310] SHA-256 de3911c2d98c8bd2d701ee721347053d9b55995a11f9a8c955e44d3ca1b376bf
+[311] SHA-256 de3911c2d98c8bd2d701ee721347053d9b55995a11f9a8c955e44d3ca1b376bf
 Used by:
   - cargo:dbus@0.9.11 (LICENSE-MIT)
   - cargo:libdbus-sys@0.2.7 (LICENSE-MIT)
@@ -34973,7 +35165,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[311] SHA-256 de561d2b653aaad47bbf13147692d4f9286e545021f27b46affb44cc0df88c65
+[312] SHA-256 de561d2b653aaad47bbf13147692d4f9286e545021f27b46affb44cc0df88c65
 Used by:
   - cargo:enumflags2@0.7.12 (LICENSE-MIT)
 
@@ -35005,7 +35197,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[312] SHA-256 dfa7fbad0178fda1a1294a35f2d7b04b054341a7811b00b0ff638d5a1f01c07f
+[313] SHA-256 dfa7fbad0178fda1a1294a35f2d7b04b054341a7811b00b0ff638d5a1f01c07f
 Used by:
   - cargo:tendril@0.5.0 (LICENSE-MIT)
 
@@ -35037,7 +35229,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[313] SHA-256 e07664cb9e31644242c7c178258826374a0533c384de181cb87d17179a2dc077
+[314] SHA-256 e07664cb9e31644242c7c178258826374a0533c384de181cb87d17179a2dc077
 Used by:
   - cargo:dpi@0.1.2 (LICENSE-LIBM-MIT)
 
@@ -35095,7 +35287,7 @@ have been licensed under extremely permissive terms.
 
 ------------------------------------------------------------------------------
 
-[314] SHA-256 e08d6d9195b9428a64353f1392fb44c0acdf9cb5bdab00d1daa7b9a41bcd77fb
+[315] SHA-256 e08d6d9195b9428a64353f1392fb44c0acdf9cb5bdab00d1daa7b9a41bcd77fb
 Used by:
   - cargo:multiversion_no_op@1.0.0 (COPYRIGHT)
 
@@ -35117,7 +35309,7 @@ limitations under the Licenses.
 
 ------------------------------------------------------------------------------
 
-[315] SHA-256 e35e8f8a37b546c01c7eb82d11d7554bb6292a29fc6147c21765d1e9c40b2bae
+[316] SHA-256 e35e8f8a37b546c01c7eb82d11d7554bb6292a29fc6147c21765d1e9c40b2bae
 Used by:
   - cargo:crunchy@0.2.4 (LICENSE)
 
@@ -35145,7 +35337,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[316] SHA-256 e3c1a4eb6fceeaa695fce3ed84cd855a12c9d96449379b6a89fb63d2fc477d08
+[317] SHA-256 e3c1a4eb6fceeaa695fce3ed84cd855a12c9d96449379b6a89fb63d2fc477d08
 Used by:
   - cargo:mime_guess@2.0.5 (LICENSE)
 
@@ -35173,7 +35365,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[317] SHA-256 e40488cf301b57a46678f95ddcc9aeeb435c42cc0477814edc4d07f51b08dcd9
+[318] SHA-256 e40488cf301b57a46678f95ddcc9aeeb435c42cc0477814edc4d07f51b08dcd9
 Used by:
   - cargo:crc-catalog@2.5.0 (MIT.txt)
 
@@ -35201,7 +35393,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[318] SHA-256 e4dce5f35b25e78e3cfce568d20f4125821bfd61bce2d008f28656c4b576bd35
+[319] SHA-256 e4dce5f35b25e78e3cfce568d20f4125821bfd61bce2d008f28656c4b576bd35
 Used by:
   - python:packaging@26.3 (LICENSE)
 
@@ -35211,7 +35403,7 @@ under the terms of *both* these licenses.
 
 ------------------------------------------------------------------------------
 
-[319] SHA-256 e6a7acaed4385702fbc99c5854d387a309dea4598003e2bc12fa2c3d41bbda7e
+[320] SHA-256 e6a7acaed4385702fbc99c5854d387a309dea4598003e2bc12fa2c3d41bbda7e
 Used by:
   - cargo:multer@3.1.0 (LICENSE)
 
@@ -35239,7 +35431,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[320] SHA-256 e6e853531994cb4721d5fa84d5b27bc408720ade2204ff307c76c778b7108bc5
+[321] SHA-256 e6e853531994cb4721d5fa84d5b27bc408720ade2204ff307c76c778b7108bc5
 Used by:
   - cargo:tar@0.4.46 (LICENSE-MIT)
 
@@ -35271,7 +35463,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[321] SHA-256 e7330bf53074b4a9c5896f4a03d782be7f163381e45923d5e2369fe194a19f99
+[322] SHA-256 e7330bf53074b4a9c5896f4a03d782be7f163381e45923d5e2369fe194a19f99
 Used by:
   - cargo:getrandom@0.2.17 (LICENSE-APACHE)
   - cargo:getrandom@0.3.4 (LICENSE-APACHE)
@@ -35483,9 +35675,9 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[322] SHA-256 e762eb1a5d8367f0bffe6c5144f65005ef2730064764ff3f163adf64ed672b49
+[323] SHA-256 e762eb1a5d8367f0bffe6c5144f65005ef2730064764ff3f163adf64ed672b49
 Used by:
-  - cargo:selectors@0.36.1 (style/author_styles.rs (https://github.com/servo/stylo@635e1a19d02960588a00e189bd4bd5bdb150ec3d))
+  - cargo:selectors@0.38.0 (style/author_styles.rs (https://github.com/servo/stylo@572ecba2d1600e7c3d490586692a209faf703baa))
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -35560,7 +35752,7 @@ where
 
 ------------------------------------------------------------------------------
 
-[323] SHA-256 e7d622e4783e8c97aba7ddccb4469d7b495d550e95b9dc7b2e2d86fad6523bf6
+[324] SHA-256 e7d622e4783e8c97aba7ddccb4469d7b495d550e95b9dc7b2e2d86fad6523bf6
 Used by:
   - cargo:hyper-util@0.1.20 (LICENSE)
   - cargo:hyper-util@0.1.21 (LICENSE)
@@ -35587,7 +35779,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[324] SHA-256 e8541ea93f027a6c2cf077362f74492bdf0bb8354f63029962d84f1c130937a4
+[325] SHA-256 e8541ea93f027a6c2cf077362f74492bdf0bb8354f63029962d84f1c130937a4
 Used by:
   - cargo:block-buffer@0.10.4 (LICENSE-APACHE)
   - cargo:cpufeatures@0.2.17 (LICENSE-APACHE)
@@ -35801,7 +35993,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[325] SHA-256 e8e2fe35f5fdc1e25d72dd104c7f09e6f99b5f1b21a6753631a0e2a9cd508397
+[326] SHA-256 e8e2fe35f5fdc1e25d72dd104c7f09e6f99b5f1b21a6753631a0e2a9cd508397
 Used by:
   - cargo:agent-client-protocol-derive@2.2.0 (LICENSE (https://github.com/agentclientprotocol/rust-sdk@2a78849d3eb3dcb140dade3b8fc938cf1e2b9ce5))
   - cargo:agent-client-protocol-schema@1.9.1 (LICENSE (https://github.com/agentclientprotocol/agent-client-protocol@7e87dc205a7325bd07d0249fd20bb7486ee6ba95))
@@ -36000,7 +36192,7 @@ Apache License
 
 ------------------------------------------------------------------------------
 
-[326] SHA-256 e915669a595b11a200873df8286561881b0e04932f6412a585db6297ba0bc97c
+[327] SHA-256 e915669a595b11a200873df8286561881b0e04932f6412a585db6297ba0bc97c
 Used by:
   - cargo:hashlink@0.10.0 (LICENSE-MIT)
 
@@ -36033,7 +36225,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[327] SHA-256 e9861036987ef519430f50a43532184b9fa0889cb6b3a0102acf7651181e8575
+[328] SHA-256 e9861036987ef519430f50a43532184b9fa0889cb6b3a0102acf7651181e8575
 Used by:
   - provisioned:onnxruntime-native@1.28.2 (LICENSE)
   - python:onnxruntime@1.20.1 (LICENSE)
@@ -36062,7 +36254,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[328] SHA-256 e9f8a16f9ed6671fc411c5eb0d6c663b2da3d5ba0a4591ef0409688842903397
+[329] SHA-256 e9f8a16f9ed6671fc411c5eb0d6c663b2da3d5ba0a4591ef0409688842903397
 Used by:
   - cargo:nom@7.1.3 (LICENSE)
 
@@ -36089,7 +36281,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[329] SHA-256 e9fe34ee16e7ea9e4f5c9f12f17c61ead931dda48c8fb69ec2f983bc4e682d2b
+[330] SHA-256 e9fe34ee16e7ea9e4f5c9f12f17c61ead931dda48c8fb69ec2f983bc4e682d2b
 Used by:
   - python:numpy@2.5.3 (numpy/random/LICENSE.md)
 
@@ -36167,7 +36359,7 @@ the component code.
 
 ------------------------------------------------------------------------------
 
-[330] SHA-256 ea2849b570ed8ee3b08bfdf2e293cbad0b39861b319ce05d64258ec450c0138b
+[331] SHA-256 ea2849b570ed8ee3b08bfdf2e293cbad0b39861b319ce05d64258ec450c0138b
 Used by:
   - python:sympy@1.14.0 (LICENSE)
 
@@ -36327,7 +36519,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[331] SHA-256 eac3911cc3d41ffb7de705edeec755d3f83189b61839389cc9079acb54d8c5af
+[332] SHA-256 eac3911cc3d41ffb7de705edeec755d3f83189b61839389cc9079acb54d8c5af
 Used by:
   - cargo:miniz_oxide@0.8.9 (LICENSE-ZLIB.md)
   - cargo:miniz_oxide@0.9.1 (LICENSE-ZLIB.md)
@@ -36349,7 +36541,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 
 ------------------------------------------------------------------------------
 
-[332] SHA-256 eb8a6c84630461b352badcab1dbe5d0168c56d377358b2b8c86b51003272d5ef
+[333] SHA-256 eb8a6c84630461b352badcab1dbe5d0168c56d377358b2b8c86b51003272d5ef
 Used by:
   - cargo:tauri-plugin-deep-link@2.4.9 (LICENSE.spdx)
   - cargo:tauri-plugin-dialog@2.7.1 (LICENSE.spdx)
@@ -36382,7 +36574,7 @@ Creator: Person: Daniel Thompson-Yvetot
 
 ------------------------------------------------------------------------------
 
-[333] SHA-256 ec5d7c32366268f1c8c110c2db8dc745dadc8f35a99a44c6ec3c7ed31b61413a
+[334] SHA-256 ec5d7c32366268f1c8c110c2db8dc745dadc8f35a99a44c6ec3c7ed31b61413a
 Used by:
   - cargo:phf@0.13.1 (LICENSE)
   - cargo:phf_generator@0.13.1 (LICENSE)
@@ -36412,7 +36604,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[334] SHA-256 edb9c6dbff4676b90e729ffdb6c9239076a2e01b3bb8aadf080bdc7a682296da
+[335] SHA-256 edb9c6dbff4676b90e729ffdb6c9239076a2e01b3bb8aadf080bdc7a682296da
 Used by:
   - cargo:ring@0.17.14 (LICENSE)
 
@@ -36428,7 +36620,7 @@ for the license to code that was sourced from the once_cell project.
 
 ------------------------------------------------------------------------------
 
-[335] SHA-256 edd4b164997f67092b618b91fa823c3143ca080c1914b3d6f9bf2071f3e47359
+[336] SHA-256 edd4b164997f67092b618b91fa823c3143ca080c1914b3d6f9bf2071f3e47359
 Used by:
   - cargo:tower-http@0.6.10 (LICENSE)
   - cargo:tower-http@0.6.11 (LICENSE)
@@ -36461,7 +36653,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[336] SHA-256 ee35498e6684b30c9efaae009415884772f4450b3f6a3ae49103cd550a2c8ceb
+[337] SHA-256 ee35498e6684b30c9efaae009415884772f4450b3f6a3ae49103cd550a2c8ceb
 Used by:
   - npm:lucide-react@1.23.0 (LICENSE)
 
@@ -36511,7 +36703,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[337] SHA-256 eefdbe714980ed704315f1e083d308f0ee742b21b9d6a499eac2791f58c5b99d
+[338] SHA-256 eefdbe714980ed704315f1e083d308f0ee742b21b9d6a499eac2791f58c5b99d
 Used by:
   - cargo:system-configuration-sys@0.6.0 (LICENSE-MIT)
   - cargo:system-configuration@0.7.0 (LICENSE-MIT)
@@ -36544,7 +36736,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[338] SHA-256 efbbbcefb4b8588630bec285cd7372a4dc3eb208a6c457d4313f62cb10f87aa3
+[339] SHA-256 efbbbcefb4b8588630bec285cd7372a4dc3eb208a6c457d4313f62cb10f87aa3
 Used by:
   - cargo:aws-lc-rs@1.18.1 (LICENSE)
 
@@ -36753,7 +36945,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[339] SHA-256 f0510d3b9d1223c45e8fdd2b49270ec8734fff491c7f7d1b948ee70162e1ceff
+[340] SHA-256 f0510d3b9d1223c45e8fdd2b49270ec8734fff491c7f7d1b948ee70162e1ceff
 Used by:
   - cargo:whisper-rs-sys@0.15.0 (licenses/whisper-rs-0.16.0.txt (reviewed supplement))
   - cargo:whisper-rs@0.16.0 (LICENSE)
@@ -36785,7 +36977,7 @@ For more information, please refer to <https://unlicense.org>
 
 ------------------------------------------------------------------------------
 
-[340] SHA-256 f0a559a114200228b3a06d7d22961a7e0fc21a9c2b139a970be5830cebac8e10
+[341] SHA-256 f0a559a114200228b3a06d7d22961a7e0fc21a9c2b139a970be5830cebac8e10
 Used by:
   - cargo:ppv-lite86@0.2.21 (LICENSE-APACHE)
 
@@ -36993,7 +37185,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[341] SHA-256 f14ff2fa204039839d5415f00da1ad477d7f4c101f129d28d90bfc1681fa5d22
+[342] SHA-256 f14ff2fa204039839d5415f00da1ad477d7f4c101f129d28d90bfc1681fa5d22
 Used by:
   - cargo:ordered-multimap@0.7.3 (LICENSE)
 
@@ -37021,9 +37213,9 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[342] SHA-256 f2459c4b106b4bee2204dde164c673160c9292d4177a5f92e0b116213c72a3b7
+[343] SHA-256 f2459c4b106b4bee2204dde164c673160c9292d4177a5f92e0b116213c72a3b7
 Used by:
-  - cargo:urlpattern@0.3.0 (LICENSE)
+  - cargo:urlpattern@0.6.0 (LICENSE)
 
 MIT License
 
@@ -37049,10 +37241,11 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[343] SHA-256 f25a5b606859d4fa98c044a5a958de63a12f2f3718306df7f1a0d27fc49b7f7a
+[344] SHA-256 f25a5b606859d4fa98c044a5a958de63a12f2f3718306df7f1a0d27fc49b7f7a
 Used by:
   - cargo:dirs-sys@0.5.0 (LICENSE-MIT)
   - cargo:dirs@6.0.0 (LICENSE-MIT)
+  - cargo:dirs@7.0.0 (LICENSE-MIT)
 
 Copyright (c) 2018-2019 dirs-rs contributors
 
@@ -37076,7 +37269,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[344] SHA-256 f4719444a16ccc8a3b65fbba1e34bab2fa9b56c88e26fc91f8c53d2948b98494
+[345] SHA-256 f4719444a16ccc8a3b65fbba1e34bab2fa9b56c88e26fc91f8c53d2948b98494
 Used by:
   - python:humanfriendly@10.0 (LICENSE.txt)
 
@@ -37103,7 +37296,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[345] SHA-256 f47894ff9c86dc7e364e3c161a13b4b7414da6192b91d0eccf0161f944f753e5
+[346] SHA-256 f47894ff9c86dc7e364e3c161a13b4b7414da6192b91d0eccf0161f944f753e5
 Used by:
   - cargo:http@1.4.0 (LICENSE-MIT)
   - cargo:http@1.5.0 (LICENSE-MIT)
@@ -37136,7 +37329,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[346] SHA-256 f4bc3f3c5bfd943cf580c98e44270ba5cbea44cb8eff388a73140568ebf2cd52
+[347] SHA-256 f4bc3f3c5bfd943cf580c98e44270ba5cbea44cb8eff388a73140568ebf2cd52
 Used by:
   - cargo:field-offset@0.3.6 (LICENSE-MIT)
 
@@ -37164,7 +37357,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[347] SHA-256 f4e5603afc7d3dc60ed9e3e9eec2d761c8c7600ff8c2fb878f9772ee60509ef8
+[348] SHA-256 f4e5603afc7d3dc60ed9e3e9eec2d761c8c7600ff8c2fb878f9772ee60509ef8
 Used by:
   - python:sympy@1.14.0 (data/TeXmacs/LICENSE)
 
@@ -37199,7 +37392,7 @@ DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[348] SHA-256 f5352eaa5597c02c95e541596fe44c4cd73ca822230bd7283287ebb8b5d56cda
+[349] SHA-256 f5352eaa5597c02c95e541596fe44c4cd73ca822230bd7283287ebb8b5d56cda
 Used by:
   - cargo:h2@0.4.19 (LICENSE)
 
@@ -37231,7 +37424,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[349] SHA-256 f61cacc2acb8b71aa79a128b3e732bf25e02aab40747bbbd5bf00c97c9cda28d
+[350] SHA-256 f61cacc2acb8b71aa79a128b3e732bf25e02aab40747bbbd5bf00c97c9cda28d
 Used by:
   - npm:zod@4.4.1 (LICENSE)
 
@@ -37259,7 +37452,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[350] SHA-256 f7dfffe03f9faba8e83911d59bbf459371a0fe8d18f6c84f71d5386030fba26c
+[351] SHA-256 f7dfffe03f9faba8e83911d59bbf459371a0fe8d18f6c84f71d5386030fba26c
 Used by:
   - cargo:want@0.3.1 (LICENSE)
 
@@ -37285,7 +37478,7 @@ THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[351] SHA-256 f8babf2965a40be248ec6d5cefa3eb225ae37c971e85a2c17d8babe20e65d562
+[352] SHA-256 f8babf2965a40be248ec6d5cefa3eb225ae37c971e85a2c17d8babe20e65d562
 Used by:
   - cargo:softbuffer@0.4.8 (LICENSE-MIT)
 
@@ -37311,7 +37504,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[352] SHA-256 fb72181dd02473b6e42749e14362ede6ba6202540dcc2ce98299ed9051fbde61
+[353] SHA-256 fb72181dd02473b6e42749e14362ede6ba6202540dcc2ce98299ed9051fbde61
 Used by:
   - cargo:option-ext@0.2.0 (LICENSE.txt)
 
@@ -37691,7 +37884,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 ------------------------------------------------------------------------------
 
-[353] SHA-256 fd270b8c59ed37680ea2106f920afe52ebc4d276d2377283f8b13276b36c09bd
+[354] SHA-256 fd270b8c59ed37680ea2106f920afe52ebc4d276d2377283f8b13276b36c09bd
 Used by:
   - cargo:pem@3.0.6 (LICENSE.md)
 
@@ -37719,7 +37912,7 @@ SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[354] SHA-256 fd7d8f1fe049992c00b619e8274cdb3566542bdb45cbf85426790ee1f7c127d8
+[355] SHA-256 fd7d8f1fe049992c00b619e8274cdb3566542bdb45cbf85426790ee1f7c127d8
 Used by:
   - cargo:ctrlc@3.5.2 (LICENSE-APACHE)
 
@@ -37927,7 +38120,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 
-[355] SHA-256 fdd1c2117bcf8157d1d013d0953c0a7e6e5fab73df9e36773cd77634428568eb
+[356] SHA-256 fdd1c2117bcf8157d1d013d0953c0a7e6e5fab73df9e36773cd77634428568eb
 Used by:
   - cargo:coreaudio-rs@0.14.2 (LICENSE-MIT)
   - cargo:either@1.18.0 (LICENSE-MIT)
@@ -37966,7 +38159,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
 
-[356] SHA-256 fde2a68c47d279384c0113efbc29bb43e263dd4cb33137c87365b0218a11d6aa
+[357] SHA-256 fde2a68c47d279384c0113efbc29bb43e263dd4cb33137c87365b0218a11d6aa
 Used by:
   - cargo:rustix@1.1.4 (COPYRIGHT)
   - cargo:rustix@1.1.5 (COPYRIGHT)
@@ -38003,7 +38196,7 @@ at your option.
 
 ------------------------------------------------------------------------------
 
-[357] SHA-256 fde3e7daace4862aa9684694522c113b03fb9d26faaea99c1569388320cbde63
+[358] SHA-256 fde3e7daace4862aa9684694522c113b03fb9d26faaea99c1569388320cbde63
 Used by:
   - python:python-dotenv@1.2.3 (LICENSE)
   - python:python-dotenv@1.2.3 (docs/license.md)
@@ -38038,7 +38231,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 
-[358] SHA-256 fee4d7ce394c9161daabd2797e22d8d5ed80ea3c0f4524b242ab22582d2cc412
+[359] SHA-256 fee4d7ce394c9161daabd2797e22d8d5ed80ea3c0f4524b242ab22582d2cc412
 Used by:
   - cargo:rand@0.8.6 (LICENSE-APACHE)
   - cargo:rand@0.9.5 (LICENSE-APACHE)
@@ -38223,7 +38416,7 @@ END OF TERMS AND CONDITIONS
 
 ------------------------------------------------------------------------------
 
-[359] SHA-256 ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310
+[360] SHA-256 ff82c90f84945c60601e96b43246009b9bc589f3ebe1cd8a0fd39a3520d8c310
 Used by:
   - cargo:windows-collections@0.2.0 (license-mit)
   - cargo:windows-collections@0.3.2 (license-mit)
@@ -38243,17 +38436,14 @@ Used by:
   - cargo:windows-result@0.4.1 (license-mit)
   - cargo:windows-strings@0.4.2 (license-mit)
   - cargo:windows-strings@0.5.1 (license-mit)
-  - cargo:windows-sys@0.59.0 (license-mit)
   - cargo:windows-sys@0.60.2 (license-mit)
   - cargo:windows-sys@0.61.2 (license-mit)
-  - cargo:windows-targets@0.52.6 (license-mit)
   - cargo:windows-targets@0.53.5 (license-mit)
   - cargo:windows-threading@0.1.0 (license-mit)
   - cargo:windows-threading@0.2.1 (license-mit)
   - cargo:windows-version@0.1.7 (license-mit)
   - cargo:windows@0.61.3 (license-mit)
   - cargo:windows@0.62.2 (license-mit)
-  - cargo:windows_x86_64_msvc@0.52.6 (license-mit)
   - cargo:windows_x86_64_msvc@0.53.1 (license-mit)
   - npm:@types/react-dom@19.2.3 (LICENSE)
   - npm:@types/react@19.2.14 (LICENSE)

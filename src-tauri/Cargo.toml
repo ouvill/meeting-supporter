@@ -22,7 +22,8 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 meeting-desktop-runtime = { path = "../crates/meeting-desktop-runtime" }
 meeting-speech-runtime = { path = "../crates/meeting-speech-runtime" }
-tauri = { version = "2", features = [] }
+# Tauri 2.12 includes Tao's Wayland titlebar fixes for initially hidden windows.
+tauri = { version = "2.12", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
