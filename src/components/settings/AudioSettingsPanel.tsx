@@ -2,7 +2,7 @@ import { useSpeechCapabilities } from "../../hooks/useSpeechCapabilities";
 import type { SpeechModelController } from "../../hooks/useSpeechModel";
 import { InlineNotice } from "../ui/InlineNotice";
 import { SpeechModelPreparationCard } from "./SpeechModelPreparationCard";
-import { FieldRow, SettingsCard, SettingsPage } from "./SettingsPrimitives";
+import { FieldRow, SettingsSection } from "./SettingsPrimitives";
 import { type SettingsFieldErrors, type SettingsForm } from "./types";
 
 interface Props {
@@ -42,9 +42,9 @@ export function AudioSettingsPanel({
   const usesLocalSpeechModel =
     form.sttBackend === "whisper" || form.sttBackend === "reazonspeech";
   return (
-    <SettingsPage
-      title="音声"
-      description="会議の音声を文字にする方法と、発話の区切り方を設定します。端末内で処理する方法をおすすめします。"
+    <SettingsSection
+      title="文字起こし"
+      description="音声認識のモデルと、会議の言語を設定します。音声はこの端末で処理します。"
     >
       {audioSettingsLocked && (
         <InlineNotice tone="warning">
@@ -55,10 +55,10 @@ export function AudioSettingsPanel({
         disabled={audioSettingsLocked}
         className="m-0 min-w-0 space-y-5 border-0 p-0"
       >
-        <SettingsCard title="聞き取り方法">
+        <div>
           <div className="space-y-4">
             <FieldRow
-              label="処理方法"
+              label="認識方式"
               hint="端末内の処理では音声を外部へ送りません"
               error={errors.audio}
             >
@@ -69,10 +69,8 @@ export function AudioSettingsPanel({
                 onChange={(event) => update("sttBackend", event.target.value)}
                 className="field"
               >
-                <option value="whisper">端末内・高精度（おすすめ）</option>
-                <option value="reazonspeech">
-                  端末内・日本語高精度（ReazonSpeech）
-                </option>
+                <option value="whisper">Whisper（多言語）</option>
+                <option value="reazonspeech">ReazonSpeech（日本語専用）</option>
                 {!usesLocalSpeechModel && (
                   <option value="" disabled>
                     選択してください
@@ -96,7 +94,7 @@ export function AudioSettingsPanel({
             {form.sttBackend === "whisper" && (
               <>
                 <FieldRow
-                  label="精度と速さ"
+                  label="モデル"
                   hint="高精度ほど端末への負荷が大きくなります"
                 >
                   <select
@@ -113,34 +111,11 @@ export function AudioSettingsPanel({
                     <option value="small">バランス</option>
                     <option value="medium">高精度</option>
                     <option value="large-v2">より高精度</option>
-                    <option value="large-v3-turbo">最高精度（おすすめ）</option>
-                  </select>
-                </FieldRow>
-                <FieldRow label="音声認識の実行デバイス" hint={deviceHint}>
-                  <select
-                    aria-label="音声認識の実行デバイス"
-                    className="field"
-                    value={form.sttDevice}
-                    onChange={(event) => {
-                      if (event.target.value === "gpu" && gpuDisabled) return;
-                      update("sttDevice", event.target.value);
-                    }}
-                  >
-                    <option value="auto">自動</option>
-                    <option value="cpu">CPU</option>
-                    {!["auto", "cpu", "gpu"].includes(form.sttDevice) && (
-                      <option value={form.sttDevice} disabled>
-                        未対応の設定（{form.sttDevice}）
-                      </option>
-                    )}
-                    <option value="gpu" disabled={gpuDisabled}>
-                      GPU
+                    <option value="large-v3-turbo">
+                      高速・高精度（large-v3-turbo）
                     </option>
                   </select>
                 </FieldRow>
-                <InlineNotice tone="info">
-                  Whisper.cppのQ8モデルを使います。大きなモデルでは文字起こしの表示が会話より遅れることがあります。
-                </InlineNotice>
               </>
             )}
             <FieldRow
@@ -180,24 +155,48 @@ export function AudioSettingsPanel({
               </select>
             </FieldRow>
           </div>
-        </SettingsCard>
+        </div>
         {usesLocalSpeechModel && (
           <SpeechModelPreparationCard
             model={speechModel}
             startDisabled={speechModelActionsDisabled || audioSettingsLocked}
           />
         )}
-        <SettingsCard
-          title="発話の区切り"
-          description="話し終わりの検出を調整します。通常は変更する必要はありません。"
-        >
+        <details className="border-t border-line pt-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            音声認識の詳細な調整
+          </summary>
+          <p className="my-3 text-xs text-ink-muted">
+            通常は変更する必要はありません。
+          </p>
+          {form.sttBackend === "whisper" && (
+            <>
+              {" "}
+              <FieldRow label="音声認識の実行デバイス" hint={deviceHint}>
+                <select
+                  aria-label="音声認識の実行デバイス"
+                  className="field"
+                  value={form.sttDevice}
+                  onChange={(event) => {
+                    if (event.target.value === "gpu" && gpuDisabled) return;
+                    update("sttDevice", event.target.value);
+                  }}
+                >
+                  <option value="auto">自動</option>
+                  <option value="cpu">CPU</option>
+                  {!["auto", "cpu", "gpu"].includes(form.sttDevice) && (
+                    <option value={form.sttDevice} disabled>
+                      未対応の設定（{form.sttDevice}）
+                    </option>
+                  )}
+                  <option value="gpu" disabled={gpuDisabled}>
+                    GPU
+                  </option>
+                </select>
+              </FieldRow>
+            </>
+          )}
           <div className="space-y-4">
-            <FieldRow
-              label="声の検出方法"
-              hint="SileroはTorchを使わず、同梱した約208 KBのONNXモデルを端末内で実行します"
-            >
-              <p className="text-sm text-ink">Silero VAD</p>
-            </FieldRow>
             <FieldRow
               label="無音とみなす時間"
               hint="短いほど返答案を早く作り始めます"
@@ -245,8 +244,8 @@ export function AudioSettingsPanel({
               </div>
             </FieldRow>
           </div>
-        </SettingsCard>
+        </details>
       </fieldset>
-    </SettingsPage>
+    </SettingsSection>
   );
 }

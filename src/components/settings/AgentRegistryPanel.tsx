@@ -11,7 +11,7 @@ import {
 } from "../../api/agentRegistry";
 import { useAgentRegistryStore } from "../../store/agentRegistryStore";
 import { Button } from "../ui/Button";
-import { SettingsCard } from "./SettingsPrimitives";
+import { SettingsSection } from "./SettingsPrimitives";
 
 interface Props {
   locked: boolean;
@@ -77,9 +77,9 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
     (agent) => agent.installed_version !== null,
   );
   return (
-    <SettingsCard
+    <SettingsSection
       title="エージェント"
-      description="追加したエージェントは、下の一覧で返答案に割り当てられます。"
+      description="追加・接続したあと、「利用するAI」で選択できます。"
     >
       <div className="space-y-3">
         <p className="text-xs text-ink-muted">
@@ -200,9 +200,9 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
             {error}
           </p>
         )}
-        <div className="max-h-80 space-y-2 overflow-y-auto">
+        <div className="divide-y divide-line">
           {agents.map((agent) => (
-            <div key={agent.id} className="rounded-xl border border-line p-3">
+            <div key={agent.id} className="py-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-ink">{agent.name}</p>
@@ -363,6 +363,6 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
           </p>
         )}
       </div>
-    </SettingsCard>
+    </SettingsSection>
   );
 }

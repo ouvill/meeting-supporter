@@ -1,13 +1,5 @@
 import { cloneElement, isValidElement, useId, type ReactNode } from "react";
-import {
-  AudioLines,
-  Bot,
-  Database,
-  Info,
-  SlidersHorizontal,
-  UserRound,
-} from "lucide-react";
-import { Surface } from "../ui/Surface";
+import { AudioLines, Bot, Database, Info } from "lucide-react";
 import type { SettingsCategory } from "./types";
 
 const CATEGORIES: Array<{
@@ -17,29 +9,22 @@ const CATEGORIES: Array<{
   icon: typeof Bot;
 }> = [
   {
-    id: "account",
-    label: "アカウント",
-    description: "ログインとプラン",
-    icon: UserRound,
-  },
-  {
     id: "support",
-    label: "支援方法",
-    description: "会議中の返答支援",
+    label: "AIと音声認識",
+    description: "モデルと接続",
     icon: Bot,
   },
-  { id: "audio", label: "音声", description: "聞き取り方法", icon: AudioLines },
   {
-    id: "privacy",
-    label: "データとプライバシー",
-    description: "保存先と送信範囲",
-    icon: Database,
+    id: "audio",
+    label: "音声入力",
+    description: "マイクと相手の音声",
+    icon: AudioLines,
   },
   {
-    id: "advanced",
-    label: "詳細設定",
-    description: "外部・ローカル連携",
-    icon: SlidersHorizontal,
+    id: "privacy",
+    label: "データと保存",
+    description: "保存先と送信範囲",
+    icon: Database,
   },
   {
     id: "about",
@@ -59,7 +44,7 @@ export function SettingsNavigation({
   return (
     <nav
       aria-label="設定カテゴリ"
-      className="grid grid-cols-6 gap-1 border-b border-line bg-paper px-3 py-2 md:flex md:w-52 md:flex-col md:border-b-0 md:border-r md:px-3 md:py-4"
+      className="grid shrink-0 grid-cols-2 gap-1 border-b border-line bg-paper p-3 md:flex md:w-52 md:flex-col md:border-b-0 md:border-r md:py-5"
     >
       {CATEGORIES.map(({ id, label, description, icon: Icon }) => {
         const selected = active === id;
@@ -69,17 +54,17 @@ export function SettingsNavigation({
             type="button"
             aria-current={selected ? "page" : undefined}
             onClick={() => onChange(id)}
-            className={`group flex min-w-0 flex-col items-center gap-1 rounded-xl px-2 py-2 text-center transition-colors md:flex-row md:items-start md:gap-2.5 md:px-3 md:py-3 md:text-left ${selected ? "bg-surface text-ink shadow-sm ring-1 ring-line" : "text-ink-muted hover:bg-surface hover:text-ink"}`}
+            className={`group flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors ${selected ? "bg-primary-soft text-primary" : "text-ink-muted hover:bg-surface hover:text-ink"}`}
           >
             <Icon
               className={`h-4 w-4 shrink-0 ${selected ? "text-primary" : "text-ink-faint group-hover:text-ink-muted"}`}
               aria-hidden="true"
             />
             <span className="min-w-0">
-              <span className="block truncate text-xs font-semibold">
+              <span className="block whitespace-nowrap text-sm font-medium">
                 {label}
               </span>
-              <span className="mt-0.5 block truncate text-xs leading-snug text-ink-muted">
+              <span className="mt-0.5 hidden text-xs leading-snug text-ink-muted md:block">
                 {description}
               </span>
             </span>
@@ -102,7 +87,7 @@ export function SettingsPage({
   return (
     <section
       data-settings-page={title}
-      className="mx-auto w-full max-w-3xl space-y-5"
+      className="mx-auto w-full max-w-3xl space-y-8"
       aria-labelledby={`settings-${title}`}
     >
       <header>
@@ -121,7 +106,7 @@ export function SettingsPage({
   );
 }
 
-export function SettingsCard({
+export function SettingsSection({
   title,
   description,
   children,
@@ -131,7 +116,7 @@ export function SettingsCard({
   children: ReactNode;
 }) {
   return (
-    <Surface className="p-4">
+    <section className="settings-section space-y-4 border-t border-line pt-6">
       {(title || description) && (
         <div className="mb-4">
           {title && (
@@ -145,7 +130,7 @@ export function SettingsCard({
         </div>
       )}
       {children}
-    </Surface>
+    </section>
   );
 }
 
@@ -167,6 +152,7 @@ export function FieldRow({
     [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ") ||
     undefined;
   const control = isValidElement<{
+    "aria-label"?: string;
     "aria-describedby"?: string;
     "aria-labelledby"?: string;
   }>(children)
@@ -175,9 +161,11 @@ export function FieldRow({
           [children.props["aria-describedby"], describedBy]
             .filter(Boolean)
             .join(" ") || undefined,
-        "aria-labelledby": [children.props["aria-labelledby"], labelId]
-          .filter(Boolean)
-          .join(" "),
+        "aria-labelledby": children.props["aria-label"]
+          ? children.props["aria-labelledby"]
+          : [children.props["aria-labelledby"], labelId]
+              .filter(Boolean)
+              .join(" "),
       })
     : children;
   return (
@@ -249,4 +237,3 @@ export function ToggleField({
     </label>
   );
 }
-

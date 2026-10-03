@@ -1,15 +1,19 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import type { AiRoutesController } from "../hooks/useAiRoutes";
-import { useManagedSttAvailability } from "../hooks/useManagedService";
+import type { SendFn, SocketState } from "../types";
+import { AudioInputs } from "./setup/AudioInputs";
+import { AgentModelControl } from "./settings/AgentModelControl";
 import { Dialog, DialogContent } from "./ui/Dialog";
 import { Button } from "./ui/Button";
-import { AccountSettingsPanel } from "./settings/AccountSettingsPanel";
-import { AdvancedSettingsPanel } from "./settings/AdvancedSettingsPanel";
+import { AiModelSettings } from "./settings/AiModelSettings";
 import { AboutSettingsPanel } from "./settings/AboutSettingsPanel";
 import { AudioSettingsPanel } from "./settings/AudioSettingsPanel";
 import { PrivacySettingsPanel } from "./settings/PrivacySettingsPanel";
-import { SettingsNavigation } from "./settings/SettingsPrimitives";
+import {
+  SettingsNavigation,
+  SettingsPage,
+} from "./settings/SettingsPrimitives";
 import type { ConnectionProvider } from "./settings/ApiConnectionControl";
 import { SupportMethodPanel } from "./settings/SupportMethodPanel";
 import type { SettingsCategory } from "./settings/types";
@@ -20,14 +24,15 @@ interface Props {
   routes: AiRoutesController;
   restoreFocusTo?: HTMLElement | null;
   audioSettingsLocked?: boolean;
+  state?: SocketState;
+  send?: SendFn;
+  initialSection?: "reply" | "speech";
 }
 
 const CATEGORY_LABELS: Record<SettingsCategory, string> = {
-  account: "アカウントとプラン",
-  support: "支援方法",
-  audio: "音声",
-  privacy: "データとプライバシー",
-  advanced: "詳細設定",
+  support: "AIと音声認識",
+  audio: "音声入力",
+  privacy: "データと保存",
   about: "このアプリについて",
 };
 
@@ -36,6 +41,9 @@ export function SettingsModal({
   routes,
   restoreFocusTo,
   audioSettingsLocked = false,
+  state,
+  send,
+  initialSection = "reply",
 }: Props) {
   const controller = useSettingsForm({ routes, audioSettingsLocked });
   const {
@@ -57,7 +65,6 @@ export function SettingsModal({
     connectionTestingProvider,
     connectionTestMessages,
     speechModel,
-    currentSttBackend,
     selectedRoute,
     connectionStates,
     updateForm,
@@ -69,23 +76,21 @@ export function SettingsModal({
     cancelSecretDeletion,
     assignRoute,
     chooseContextDirectory,
-    handleRouteAction,
     testOllamaConnection,
     save,
     discardChanges,
   } = controller;
-  const managedRoute = routes.routes.find((route) => route.id === "managed");
-  const managedStt = useManagedSttAvailability(
-    managedRoute !== undefined &&
-      managedRoute.reason_code !== "MANAGED_SERVICE_NOT_CONFIGURED",
-    routes.reload,
-  );
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
   const lockedConnectionProviders = new Set<ConnectionProvider>();
-  const managedActionsLocked =
-    audioSettingsLocked && (!loaded || currentSttBackend === "managed");
   const speechModelBlocksSave =
     speechModel.blocksSettingsSave && !audioSettingsLocked;
+
+  const speechSectionRef = useRef<HTMLDivElement>(null);
+  const replySectionRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (loaded && initialSection === "speech")
+      speechSectionRef.current?.scrollIntoView?.({ block: "start" });
+  }, [loaded, initialSection]);
 
   const requestClose = () => {
     if (!loaded || loadingError || !dirty) {
@@ -115,7 +120,7 @@ export function SettingsModal({
         <DialogContent
           data-testid="settings-modal"
           title="設定"
-          description="会議支援を自分の環境に合わせます"
+          description="AI、音声入力、会議データを管理します"
           closeLabel="設定を閉じる"
           initialFocus="title"
           bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -124,7 +129,7 @@ export function SettingsModal({
             if (!discardConfirmationOpen && restoreFocusTo?.isConnected)
               restoreFocusTo.focus();
           }}
-          className="h-[calc(100vh_-_1rem)] max-h-[760px] max-w-5xl rounded-2xl bg-paper md:h-[min(760px,92vh)]"
+          className="h-[calc(100vh_-_1rem)] max-h-[760px] max-w-5xl rounded-xl bg-surface md:h-[min(760px,92vh)]"
         >
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
             <SettingsNavigation
@@ -134,7 +139,7 @@ export function SettingsModal({
                 clearSaveMessage();
               }}
             />
-            <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-7 md:py-6">
+            <main className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-9 md:py-8">
               {currentSectionError && (
                 <div
                   className="mx-auto mb-4 flex w-full max-w-3xl items-start gap-2 rounded-xl border border-danger/20 bg-danger-soft p-3 text-xs font-medium text-danger"
@@ -147,77 +152,140 @@ export function SettingsModal({
                   {currentSectionError}
                 </div>
               )}
-              {activeCategory !== "about" &&
-              activeCategory !== "account" &&
-              !loaded &&
-              !loadingError ? (
+              {activeCategory !== "about" && !loaded && !loadingError ? (
                 <div
                   className="flex h-48 items-center justify-center text-sm text-ink-muted"
                   role="status"
                 >
                   設定を読み込んでいます
                 </div>
-              ) : activeCategory === "account" ? (
-                <AccountSettingsPanel
-                  offered={managedStt.offered}
-                  managedActionsLocked={managedActionsLocked}
-                  onChanged={() => {
-                    void managedStt.refresh();
-                    void routes.reload();
-                  }}
-                />
               ) : activeCategory === "support" ? (
-                <SupportMethodPanel
-                  agentsLocked={audioSettingsLocked}
-                  routes={routes.routes}
-                  lockedConnectionProviders={lockedConnectionProviders}
-                  managedRouteActionsLocked={
-                    audioSettingsLocked && currentSttBackend === "managed"
-                  }
-                  assignments={routes.draftAssignments}
-                  loading={routes.loading}
-                  manualReloadStatus={routes.manualReloadStatus}
-                  error={routes.error ?? undefined}
-                  credentialError={fieldErrors.support}
-                  replyEnabled={form.replyFeatureEnabled}
-                  replyAutoGenerate={form.replyAutoGenerate}
-                  connectionStates={connectionStates}
-                  secretsStatus={form.secretsStatus}
-                  secretInputs={form.secretInputs}
-                  connectionEditingProvider={connectionEditingProvider}
-                  connectionTestingProvider={connectionTestingProvider}
-                  connectionTestMessages={connectionTestMessages}
-                  onBeginConnectionEdit={beginConnectionEdit}
-                  onCancelConnectionEdit={cancelConnectionEdit}
-                  onSecretChange={updateSecret}
-                  onTestConnection={(provider) => {
-                    void testConnection(provider);
-                  }}
-                  onRequestSecretDelete={scheduleSecretDeletion}
-                  onCancelSecretDelete={cancelSecretDeletion}
-                  onAssignmentChange={assignRoute}
-                  onReplyEnabledChange={(enabled) =>
-                    updateForm("replyFeatureEnabled", enabled)
-                  }
-                  onReplyAutoGenerateChange={(enabled) =>
-                    updateForm("replyAutoGenerate", enabled)
-                  }
-                  onRouteAction={(route) => {
-                    void handleRouteAction(route);
-                  }}
-                  onReload={() => {
-                    void routes.reload();
-                  }}
-                />
+                <SettingsPage
+                  title="AIと音声認識"
+                  description="返答案と文字起こしに使うモデルを、ここでまとめて設定できます。"
+                >
+                  <nav aria-label="AI設定内の移動" className="flex gap-2">
+                    <Button
+                      variant="quiet"
+                      size="sm"
+                      onClick={() =>
+                        replySectionRef.current?.scrollIntoView?.({
+                          block: "start",
+                        })
+                      }
+                    >
+                      返答案の設定
+                    </Button>
+                    <Button
+                      variant="quiet"
+                      size="sm"
+                      onClick={() =>
+                        speechSectionRef.current?.scrollIntoView?.({
+                          block: "start",
+                        })
+                      }
+                    >
+                      文字起こしの設定
+                    </Button>
+                  </nav>
+                  <div ref={replySectionRef}>
+                    <SupportMethodPanel
+                      agentsLocked={audioSettingsLocked}
+                      routes={routes.routes}
+                      lockedConnectionProviders={lockedConnectionProviders}
+                      assignments={routes.draftAssignments}
+                      loading={routes.loading}
+                      manualReloadStatus={routes.manualReloadStatus}
+                      error={routes.error ?? undefined}
+                      credentialError={fieldErrors.support}
+                      replyEnabled={form.replyFeatureEnabled}
+                      replyAutoGenerate={form.replyAutoGenerate}
+                      connectionStates={connectionStates}
+                      secretsStatus={form.secretsStatus}
+                      secretInputs={form.secretInputs}
+                      connectionEditingProvider={connectionEditingProvider}
+                      connectionTestingProvider={connectionTestingProvider}
+                      connectionTestMessages={connectionTestMessages}
+                      onBeginConnectionEdit={beginConnectionEdit}
+                      onCancelConnectionEdit={cancelConnectionEdit}
+                      onSecretChange={updateSecret}
+                      onTestConnection={(provider) => {
+                        void testConnection(provider);
+                      }}
+                      onRequestSecretDelete={scheduleSecretDeletion}
+                      onCancelSecretDelete={cancelSecretDeletion}
+                      onAssignmentChange={assignRoute}
+                      onReplyEnabledChange={(enabled) =>
+                        updateForm("replyFeatureEnabled", enabled)
+                      }
+                      onReplyAutoGenerateChange={(enabled) =>
+                        updateForm("replyAutoGenerate", enabled)
+                      }
+                      onReload={() => {
+                        void routes.reload();
+                      }}
+                      modelSettings={
+                        selectedRoute?.id.startsWith("acp:") ? (
+                          <AgentModelControl
+                            routeId={selectedRoute.id}
+                            locked={audioSettingsLocked}
+                            onChanged={() => {
+                              void routes.reload();
+                            }}
+                          />
+                        ) : selectedRoute &&
+                          ["openai", "gemini", "anthropic", "ollama"].includes(
+                            selectedRoute.id,
+                          ) ? (
+                          <AiModelSettings
+                            provider={selectedRoute.id}
+                            error={fieldErrors.advanced}
+                            form={form}
+                            ollamaTesting={ollamaTesting}
+                            ollamaMessage={ollamaMessage}
+                            ollamaMessageIsError={ollamaMessageIsError}
+                            update={updateForm}
+                            onTestOllama={() => {
+                              void testOllamaConnection();
+                            }}
+                          />
+                        ) : null
+                      }
+                    />
+                  </div>
+                  <div ref={speechSectionRef}>
+                    <AudioSettingsPanel
+                      form={form}
+                      errors={fieldErrors}
+                      speechModel={speechModel}
+                      speechModelActionsDisabled={busy}
+                      audioSettingsLocked={audioSettingsLocked}
+                      update={updateForm}
+                    />
+                  </div>
+                </SettingsPage>
               ) : activeCategory === "audio" ? (
-                <AudioSettingsPanel
-                  form={form}
-                  errors={fieldErrors}
-                  speechModel={speechModel}
-                  speechModelActionsDisabled={busy}
-                  audioSettingsLocked={audioSettingsLocked}
-                  update={updateForm}
-                />
+                <SettingsPage
+                  title="音声入力"
+                  description="音量バーが動くことを確認してください。入力の変更はすぐに反映されます。"
+                >
+                  {audioSettingsLocked && (
+                    <p className="text-sm text-ink-muted">
+                      会議中・準備中は音声入力を変更できません。
+                    </p>
+                  )}
+                  {state && send ? (
+                    <AudioInputs
+                      state={state}
+                      send={send}
+                      locked={audioSettingsLocked}
+                    />
+                  ) : (
+                    <p className="text-sm text-ink-muted">
+                      音声入力は会議前の画面で確認できます。
+                    </p>
+                  )}
+                </SettingsPage>
               ) : activeCategory === "privacy" ? (
                 <PrivacySettingsPanel
                   form={form}
@@ -226,18 +294,6 @@ export function SettingsModal({
                   update={updateForm}
                   onChooseContextDirectory={() => {
                     void chooseContextDirectory();
-                  }}
-                />
-              ) : activeCategory === "advanced" ? (
-                <AdvancedSettingsPanel
-                  error={fieldErrors.advanced}
-                  form={form}
-                  ollamaTesting={ollamaTesting}
-                  ollamaMessage={ollamaMessage}
-                  ollamaMessageIsError={ollamaMessageIsError}
-                  update={updateForm}
-                  onTestOllama={() => {
-                    void testOllamaConnection();
                   }}
                 />
               ) : (
@@ -282,7 +338,7 @@ export function SettingsModal({
                 </p>
               ) : (
                 <p className="hidden text-xs text-ink-muted md:block">
-                  変更は「保存」を押すまで反映されません
+                  AI・文字起こしの設定は「保存」で反映します
                 </p>
               )}
             </div>
@@ -290,7 +346,9 @@ export function SettingsModal({
               <Button variant="quiet" size="sm" onClick={requestClose}>
                 閉じる
               </Button>
-              {activeCategory !== "about" && (
+              {(activeCategory === "support" ||
+                activeCategory === "privacy" ||
+                dirty) && (
                 <Button
                   variant="primary"
                   size="sm"

@@ -102,7 +102,7 @@ export function ApiConnectionControl({
   return (
     <section
       aria-label={`${connection.label} API接続`}
-      className="mt-4 space-y-3 rounded-xl border border-line bg-surface p-3.5 shadow-card"
+      className="space-y-3 border-t border-line pt-4"
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">

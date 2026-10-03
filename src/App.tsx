@@ -3,6 +3,7 @@ import { runtimeMode } from "./platform/nativeSpeechClient";
 import {
   Suspense,
   lazy,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -21,6 +22,7 @@ import { TooltipProvider } from "./components/ui/Tooltip";
 import { useBackendBootstrapStatus } from "./hooks/useBackendBootstrapStatus";
 import { useMeetingSocket } from "./hooks/useMeetingSocket";
 import { useAiRoutes } from "./hooks/useAiRoutes";
+import { useSavedSpeechReadiness } from "./hooks/useSavedSpeechReadiness";
 import {
   isAssistantPanelPreviewEnabled,
   isConversationSupportPreviewEnabled,
@@ -292,13 +294,25 @@ function MainWindowContent({
   settingsReturnFocusTo,
 }: MainWindowContentProps) {
   const routes = useAiRoutes();
+  const speechReadiness = useSavedSpeechReadiness(
+    settingsOpen,
+    state.connected,
+  );
+  const [settingsSection, setSettingsSection] = useState<"reply" | "speech">(
+    "reply",
+  );
+  const openSettings = (section: "reply" | "speech" = "reply") => {
+    setSettingsSection(section);
+    onOpenSettings();
+  };
 
   return (
     <>
       <AppFrame
         active={screen}
+        meetingActive={state.isRunning}
         onNavigate={onNavigate}
-        onSettings={onOpenSettings}
+        onSettings={() => openSettings()}
         status={
           !state.connected
             ? "接続確認中"
@@ -309,7 +323,9 @@ function MainWindowContent({
         connectionNotice={
           <>
             {!settingsOpen && (
-              <SettingsTaskNotice onOpenSettings={onOpenSettings} />
+              <SettingsTaskNotice
+                onOpenSettings={() => openSettings("speech")}
+              />
             )}
             {!state.connected && (
               <div className="shrink-0 px-4 pt-3">
@@ -327,7 +343,7 @@ function MainWindowContent({
               key="meeting-control"
               state={state}
               send={send}
-              onSettings={onOpenSettings}
+              onSettings={() => openSettings()}
               replyReadiness={routes.replyStatus.readiness}
             />
           ) : screen === "reflection" ? (
@@ -341,7 +357,9 @@ function MainWindowContent({
               state={state}
               send={send}
               showFirstRunGuidance={showFirstRunGuidance}
-              onSettings={onOpenSettings}
+              onSettings={() => openSettings()}
+              onSpeechSettings={() => openSettings("speech")}
+              speechReadiness={speechReadiness}
               onHistory={() => onNavigate("reflection")}
               replyStatus={routes.replyStatus}
               replyReloadStatus={routes.manualReloadStatus}
@@ -364,7 +382,14 @@ function MainWindowContent({
                 onCloseSettings();
               }}
               routes={routes}
-              audioSettingsLocked={state.isRunning}
+              audioSettingsLocked={
+                state.isRunning ||
+                state.sttInitializing ||
+                state.sttInitRequested
+              }
+              state={state}
+              send={send}
+              initialSection={settingsSection}
               restoreFocusTo={settingsReturnFocusTo}
             />
           </Suspense>
@@ -378,13 +403,13 @@ function MainWindowApp() {
   const settingsReturnFocusRef = useRef<HTMLElement | null>(null);
   const { apiPort, apiAuthToken, bootstrap } = useBackendBootstrapStatus();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const openSettings = () => {
+  const openSettings = useCallback(() => {
     settingsReturnFocusRef.current =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
     setSettingsOpen(true);
-  };
+  }, []);
   const [screen, setScreen] = useState<ProductDestination>("home");
   const [savedToastVisible, setSavedToastVisible] = useState(false);
   const [showFirstRunGuidance, setShowFirstRunGuidance] = useState(
@@ -395,6 +420,21 @@ function MainWindowApp() {
 
   const { send } = useMeetingSocket(apiPort, apiAuthToken);
   const state = useMeetingStore();
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key === "," &&
+        !event.altKey
+      ) {
+        event.preventDefault();
+        openSettings();
+      }
+    };
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [openSettings]);
 
   useEffect(() => {
     if (!state.isRunning) void setAssistantWindowVisible(false);

@@ -12,6 +12,7 @@ interface ProductBarProps {
   onNavigate: (destination: ProductDestination) => void;
   onSettings: () => void;
   status: string;
+  meetingActive?: boolean;
 }
 
 export function ProductBar({
@@ -19,6 +20,7 @@ export function ProductBar({
   onNavigate,
   onSettings,
   status,
+  meetingActive = false,
 }: ProductBarProps) {
   const alwaysOnTop = useAlwaysOnTop({ defaultDesired: false });
 
@@ -40,32 +42,36 @@ export function ProductBar({
       </div>
 
       <div className="flex min-w-0 flex-1 items-center gap-1">
-        <Button
-          variant="quiet"
-          size="sm"
-          aria-current={active === "home" ? "page" : undefined}
-          onClick={() => onNavigate("home")}
-          className={cn(
-            active === "home" &&
-              "bg-primary-soft text-primary hover:bg-primary-soft",
-          )}
-        >
-          <Home aria-hidden="true" className="size-4" />
-          <span className="product-bar__nav-label">ホーム</span>
-        </Button>
-        <Button
-          variant="quiet"
-          size="sm"
-          aria-current={active === "reflection" ? "page" : undefined}
-          onClick={() => onNavigate("reflection")}
-          className={cn(
-            active === "reflection" &&
-              "bg-primary-soft text-primary hover:bg-primary-soft",
-          )}
-        >
-          <History aria-hidden="true" className="size-4" />
-          <span className="product-bar__nav-label">履歴</span>
-        </Button>
+        {!meetingActive && (
+          <>
+            <Button
+              variant="quiet"
+              size="sm"
+              aria-current={active === "home" ? "page" : undefined}
+              onClick={() => onNavigate("home")}
+              className={cn(
+                active === "home" &&
+                  "bg-primary-soft text-primary hover:bg-primary-soft",
+              )}
+            >
+              <Home aria-hidden="true" className="size-4" />
+              <span className="product-bar__nav-label">ホーム</span>
+            </Button>
+            <Button
+              variant="quiet"
+              size="sm"
+              aria-current={active === "reflection" ? "page" : undefined}
+              onClick={() => onNavigate("reflection")}
+              className={cn(
+                active === "reflection" &&
+                  "bg-primary-soft text-primary hover:bg-primary-soft",
+              )}
+            >
+              <History aria-hidden="true" className="size-4" />
+              <span className="product-bar__nav-label">履歴</span>
+            </Button>
+          </>
+        )}
       </div>
 
       <Tooltip content="設定">

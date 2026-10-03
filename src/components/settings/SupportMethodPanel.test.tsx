@@ -42,12 +42,10 @@ function renderPanel(
     error?: string;
     replyEnabled?: boolean;
     replyAutoGenerate?: boolean;
-    managedRouteActionsLocked?: boolean;
   } = {},
 ) {
   const onReload = vi.fn();
   const onAssignmentChange = vi.fn();
-  const onRouteAction = vi.fn();
   const assignments: AiRouteDraftAssignments = {
     reply: null,
     ...assignmentOverrides,
@@ -58,7 +56,6 @@ function renderPanel(
       assignments={assignments}
       loading={options.loading ?? false}
       manualReloadStatus={options.manualReloadStatus ?? "idle"}
-      managedRouteActionsLocked={options.managedRouteActionsLocked ?? false}
       error={options.error}
       replyEnabled={options.replyEnabled ?? true}
       replyAutoGenerate={options.replyAutoGenerate ?? false}
@@ -81,11 +78,10 @@ function renderPanel(
       onAssignmentChange={onAssignmentChange}
       onReplyEnabledChange={vi.fn()}
       onReplyAutoGenerateChange={vi.fn()}
-      onRouteAction={onRouteAction}
       onReload={onReload}
     />,
   );
-  return { onReload, onAssignmentChange, onRouteAction };
+  return { onReload, onAssignmentChange };
 }
 
 describe("route metadata labels", () => {
@@ -101,7 +97,7 @@ describe("route metadata labels", () => {
   it.each([
     ["app", "提供時に料金をご案内（無料ではありません）"],
     ["external_subscription", "利用者の外部契約"],
-    ["user", "利用者"],
+    ["user", "利用するサービスの従量料金"],
     ["none", "外部サービス料金なし"],
     ["invalid", "確認できません"],
   ])("maps billing owner %s without guessing", (value, label) => {
@@ -110,315 +106,89 @@ describe("route metadata labels", () => {
 });
 
 describe("SupportMethodPanel", () => {
-  it("separates general routes from routes requiring setup without hiding any route", () => {
+  it("shows only the selected service's connection while retaining other choices", () => {
     renderPanel(
       [
-        route({
-          id: "managed",
-          kind: "managed",
-          label: "Managed",
-          description: "managed",
-          readiness: "not_offered",
-          selectable: false,
-        }),
-        route({
-          id: "gemini",
-          kind: "byok",
-          label: "Gemini API",
-          description: "BYOK",
-          readiness: "setup_required",
-        }),
-        route({
-          id: "ollama",
-          kind: "local",
-          label: "Ollama",
-          description: "local",
-          readiness: "setup_required",
-        }),
+        route({ id: "openai", kind: "byok", label: "OpenAI" }),
+        route({ id: "gemini", kind: "byok", label: "Gemini" }),
       ],
-      { reply: "gemini" },
+      { reply: "openai" },
     );
-    expect(screen.getByRole("heading", { name: "一般" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "要設定" })).toBeInTheDocument();
-    expect(screen.getByText("アプリにおまかせ")).toBeInTheDocument();
-    expect(screen.queryByText("ChatGPT の契約を使う")).not.toBeInTheDocument();
-    expect(screen.getByText("Gemini API")).toBeInTheDocument();
-    expect(screen.getByText("Ollama")).toBeInTheDocument();
-    expect(screen.queryByText("外部エージェント連携")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("OpenAI APIキー")).toBeVisible();
     expect(
-      screen
-        .getAllByRole("button", { name: "返答案" })
-        .some((button) => button.getAttribute("aria-pressed") === "true"),
-    ).toBe(true);
-  });
-
-  it("assigns reply without retired use cases", () => {
-    const { onAssignmentChange } = renderPanel(
-      [
-        route({
-          capabilities: ["reply", "stream", "cancel"],
-        }),
-      ],
-      { reply: "ollama" },
-    );
-
-    const reply = screen.getByRole("button", { name: "返答案" });
-    expect(
-      screen.queryByRole("button", { name: "要約・議事録" }),
+      screen.queryByLabelText("Google Gemini APIキー"),
     ).not.toBeInTheDocument();
-    expect(reply).toHaveAttribute("aria-pressed", "true");
-    expect(
-      screen.queryByRole("button", { name: "会話メモ" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "stream" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "cancel" }),
-    ).not.toBeInTheDocument();
-    expect(document.querySelectorAll('[data-route-id="ollama"]')).toHaveLength(
-      1,
-    );
-    expect(screen.getAllByText("処理場所")).toHaveLength(1);
-
-    fireEvent.click(reply);
-
-    expect(onAssignmentChange).toHaveBeenNthCalledWith(1, "reply", null);
+    expect(screen.getByRole("option", { name: "Gemini" })).toBeInTheDocument();
   });
-
-  it("displays processing location and billing responsibility on each route card", () => {
-    renderPanel([route({ data_location: "local", billing_owner: "none" })]);
-
-    expect(screen.getByText("処理場所")).toBeInTheDocument();
-    expect(screen.getByText("このPC")).toBeInTheDocument();
-    expect(screen.getByText("費用負担")).toBeInTheDocument();
-    expect(screen.getByText("外部サービス料金なし")).toBeInTheDocument();
-  });
-
-  it.each([
-    ["sign_in", "ログイン"],
-    ["subscribe", "月額プランを申し込む"],
-    ["manage_billing", "支払いを確認"],
-  ] as const)(
-    "ignores the managed card %s action while managed route actions are locked",
-    (action, label) => {
-      const { onRouteAction } = renderPanel(
-        [
-          route({
-            id: "managed",
-            kind: "managed",
-            label: "Managed",
-            description: "Managed service",
-            data_location: "cloud",
-            readiness: "setup_required",
-            selectable: false,
-            action,
-          }),
-        ],
-        {},
-        { managedRouteActionsLocked: true },
-      );
-
-      const actionButton = screen.getByRole("button", { name: label });
-      expect(actionButton).toBeDisabled();
-      expect(screen.getByText("設定が必要")).toBeInTheDocument();
-      expect(screen.getByText("クラウド")).toBeInTheDocument();
-
-      fireEvent.click(actionButton);
-      expect(onRouteAction).not.toHaveBeenCalled();
-    },
-  );
-
-  it("keeps an unrelated provider action available while managed route actions are locked", () => {
-    const providerRoute = route({
-      id: "ollama",
-      kind: "local",
-      action: "retry",
-    });
-    const { onRouteAction } = renderPanel(
-      [
-        route({
-          id: "managed",
-          kind: "managed",
-          label: "Managed",
-          description: "Managed service",
-          readiness: "setup_required",
-          selectable: false,
-          action: "subscribe",
-        }),
-        providerRoute,
-      ],
-      {},
-      { managedRouteActionsLocked: true },
-    );
-
-    expect(
-      screen.getByRole("button", { name: "月額プランを申し込む" }),
-    ).toBeDisabled();
-    const providerAction = screen.getByRole("button", { name: "もう一度確認" });
-    expect(providerAction).toBeEnabled();
-
-    fireEvent.click(providerAction);
-    expect(onRouteAction).toHaveBeenCalledOnce();
-    expect(onRouteAction).toHaveBeenCalledWith(providerRoute);
-  });
-
-  it("renders provider-specific API controls in known BYOK route cards", () => {
-    renderPanel([
-      route({
-        id: "gemini",
-        kind: "byok",
-        label: "Gemini API",
-        description: "Gemini BYOK",
-        readiness: "setup_required",
-      }),
-      route({
-        id: "openai",
-        kind: "byok",
-        label: "OpenAI API",
-        description: "OpenAI BYOK",
-        readiness: "setup_required",
-      }),
-      route({
-        id: "anthropic",
-        kind: "byok",
-        label: "Anthropic API",
-        description: "Anthropic BYOK",
-        readiness: "setup_required",
-      }),
-    ]);
-
-    expect(screen.getByLabelText("Google Gemini APIキー")).toHaveAttribute(
-      "type",
-      "password",
-    );
-    expect(screen.getByLabelText("OpenAI APIキー")).toHaveAttribute(
-      "type",
-      "password",
-    );
-    expect(screen.getByLabelText("Anthropic APIキー")).toHaveAttribute(
-      "type",
-      "password",
-    );
-    expect(
-      screen.getByText("APIキーが必要な方法は、各カード内で設定できます。"),
-    ).toBeInTheDocument();
-  });
-
-  it("does not infer a credential provider for an unknown BYOK route", () => {
-    renderPanel([
-      route({
-        id: "unknown-byok",
-        kind: "byok",
-        label: "Unknown API",
-        description: "Unknown BYOK",
-        readiness: "setup_required",
-      }),
-    ]);
-
-    expect(screen.getByText("Unknown API")).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Unknown.*APIキー/)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("region", { name: /API接続/ }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("allows assigning a BYOK route before its credential is configured", () => {
+  it("assigns a service before credentials are configured", () => {
     const { onAssignmentChange } = renderPanel([
-      route({
-        id: "openai",
-        kind: "byok",
-        label: "OpenAI API",
-        description: "BYOK",
-        readiness: "setup_required",
-      }),
+      route({ id: "openai", kind: "byok", readiness: "setup_required" }),
     ]);
-
-    fireEvent.click(screen.getByRole("button", { name: "返答案" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "返答案に使うAI" }), {
+      target: { value: "openai" },
+    });
     expect(onAssignmentChange).toHaveBeenCalledWith("reply", "openai");
   });
-  it("keeps the selected route and reply toggles visible while a manual refresh is in progress", () => {
-    const { onReload } = renderPanel(
-      [
-        route({
-          id: "gemini",
-          kind: "byok",
-          label: "Gemini API",
-          description: "BYOK",
-          readiness: "setup_required",
-        }),
-      ],
-      { reply: "gemini" },
-      {
-        loading: true,
-        manualReloadStatus: "loading",
-        replyEnabled: true,
-        replyAutoGenerate: true,
-      },
-    );
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "状態を更新しています",
-    );
-    expect(screen.getByText("Gemini API")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "返答案" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+  it("omits hosted account services even when the backend marks them ready", () => {
+    renderPanel([
+      route({
+        id: "managed",
+        kind: "managed",
+        label: "Hosted",
+        action: "subscribe",
+      }),
+      route({}),
+    ]);
     expect(
-      screen.getByRole("checkbox", { name: "返答案を表示する" }),
-    ).toBeChecked();
+      screen.queryByRole("option", { name: /Hosted/ }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("checkbox", { name: "発話ごとに自動で作る" }),
-    ).toBeChecked();
-    expect(screen.getByRole("button", { name: "状態を再確認" })).toBeDisabled();
-
-    fireEvent.click(screen.getByRole("button", { name: "状態を再確認" }));
-    expect(onReload).not.toHaveBeenCalled();
+      screen.queryByRole("button", { name: /ログイン|月額|支払い/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Ollama" })).toBeEnabled();
   });
-  it("announces manual refresh failure while retaining the current route card", () => {
+  it("keeps unavailable choices disabled without inferring credentials for unknown services", () => {
     renderPanel(
       [
         route({
-          id: "gemini",
+          id: "unknown",
           kind: "byok",
-          label: "Gemini API",
-          description: "BYOK",
-          readiness: "setup_required",
+          label: "Unknown API",
+          selectable: false,
+          readiness: "unavailable",
         }),
       ],
-      { reply: "gemini" },
-      {
-        manualReloadStatus: "error",
-        error: "支援方法の状態を確認できませんでした。",
-      },
+      { reply: "unknown" },
     );
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "更新できませんでした",
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "支援方法の状態を確認できませんでした。",
-    );
-    expect(screen.getByText("Gemini API")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Unknown API/ })).toBeDisabled();
+    expect(
+      screen.queryByRole("textbox", { name: /APIキー/ }),
+    ).not.toBeInTheDocument();
   });
-
-  it("announces manual refresh success without removing the current route card", () => {
-    renderPanel(
-      [
-        route({
-          id: "gemini",
-          kind: "byok",
-          label: "Gemini API",
-          description: "BYOK",
-          readiness: "setup_required",
-        }),
-      ],
-      { reply: "gemini" },
-      { manualReloadStatus: "success" },
-    );
-
-    expect(screen.getByRole("status")).toHaveTextContent("状態を更新しました");
-    expect(screen.getByText("Gemini API")).toBeInTheDocument();
+  it("shows processing location and cost for the selected service", () => {
+    renderPanel([route({ data_location: "local", billing_owner: "none" })], {
+      reply: "ollama",
+    });
+    expect(screen.getByText("このPC")).toBeVisible();
+    expect(screen.getByText("外部サービス料金なし")).toBeVisible();
+    expect(screen.getByText("試験提供")).toBeVisible();
   });
+  it.each([
+    ["loading", "確認中…"],
+    ["error", "更新できませんでした"],
+    ["success", "状態を更新しました"],
+  ] as const)(
+    "retains the current selection during refresh %s",
+    (status, label) => {
+      renderPanel(
+        [route({})],
+        { reply: "ollama" },
+        { manualReloadStatus: status },
+      );
+      expect(
+        screen.getByRole("combobox", { name: "返答案に使うAI" }),
+      ).toHaveValue("ollama");
+      expect(screen.getByText(label)).toBeVisible();
+    },
+  );
 });

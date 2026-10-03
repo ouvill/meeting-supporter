@@ -8,7 +8,7 @@ import {
   type RecordingCleanupRequest,
 } from "../../api/recordingRetention";
 import type { AiRouteReadModel } from "../../hooks/useAiRoutes";
-import { FieldRow, SettingsCard, SettingsPage } from "./SettingsPrimitives";
+import { FieldRow, SettingsSection, SettingsPage } from "./SettingsPrimitives";
 import type { SettingsFieldErrors, SettingsForm } from "./types";
 
 interface Props {
@@ -197,10 +197,10 @@ export function PrivacySettingsPanel({
 
   return (
     <SettingsPage
-      title="データとプライバシー"
+      title="データと保存"
       description="会議データを保存する場所と、支援を利用するときの送信範囲を確認できます。"
     >
-      <SettingsCard title="返答支援で送られるデータ">
+      <SettingsSection title="返答支援で送られるデータ">
         <div
           className={`flex items-start gap-3 rounded-xl p-3.5 ${destination.local ? "bg-positive-soft text-positive" : "bg-warning-soft text-warning"}`}
         >
@@ -216,9 +216,9 @@ export function PrivacySettingsPanel({
             </p>
           </div>
         </div>
-      </SettingsCard>
+      </SettingsSection>
 
-      <SettingsCard
+      <SettingsSection
         title="端末内の保存先"
         description="会議履歴や録音は、このアプリのデータフォルダに保存されます。"
       >
@@ -259,9 +259,9 @@ export function PrivacySettingsPanel({
             </p>
           </FieldRow>
         </div>
-      </SettingsCard>
+      </SettingsSection>
 
-      <SettingsCard
+      <SettingsSection
         title="録音の整理"
         description="自動では削除されません。条件を保存しても、下の確認と削除を実行するまで録音と会議履歴は保持されます。"
       >
@@ -357,7 +357,7 @@ export function PrivacySettingsPanel({
             )}
           </div>
         </div>
-      </SettingsCard>
+      </SettingsSection>
       <CleanupConfirmationDialog
         open={cleanupConfirmationOpen}
         pending={cleanupPending}

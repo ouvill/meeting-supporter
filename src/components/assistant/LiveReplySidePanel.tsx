@@ -356,7 +356,7 @@ function LiveReplySurface({
   return (
     <div
       data-testid="live-reply-panel"
-      className={`${embedded ? "h-full min-h-0" : `${panelHeightClass} min-h-[560px]`} w-full overflow-hidden bg-paper text-ink flex flex-col`}
+      className={`${embedded ? "h-full min-h-0" : `${panelHeightClass} min-h-[560px]`} w-full overflow-hidden bg-surface text-ink flex flex-col`}
     >
       {!embedded && (
         <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface px-3.5">
@@ -390,7 +390,7 @@ function LiveReplySurface({
       <ContentRoot
         className={`flex min-h-0 flex-1 flex-col overflow-hidden ${embedded ? "gap-3 p-0" : "gap-2.5 p-3"}`}
       >
-        {!embedded && (
+        {
           <section
             className="shrink-0"
             aria-labelledby="latest-utterance-heading"
@@ -404,7 +404,7 @@ function LiveReplySurface({
               </h2>
               {latestLiveTurn && (
                 <span
-                  className={`text-xs font-bold ${latestLiveTurn.speaker === "other" ? "text-cue" : "text-positive"}`}
+                  className={`text-xs font-bold ${latestLiveTurn.speaker === "other" ? "text-primary" : "text-positive"}`}
                 >
                   {latestLiveTurn.speaker === "other" ? "相手" : "自分"}
                   {latestLiveTurn.interim ? "・聞き取り中" : ""}
@@ -412,7 +412,7 @@ function LiveReplySurface({
               )}
             </div>
             <div
-              className="flex min-h-16 max-h-20 items-center overflow-y-auto rounded-2xl border border-line bg-surface px-3.5 py-2.5 shadow-sm"
+              className="flex min-h-16 max-h-28 items-center overflow-y-auto border-l-2 border-line px-4 py-2"
               aria-live="polite"
               tabIndex={0}
             >
@@ -423,29 +423,29 @@ function LiveReplySurface({
               </p>
             </div>
           </section>
-        )}
+        }
 
         <section
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-cue/30 bg-surface shadow-raised"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-paper"
           aria-labelledby="cue-card-heading"
         >
-          <div className="flex shrink-0 items-center justify-between border-b border-cue/20 bg-cue-soft px-3.5 py-2">
+          <div className="flex shrink-0 items-center justify-between px-5 pb-2 pt-4">
             <div className="flex items-center gap-2">
               <MessageSquareQuote
                 aria-hidden="true"
                 size={15}
-                className="text-cue"
+                className="text-primary"
               />
               <h2
                 id="cue-card-heading"
-                className="font-display text-sm font-bold tracking-[0.08em] text-cue"
+                className="font-display text-sm font-bold tracking-[0.08em] text-primary"
               >
                 返答の候補
               </h2>
             </div>
             {state.isGeneratingReply && (
               <span
-                className="flex items-center gap-1 text-xs font-bold text-cue"
+                className="flex items-center gap-1 text-xs font-bold text-primary"
                 aria-live="polite"
               >
                 <LoaderCircle
@@ -458,15 +458,15 @@ function LiveReplySurface({
             )}
           </div>
           <div
-            className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3"
+            className="min-h-0 flex-1 overflow-y-auto px-5 py-3"
             aria-live="polite"
             aria-atomic="true"
             tabIndex={0}
           >
             {replyText ? (
               <p
-                className={`whitespace-pre-wrap font-semibold text-ink ${
-                  embedded ? "text-base leading-7" : "text-xl leading-8"
+                className={`whitespace-pre-wrap font-medium text-ink ${
+                  embedded ? "text-lg leading-8" : "text-xl leading-8"
                 }`}
               >
                 {replyText}
@@ -545,7 +545,7 @@ function LiveReplySurface({
         <section className="shrink-0" aria-label="返答操作">
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <Button
-              variant="cue"
+              variant="primary"
               size="md"
               onClick={
                 state.isGeneratingReply ? cancelReply : () => requestReply()

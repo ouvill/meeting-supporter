@@ -420,9 +420,7 @@ function ConversationTimeline({
               >
                 {isOther ? "相手" : "自分"}
               </div>
-              <div className="rounded-xl border border-line bg-surface px-4 py-3 text-sm leading-6 text-ink shadow-card">
-                {turn.text}
-              </div>
+              <div className="py-2 text-sm leading-7 text-ink">{turn.text}</div>
               <CueCards suggestions={cueCards} startedAt={startedAt} />
             </div>
           </li>
@@ -448,7 +446,7 @@ function MinutesSection({ meeting }: { meeting: MeetingDetail }) {
   return (
     <section
       aria-labelledby="minutes-heading"
-      className="rounded-2xl border border-line bg-surface p-5 shadow-card"
+      className="border-b border-line bg-surface py-5"
     >
       <h3
         id="minutes-heading"
@@ -456,7 +454,7 @@ function MinutesSection({ meeting }: { meeting: MeetingDetail }) {
       >
         保存済みの議事録
       </h3>
-      <div className="mt-4 whitespace-pre-wrap rounded-xl bg-paper p-4 text-sm leading-6 text-ink">
+      <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-ink">
         {meeting.minutes}
       </div>
     </section>
@@ -504,7 +502,7 @@ export function MeetingHistoryDetail({
 
   return (
     <div className="mx-auto w-full max-w-4xl min-w-0 space-y-5 p-4 sm:p-6">
-      <header className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+      <header className="border-b border-line bg-surface py-5">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <InlineTitleEditor

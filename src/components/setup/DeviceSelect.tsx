@@ -52,8 +52,8 @@ export function DeviceSelect({
   }
 
   return (
-    <div className="rounded-xl bg-paper p-3">
-      <div className="mb-2 flex items-center gap-2">
+    <div className="grid items-center gap-3 py-4 sm:grid-cols-[11rem_minmax(0,1fr)]">
+      <div className="flex flex-wrap items-center gap-2">
         <Icon
           aria-hidden="true"
           size={15}
@@ -62,7 +62,7 @@ export function DeviceSelect({
         <label htmlFor={selectId} className="text-sm font-semibold text-ink">
           {label}
         </label>
-        <AudioLevelMeter level={level} color={color} />
+        <AudioLevelMeter level={level} color={color} label={label} />
       </div>
       <select
         id={selectId}
@@ -95,11 +95,19 @@ export function DeviceSelect({
   );
 }
 
-function AudioLevelMeter({ level, color }: { level: number; color: string }) {
+function AudioLevelMeter({
+  level,
+  color,
+  label,
+}: {
+  level: number;
+  color: string;
+  label: string;
+}) {
   return (
     <div
-      className="ml-auto h-1.5 w-24 overflow-hidden rounded-full bg-line"
-      aria-label={`入力レベル ${Math.round(levelToPercent(level))}%`}
+      className="h-1 w-16 overflow-hidden rounded-full bg-line"
+      aria-label={`${label}の入力レベル`}
       role="meter"
       aria-valuemin={0}
       aria-valuemax={100}

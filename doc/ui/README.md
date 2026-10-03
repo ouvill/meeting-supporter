@@ -8,8 +8,8 @@ UI文書はPRDのrequirementとavailabilityを画面へ具体化する。backend
 
 - loading / empty / ready / disabled / error / cancelledを必要範囲で定義する
 - availability / readiness / selectableを画面側で推測しない
-- 一般設定にprovider/service名、route card、provider固有のAPI credential controlを表示してよいが、保存済み値、model識別子、endpoint、command、runtime診断は出さない
-- 通常のOSS buildで未設定のhosted serviceを選択可能に見せない
+- AI設定にサービス名、モデル選択、対応するAPI接続をまとめる。カスタムモデルと接続先はそのサービス内の詳細で扱い、保存済みcredential、command、runtime診断は表示しない
+- アカウント機能とhosted serviceの選択肢を表示しない
 - raw exception、prompt、stderr、token、credentialを表示しない
 - keyboard/focusと色以外の状態表現を確認する
 

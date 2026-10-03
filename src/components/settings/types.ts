@@ -1,10 +1,4 @@
-export type SettingsCategory =
-  | "support"
-  | "account"
-  | "audio"
-  | "privacy"
-  | "advanced"
-  | "about";
+export type SettingsCategory = "support" | "audio" | "privacy" | "about";
 
 export type ConnectionUiState =
   | "unconfigured"

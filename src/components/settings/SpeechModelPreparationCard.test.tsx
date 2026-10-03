@@ -49,7 +49,7 @@ function controller(
 }
 
 describe("SpeechModelPreparationCard", () => {
-  it("explains managed local preparation with capacity, network, and storage information without exposing technical model names", () => {
+  it("explains download network use without exposing storage paths", () => {
     render(
       <SpeechModelPreparationCard
         model={controller({
@@ -61,18 +61,10 @@ describe("SpeechModelPreparationCard", () => {
       />,
     );
 
-    expect(screen.getByText("高精度な音声認識モデル")).toBeInTheDocument();
-    expect(
-      screen.getByText(/選択した精度モデルを端末内で使えるように準備します/),
-    ).toBeInTheDocument();
     expect(
       screen.getByText(
         /取得を始めたときだけインターネット通信を行います。会議の音声は送信しません。/,
       ),
-    ).toBeInTheDocument();
-    expect(screen.getByText("保存先")).toBeInTheDocument();
-    expect(
-      screen.getByText("Hugging Face の共有キャッシュ"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/vosk|model-small/i)).not.toBeInTheDocument();
   });
@@ -185,7 +177,9 @@ describe("SpeechModelPreparationCard", () => {
     );
 
     expect(screen.getByText("会議の言語を選んでください")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "モデルを取得" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "モデルをダウンロード" }),
+    ).toBeDisabled();
 
     rerender(
       <SpeechModelPreparationCard
@@ -198,9 +192,7 @@ describe("SpeechModelPreparationCard", () => {
         })}
       />,
     );
-    expect(
-      screen.getByText("高精度な音声認識モデルの準備ができました"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("準備済み")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /取得/ }),
     ).not.toBeInTheDocument();
@@ -217,7 +209,7 @@ describe("SpeechModelPreparationCard", () => {
     expect(screen.queryByText(/vosk|model-small/i)).not.toBeInTheDocument();
   });
 
-  it("identifies Whisper preparation by the selected quality and shared-cache location without a Vosk label", () => {
+  it("shows progress for the selected Whisper quality", () => {
     const { rerender } = render(
       <SpeechModelPreparationCard
         model={controller({
@@ -239,15 +231,6 @@ describe("SpeechModelPreparationCard", () => {
       />,
     );
 
-    expect(screen.getByText("高精度な音声認識モデル")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /選択したバランスモデルを端末内で使えるように準備します/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Hugging Face の共有キャッシュ"),
-    ).toBeInTheDocument();
     expect(
       screen.getByRole("progressbar", {
         name: "高精度な音声認識モデルの準備進捗",
@@ -278,7 +261,7 @@ describe("SpeechModelPreparationCard", () => {
     expect(screen.getByRole("button", { name: "もう一度取得" })).toBeEnabled();
   });
 
-  it("presents ReazonSpeech as a fixed Japanese shared-cache model", () => {
+  it("shows the size of the Japanese model before downloading", () => {
     render(
       <SpeechModelPreparationCard
         model={controller({
@@ -294,13 +277,9 @@ describe("SpeechModelPreparationCard", () => {
       />,
     );
 
-    expect(screen.getByText("ReazonSpeech日本語モデル")).toBeInTheDocument();
     expect(screen.getByText("日本語・約153 MB")).toBeInTheDocument();
     expect(
-      screen.getByText("Hugging Face の共有キャッシュ"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "モデルを取得（約153 MB）" }),
+      screen.getByRole("button", { name: "モデルをダウンロード（約153 MB）" }),
     ).toBeEnabled();
     expect(
       screen.queryByRole("button", { name: "取得を取り消す" }),

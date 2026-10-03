@@ -113,7 +113,7 @@ export function MeetingHistoryScreen({ onBack }: Props) {
         </button>
         <div className="min-w-0">
           <h1 className="font-display text-lg font-semibold tracking-wide text-ink">
-            会議のふりかえり
+            会議の履歴
           </h1>
           <p className="hidden text-xs text-ink-muted min-[840px]:block">
             会話と返答案を、時間の流れに沿って確認できます
@@ -143,7 +143,7 @@ export function MeetingHistoryScreen({ onBack }: Props) {
         </aside>
 
         <main
-          className={`${compactDetailOpen ? "flex" : "hidden"} min-w-0 flex-1 flex-col overflow-y-auto bg-paper min-[840px]:flex`}
+          className={`${compactDetailOpen ? "flex" : "hidden"} min-w-0 flex-1 flex-col overflow-y-auto bg-surface min-[840px]:flex`}
         >
           <div className="sticky top-0 z-10 border-b border-line bg-surface px-4 py-2 min-[840px]:hidden">
             <button

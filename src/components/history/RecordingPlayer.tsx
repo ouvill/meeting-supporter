@@ -299,7 +299,7 @@ export function RecordingPlayer({ meetingId, recordings }: Props) {
   const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
   return (
-    <div className="min-w-0 space-y-4 rounded-2xl border border-line bg-surface p-4 shadow-card sm:p-5">
+    <div className="min-w-0 space-y-4 border-b border-line bg-surface py-5">
       {otherAsset && (
         <audio
           ref={otherRef}

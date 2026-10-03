@@ -49,7 +49,6 @@ export function firstSettingsErrorCategory(
   errors: SettingsFieldErrors,
 ): SettingsCategory {
   if (errors.support) return "support";
-  if (errors.audio) return "audio";
-  if (errors.advanced) return "advanced";
+  if (errors.audio || errors.advanced) return "support";
   return "privacy";
 }

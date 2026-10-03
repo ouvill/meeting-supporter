@@ -1,13 +1,4 @@
-import {
-  Check,
-  CircleAlert,
-  ExternalLink,
-  KeyRound,
-  Laptop,
-  LoaderCircle,
-  RefreshCw,
-  Sparkles,
-} from "lucide-react";
+import { useState, type ReactNode } from "react";
 import type {
   AiAssignableUseCase,
   AiRouteDraftAssignments,
@@ -22,7 +13,7 @@ import {
   CONNECTION_PROVIDER_BY_ROUTE,
   type ConnectionProvider,
 } from "./ApiConnectionControl";
-import { SettingsCard, SettingsPage, ToggleField } from "./SettingsPrimitives";
+import { FieldRow, SettingsSection, ToggleField } from "./SettingsPrimitives";
 import { AgentRegistryPanel } from "./AgentRegistryPanel";
 import type { ConnectionUiState } from "./types";
 
@@ -58,9 +49,8 @@ interface Props extends ConnectionControlBindings {
   ) => void;
   onReplyEnabledChange: (enabled: boolean) => void;
   onReplyAutoGenerateChange: (enabled: boolean) => void;
-  onRouteAction: (route: AiRouteReadModel) => void;
-  managedRouteActionsLocked: boolean;
   onReload: () => void;
+  modelSettings?: ReactNode;
 }
 
 export function dataLocationLabel(value: unknown): string {
@@ -73,420 +63,186 @@ export function dataLocationLabel(value: unknown): string {
 export function billingOwnerLabel(value: unknown): string {
   if (value === "app") return "提供時に料金をご案内（無料ではありません）";
   if (value === "external_subscription") return "利用者の外部契約";
-  if (value === "user") return "利用者";
+  if (value === "user") return "利用するサービスの従量料金";
   if (value === "none") return "外部サービス料金なし";
   return "確認できません";
 }
 
-function stateLabel(route: AiRouteReadModel) {
-  if (route.readiness === "ready") return "利用できます";
-  if (route.readiness === "setup_required") return "設定が必要";
-  if (route.availability === "planned") return "準備中";
-  return "現在は利用できません";
-}
-
-function routeActionLabel(action: AiRouteReadModel["action"]): string | null {
-  if (action === "sign_in") return "ログイン";
-  if (action === "subscribe") return "月額プランを申し込む";
-  if (action === "manage_billing") return "支払いを確認";
-  if (action === "view_usage") return "利用枠を確認";
-  if (action === "retry") return "もう一度確認";
-  return null;
-}
-
-const LOCKED_MANAGED_ROUTE_ACTIONS: Partial<
-  Record<AiRouteReadModel["action"], true>
-> = {
-  sign_in: true,
-  subscribe: true,
-  manage_billing: true,
-};
-
-function routeIcon(route: AiRouteReadModel) {
-  if (route.id === "managed") return Sparkles;
-  if (route.kind === "local") return Laptop;
-  if (route.kind === "byok") return KeyRound;
-  return KeyRound;
-}
-
-const USE_CASE_OPTIONS: ReadonlyArray<{
-  useCase: AiAssignableUseCase;
-  label: string;
-}> = [{ useCase: "reply", label: "返答案" }];
-
-function RouteCard({
-  route,
-  assignments,
-  reloading,
-  onAssignmentChange,
-  onRouteAction,
-  onReload,
-  routeActionLocked,
-  connection,
-  credentialError,
-}: {
-  route: AiRouteReadModel;
-  assignments: AiRouteDraftAssignments;
-  reloading: boolean;
-  onAssignmentChange: (
-    useCase: AiAssignableUseCase,
-    routeId: string | null,
-  ) => void;
-  onRouteAction: () => void;
-  onReload: () => void;
-  routeActionLocked: boolean;
-  connection: ConnectionControlBindings;
-  credentialError?: string;
-}) {
-  const Icon = routeIcon(route);
-  const actionLabel = routeActionLabel(route.action);
+export function SupportMethodPanel(props: Props) {
+  const [managingAgents, setManagingAgents] = useState(false);
+  // Hosted accounts are not part of the currently offered product.
+  const routes = props.routes.filter(
+    (route) => route.kind !== "managed" && route.capabilities.includes("reply"),
+  );
+  const route = routes.find((route) => route.id === props.assignments.reply);
   const provider =
-    route.kind === "byok" && route.id in CONNECTION_PROVIDER_BY_ROUTE
+    route?.kind === "byok" && route.id in CONNECTION_PROVIDER_BY_ROUTE
       ? CONNECTION_PROVIDER_BY_ROUTE[
           route.id as keyof typeof CONNECTION_PROVIDER_BY_ROUTE
         ]
       : null;
-  const providerLocked =
-    provider !== null &&
-    (connection.lockedConnectionProviders?.has(provider) ?? false);
-  const selectionOffered =
-    route.selectable &&
-    (route.readiness === "ready" ||
-      route.kind === "byok" ||
-      route.kind === "local");
-  const offeredUseCases = USE_CASE_OPTIONS.filter(({ useCase }) =>
-    route.capabilities.includes(useCase),
-  );
-  const selectedUseCases = offeredUseCases.filter(
-    ({ useCase }) => assignments[useCase] === route.id,
-  );
-  const selected = selectedUseCases.length > 0;
-
+  const reloading = props.manualReloadStatus === "loading";
   return (
-    <div
-      data-route-id={route.id}
-      className={`rounded-xl border p-3.5 ${selected ? "border-primary bg-primary-soft ring-1 ring-primary/15" : "border-line bg-surface"}`}
+    <SettingsSection
+      title="返答案"
+      description="会議中の返答案に使うAIを選びます。"
     >
-      <div className="flex items-start gap-3">
-        <span
-          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${selected ? "bg-primary text-white" : "bg-paper text-ink-muted"}`}
+      <ToggleField
+        label="返答案を表示する"
+        description="文字起こしだけで使う場合はオフにできます。"
+        checked={props.replyEnabled}
+        onChange={props.onReplyEnabledChange}
+      />
+      <FieldRow label="利用するAI">
+        <select
+          className="field"
+          aria-label="返答案に使うAI"
+          value={route?.id ?? ""}
+          disabled={props.loading}
+          onChange={(event) =>
+            props.onAssignmentChange("reply", event.target.value || null)
+          }
         >
-          {selected ? (
-            <Check className="h-4 w-4" aria-hidden="true" />
-          ) : (
-            <Icon className="h-4 w-4" aria-hidden="true" />
-          )}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h5 className="font-display text-sm font-bold text-ink">
-              {route.id === "managed" ? "アプリにおまかせ" : route.label}
-            </h5>
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${route.readiness === "ready" ? "bg-positive-soft text-positive" : "bg-warning-soft text-warning"}`}
+          <option value="">選択してください</option>
+          {routes.map((item) => (
+            <option
+              key={item.id}
+              value={item.id}
+              disabled={
+                !item.selectable ||
+                item.availability === "planned" ||
+                item.readiness === "not_offered"
+              }
             >
-              {stateLabel(route)}
-            </span>
-          </div>
-          <p className="mt-1 text-sm leading-relaxed text-ink-muted">
-            {route.description}
-          </p>
-          {route.message && route.readiness !== "ready" && (
-            <p className="mt-2 text-sm text-ink">{route.message}</p>
-          )}
-          <dl className="mt-3 grid gap-1 text-sm text-ink-muted sm:grid-cols-2">
-            <div className="flex gap-2">
-              <dt className="font-semibold text-ink">処理場所</dt>
-              <dd>{dataLocationLabel(route.data_location)}</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="font-semibold text-ink">費用負担</dt>
-              <dd>{billingOwnerLabel(route.billing_owner)}</dd>
-            </div>
-          </dl>
-          {offeredUseCases.length > 0 && (
-            <div
-              className="mt-3 flex flex-wrap items-center gap-2"
-              aria-label={`${route.label} の用途`}
-            >
-              {offeredUseCases.map(({ useCase, label }) => {
-                const pressed = assignments[useCase] === route.id;
-                return (
-                  <Button
-                    key={useCase}
-                    size="sm"
-                    variant={pressed ? "primary" : "secondary"}
-                    aria-pressed={pressed}
-                    onClick={() =>
-                      onAssignmentChange(useCase, pressed ? null : route.id)
-                    }
-                    disabled={!pressed && !selectionOffered}
-                  >
-                    {label}
-                  </Button>
-                );
-              })}
-            </div>
-          )}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {actionLabel && (
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={onRouteAction}
-                disabled={providerLocked || routeActionLocked}
-              >
-                {actionLabel}
-                {route.action !== "retry" && route.action !== "view_usage" && (
-                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+              {item.label}
+              {item.readiness === "ready"
+                ? ""
+                : item.readiness === "setup_required"
+                  ? "（設定が必要）"
+                  : "（利用できません）"}
+            </option>
+          ))}
+        </select>
+      </FieldRow>
+      {props.loading && (
+        <p role="status" className="text-sm text-ink-muted">
+          利用状態を確認しています
+        </p>
+      )}
+      {props.assignments.reply && !route && !props.loading && (
+        <InlineNotice tone="warning">
+          選択していたAIは現在利用できません。別のAIを選んでください。
+        </InlineNotice>
+      )}
+      {route && (
+        <div data-route-id={route.id} className="space-y-4">
+          {props.modelSettings}
+          <FieldRow label="利用状態">
+            <div className="space-y-1 text-sm">
+              <p>
+                {route.readiness === "ready"
+                  ? "利用できます"
+                  : route.readiness === "setup_required"
+                    ? "設定が必要です"
+                    : "現在は利用できません"}
+                {route.availability === "experimental" && (
+                  <span className="ml-2 text-xs text-ink-muted">試験提供</span>
                 )}
-              </Button>
-            )}
-            {route.readiness !== "ready" && (
-              <Button
-                size="sm"
-                variant="quiet"
-                onClick={onReload}
-                disabled={reloading}
-              >
-                <RefreshCw
-                  className={`h-3 w-3 ${reloading ? "animate-spin" : ""}`}
-                  aria-hidden="true"
-                />
-                状態を再確認
-              </Button>
-            )}
-          </div>
+              </p>
+              {route.readiness !== "ready" && route.message && (
+                <p className="text-ink-muted">{route.message}</p>
+              )}
+            </div>
+          </FieldRow>
+          <FieldRow label="データと費用">
+            <p className="text-sm text-ink-muted">
+              <span>{dataLocationLabel(route.data_location)}</span> ·{" "}
+              <span>{billingOwnerLabel(route.billing_owner)}</span>
+            </p>
+          </FieldRow>
           {provider && (
             <ApiConnectionControl
               provider={provider}
-              state={connection.connectionStates[provider]}
+              state={props.connectionStates[provider]}
               hasSavedKey={
-                connection.secretsStatus[CONNECTIONS[provider].secretKey] ??
-                false
+                props.secretsStatus[CONNECTIONS[provider].secretKey] ?? false
               }
               draftKey={
-                connection.secretInputs[CONNECTIONS[provider].secretKey] ?? ""
+                props.secretInputs[CONNECTIONS[provider].secretKey] ?? ""
               }
-              editing={connection.connectionEditingProvider === provider}
-              testing={connection.connectionTestingProvider === provider}
+              editing={props.connectionEditingProvider === provider}
+              testing={props.connectionTestingProvider === provider}
               disabled={
-                providerLocked ||
-                (connection.connectionTestingProvider !== null &&
-                  connection.connectionTestingProvider !== provider)
+                props.lockedConnectionProviders?.has(provider) ||
+                (props.connectionTestingProvider !== null &&
+                  props.connectionTestingProvider !== provider)
               }
-              testMessage={connection.connectionTestMessages[provider] ?? null}
-              onBeginEdit={() => connection.onBeginConnectionEdit(provider)}
-              onCancelEdit={() => connection.onCancelConnectionEdit(provider)}
-              onDraftChange={(value) =>
-                connection.onSecretChange(provider, value)
-              }
-              onTest={() => connection.onTestConnection(provider)}
-              onRequestDelete={() => connection.onRequestSecretDelete(provider)}
-              onCancelDelete={() => connection.onCancelSecretDelete(provider)}
+              testMessage={props.connectionTestMessages[provider] ?? null}
+              onBeginEdit={() => props.onBeginConnectionEdit(provider)}
+              onCancelEdit={() => props.onCancelConnectionEdit(provider)}
+              onDraftChange={(value) => props.onSecretChange(provider, value)}
+              onTest={() => props.onTestConnection(provider)}
+              onRequestDelete={() => props.onRequestSecretDelete(provider)}
+              onCancelDelete={() => props.onCancelSecretDelete(provider)}
             />
           )}
-          {provider && selected && credentialError && (
-            <InlineNotice tone="danger">{credentialError}</InlineNotice>
-          )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-export function SupportMethodPanel({
-  agentsLocked = false,
-  routes,
-  assignments,
-  loading,
-  manualReloadStatus,
-  error,
-  credentialError,
-  replyEnabled,
-  replyAutoGenerate,
-  connectionStates,
-  secretsStatus,
-  secretInputs,
-  connectionEditingProvider,
-  connectionTestingProvider,
-  connectionTestMessages,
-  lockedConnectionProviders,
-  managedRouteActionsLocked,
-  onBeginConnectionEdit,
-  onCancelConnectionEdit,
-  onSecretChange,
-  onTestConnection,
-  onRequestSecretDelete,
-  onCancelSecretDelete,
-  onAssignmentChange,
-  onReplyEnabledChange,
-  onReplyAutoGenerateChange,
-  onRouteAction,
-  onReload,
-}: Props) {
-  const generalRoutes = routes.filter(
-    (route) => route.kind === "managed" || route.kind === "subscription_app",
-  );
-  const setupRoutes = routes.filter((route) => !generalRoutes.includes(route));
-  const isManualReloading = manualReloadStatus === "loading";
-  const credentialErrorHandledInline = routes.some(
-    (route) =>
-      Object.values(assignments).includes(route.id) &&
-      route.kind === "byok" &&
-      route.id in CONNECTION_PROVIDER_BY_ROUTE,
-  );
-  const connection: ConnectionControlBindings = {
-    connectionStates,
-    secretsStatus,
-    secretInputs,
-    connectionEditingProvider,
-    connectionTestingProvider,
-    connectionTestMessages,
-    lockedConnectionProviders,
-    onBeginConnectionEdit,
-    onCancelConnectionEdit,
-    onSecretChange,
-    onTestConnection,
-    onRequestSecretDelete,
-    onCancelSecretDelete,
-  };
-  const renderRoutes = (items: AiRouteReadModel[]) => (
-    <div className="space-y-2.5">
-      {items.map((route) => {
-        const routeActionLocked =
-          managedRouteActionsLocked &&
-          route.id === "managed" &&
-          LOCKED_MANAGED_ROUTE_ACTIONS[route.action] === true;
-        return (
-          <RouteCard
-            key={route.id}
-            route={route}
-            assignments={assignments}
-            reloading={isManualReloading}
-            connection={connection}
-            credentialError={
-              Object.values(assignments).includes(route.id)
-                ? credentialError
-                : undefined
-            }
-            onAssignmentChange={onAssignmentChange}
-            routeActionLocked={routeActionLocked}
-            onRouteAction={() => {
-              if (!routeActionLocked) onRouteAction(route);
-            }}
-            onReload={onReload}
-          />
-        );
-      })}
-    </div>
-  );
-  return (
-    <SettingsPage
-      title="支援方法"
-      description="APIキーが必要な方法は、各カード内で設定できます。"
-    >
-      <AgentRegistryPanel locked={agentsLocked} onChanged={onReload} />
-      <SettingsCard title="AI機能の割り当て">
-        {loading && !routes.length ? (
-          <div
-            className="flex items-center justify-center gap-2 py-10 text-xs text-ink-faint"
-            role="status"
-          >
-            <LoaderCircle className="h-4 w-4 animate-spin" />
-            利用状態を確認しています
-          </div>
-        ) : error && !routes.length ? (
-          <div
-            className="rounded-xl bg-danger-soft p-4 text-xs text-danger"
-            role="alert"
-          >
-            <CircleAlert className="mr-2 inline h-4 w-4" />
-            {error}
-            {manualReloadStatus === "error" && (
-              <p className="mt-2" role="status">
-                更新できませんでした
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={onReload}
-              className="ml-2 font-semibold underline"
-            >
-              再確認する
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-5">
-            {manualReloadStatus === "loading" && (
-              <div
-                className="flex items-center gap-2 text-xs text-ink-faint"
-                role="status"
-              >
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-                状態を更新しています
-              </div>
-            )}
-            {manualReloadStatus === "success" && (
-              <p className="text-xs text-positive" role="status">
-                状態を更新しました
-              </p>
-            )}
-            {manualReloadStatus === "error" && (
-              <p className="text-xs text-danger" role="status">
-                更新できませんでした
-              </p>
-            )}
-            <section aria-labelledby="general-routes">
-              <h4
-                id="general-routes"
-                className="mb-2 text-[11px] font-bold text-ink-muted"
-              >
-                一般
-              </h4>
-              {renderRoutes(generalRoutes)}
-            </section>
-            <section aria-labelledby="setup-routes">
-              <h4
-                id="setup-routes"
-                className="mb-2 text-[11px] font-bold text-ink-muted"
-              >
-                要設定
-              </h4>
-              {renderRoutes(setupRoutes)}
-            </section>
-            {credentialError && !credentialErrorHandledInline && (
-              <InlineNotice tone="danger">{credentialError}</InlineNotice>
-            )}
-            {error && (
-              <p className="text-[11px] font-medium text-danger" role="alert">
-                {error}
-              </p>
-            )}
-          </div>
+      )}
+      {props.credentialError && (
+        <InlineNotice tone="danger">{props.credentialError}</InlineNotice>
+      )}
+      {props.error && <InlineNotice tone="danger">{props.error}</InlineNotice>}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          variant="quiet"
+          size="sm"
+          onClick={props.onReload}
+          disabled={reloading}
+        >
+          {reloading ? "確認中…" : "接続状態を再確認"}
+        </Button>
+        <Button
+          variant="quiet"
+          size="sm"
+          onClick={() => setManagingAgents((value) => !value)}
+          aria-expanded={managingAgents}
+          aria-controls="agent-connections"
+        >
+          エージェントを追加・管理
+        </Button>
+        {props.manualReloadStatus === "success" && (
+          <span role="status" className="text-xs text-ink-muted">
+            状態を更新しました
+          </span>
         )}
-      </SettingsCard>
-      <SettingsCard title="返答案の表示">
-        <div className="divide-y divide-line">
-          <div className="pb-4">
-            <ToggleField
-              label="返答案を表示する"
-              description="会議中、話の流れに合わせた返答案を表示します。"
-              checked={replyEnabled}
-              onChange={onReplyEnabledChange}
-            />
-          </div>
-          <div className="pt-4">
-            <ToggleField
-              label="発話ごとに自動で作る"
-              description="発話が確定するたびに返答案を作ります。利用回数が増えるため、必要な場合だけ有効にしてください。"
-              checked={replyAutoGenerate}
-              disabled={!replyEnabled}
-              onChange={onReplyAutoGenerateChange}
-            />
-          </div>
+        {props.manualReloadStatus === "error" && (
+          <span role="status" className="text-xs text-danger">
+            更新できませんでした
+          </span>
+        )}
+      </div>
+      {managingAgents && (
+        <div id="agent-connections">
+          <AgentRegistryPanel
+            locked={props.agentsLocked ?? false}
+            onChanged={props.onReload}
+          />
         </div>
-      </SettingsCard>
-    </SettingsPage>
+      )}
+      <details className="border-t border-line pt-4">
+        <summary className="cursor-pointer text-sm font-medium">
+          返答案の動作
+        </summary>
+        <div className="pt-4">
+          <ToggleField
+            label="発話ごとに自動で作る"
+            description="オフの場合は、必要なときに手動で作ります。自動生成は利用回数が増えます。"
+            checked={props.replyAutoGenerate}
+            disabled={!props.replyEnabled}
+            onChange={props.onReplyAutoGenerateChange}
+          />
+        </div>
+      </details>
+    </SettingsSection>
   );
 }

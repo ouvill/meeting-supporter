@@ -83,7 +83,7 @@ describe("App window and reconnection behavior", () => {
 
     await screen.findByRole("navigation", { name: "アプリツールバー" });
     expect(
-      screen.getByRole("heading", { name: "まず、音声を確認しましょう" }),
+      screen.getByRole("heading", { name: "新しい会議" }),
     ).toBeInTheDocument();
     act(() => {
       useMeetingStore.setState({ connected: false });
@@ -95,7 +95,7 @@ describe("App window and reconnection behavior", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "まず、音声を確認しましょう" }),
+      screen.getByRole("heading", { name: "新しい会議" }),
     ).toBeInTheDocument();
   });
 
@@ -117,7 +117,7 @@ describe("App window and reconnection behavior", () => {
     });
     expect(
       await screen.findByRole("heading", {
-        name: "次の会議を準備しましょう",
+        name: "新しい会議",
       }),
     ).toBeInTheDocument();
     expect(
@@ -131,7 +131,7 @@ describe("App window and reconnection behavior", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "まず、音声を確認しましょう",
+        name: "新しい会議",
       }),
     ).toBeInTheDocument();
 
@@ -150,7 +150,7 @@ describe("App window and reconnection behavior", () => {
     });
     expect(
       await screen.findByRole("heading", {
-        name: "次の会議を準備しましょう",
+        name: "新しい会議",
       }),
     ).toBeInTheDocument();
 
@@ -158,7 +158,7 @@ describe("App window and reconnection behavior", () => {
     render(<App />);
     expect(
       await screen.findByRole("heading", {
-        name: "次の会議を準備しましょう",
+        name: "新しい会議",
       }),
     ).toBeInTheDocument();
   });

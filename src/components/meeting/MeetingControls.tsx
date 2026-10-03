@@ -53,7 +53,7 @@ export function MeetingControls({ state, send }: Props) {
   }
 
   return (
-    <header className="shrink-0 rounded-2xl border border-line bg-surface px-3 py-2.5 shadow-sm">
+    <header className="shrink-0 border-b border-line bg-surface py-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-positive-soft text-positive">
@@ -111,11 +111,10 @@ export function MeetingControls({ state, send }: Props) {
         </Button>
 
         <Button
-          variant="primary"
+          variant="secondary"
           size="sm"
           onClick={() => void setAssistantWindowVisible(true)}
           aria-label="プロンプターに表示"
-          className="shadow-sm"
         >
           <PanelRightOpen aria-hidden="true" size={15} />
           <span className="max-[800px]:hidden">プロンプターに表示</span>

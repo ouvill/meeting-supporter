@@ -181,10 +181,8 @@ export function MeetingHistoryList({
                 type="button"
                 data-meeting-id={meeting.id}
                 onClick={() => onSelect(meeting.id)}
-                className={`w-full min-w-0 rounded-xl border px-4 py-3.5 text-left transition-colors ${
-                  isSelected
-                    ? "border-primary bg-primary-soft"
-                    : "border-line bg-surface hover:border-line-strong hover:bg-paper"
+                className={`w-full min-w-0 rounded-lg px-4 py-3.5 text-left transition-colors ${
+                  isSelected ? "bg-primary-soft" : "hover:bg-surface"
                 }`}
                 {...(isSelected ? { "aria-current": "page" as const } : {})}
               >

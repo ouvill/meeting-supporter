@@ -68,6 +68,7 @@ describe("AudioSettingsPanel", () => {
         update={update}
       />,
     );
+    fireEvent.click(screen.getByText("音声認識の詳細な調整"));
     expect(screen.getByRole("option", { name: "GPU" })).toBeDisabled();
     expect(
       screen.getByText("GPUへの対応状況を確認しています。"),
@@ -90,14 +91,8 @@ describe("AudioSettingsPanel", () => {
     expect(
       screen.queryByRole("option", { name: "端末内・軽量" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Silero VAD")).toBeInTheDocument();
     expect(screen.queryByText(/WebRTC/)).not.toBeInTheDocument();
     expect(screen.getByLabelText("Silero音声判定しきい値")).toHaveValue("0.4");
-    expect(
-      screen.getByText(
-        "SileroはTorchを使わず、同梱した約208 KBのONNXモデルを端末内で実行します",
-      ),
-    ).toBeInTheDocument();
   });
 
   it.each(["auto", "gpu"])(
@@ -184,7 +179,7 @@ describe("AudioSettingsPanel", () => {
 
     expect(
       screen.getByRole("option", {
-        name: "端末内・日本語高精度（ReazonSpeech）",
+        name: "ReazonSpeech（日本語専用）",
       }),
     ).toBeInTheDocument();
     expect(
@@ -196,7 +191,7 @@ describe("AudioSettingsPanel", () => {
     expect(
       screen.queryByRole("option", { name: "英語" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("ReazonSpeech日本語モデル")).toBeInTheDocument();
+    expect(screen.getByText("日本語・約153 MB")).toBeInTheDocument();
     await waitFor(() => expect(getSpeechCapabilities).toHaveBeenCalled());
   });
 });

@@ -9,7 +9,7 @@ export function StickyActionBar({
   return (
     <div
       className={cn(
-        "sticky bottom-0 z-10 flex min-w-0 items-center justify-end gap-2 border-t border-line bg-surface px-4 py-3 shadow-sticky",
+        "sticky bottom-0 z-10 flex shrink-0 min-w-0 items-center justify-end gap-2 border-t border-line bg-surface px-4 py-3",
         className,
       )}
       {...props}

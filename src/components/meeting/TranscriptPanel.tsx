@@ -36,7 +36,7 @@ export function TranscriptPanel({
 
   return (
     <section
-      className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-sm"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface"
       aria-labelledby="conversation-history-heading"
     >
       <div className="shrink-0 border-b border-line px-4 py-3">
@@ -194,11 +194,7 @@ function ConversationTurn({
 
   return (
     <article
-      className={`w-fit min-w-0 max-w-[88%] rounded-2xl border transition-colors motion-reduce:transition-none ${
-        isOther
-          ? "mr-auto rounded-tl-sm border-line bg-surface-muted"
-          : "ml-auto rounded-tr-sm border-primary/20 bg-primary-soft"
-      } ${pinned ? "border-primary/35 ring-1 ring-primary/10" : ""}`}
+      className={`min-w-0 border-b border-line pb-2 ${pinned ? "bg-primary-soft/40" : ""}`}
       aria-live={interim ? "polite" : undefined}
       aria-atomic={interim || undefined}
     >
@@ -219,7 +215,7 @@ function ConversationTurn({
         >
           <button
             type="button"
-            className="w-full cursor-help rounded-xl px-3 py-2.5 hover:bg-primary-soft/55 focus-visible:bg-primary-soft/55"
+            className="w-full cursor-pointer rounded-md px-2 py-3 hover:bg-primary-soft/55 focus-visible:bg-primary-soft/55"
             aria-expanded={pinned}
             aria-controls={panelId}
             onClick={onTogglePinned}
@@ -228,23 +224,20 @@ function ConversationTurn({
           </button>
         </Tooltip>
       ) : (
-        <div className="px-3 py-2.5">{turnContent}</div>
+        <div className="px-2 py-3">{turnContent}</div>
       )}
 
       {pinned && hasSuggestions && (
         <div
           id={panelId}
-          className="mx-2 mb-2 space-y-2 rounded-xl border border-primary/20 bg-surface p-2.5 shadow-sm"
+          className="mx-2 mb-3 space-y-2 border-l-2 border-primary/25 pl-3"
         >
           <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.08em] text-primary">
             <Sparkles aria-hidden="true" size={11} />
             この時の返答案
           </div>
           {suggestions.map((suggestion) => (
-            <div
-              key={suggestion.suggestionId}
-              className="rounded-lg bg-primary-soft/70 px-2.5 py-2"
-            >
+            <div key={suggestion.suggestionId} className="py-2">
               {suggestions.length > 1 && (
                 <p className="text-[10px] font-bold text-primary">
                   {suggestion.agentLabel}

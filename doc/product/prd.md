@@ -122,7 +122,7 @@ UIと要件で次の語を混ぜない。
 
 - **Route**: 利用者が選ぶ「AIを使う方法」。availability、データ、費用の単位。
 - **Runtime**: 実行プロトコルとprocess lifecycleを吸収する内部実装。
-- **Provider/model**: 推論先とモデル解決。provider名は利用者向けroute情報として表示でき、provider固有のAPI credential controlは対応するSettings利用箇所に置ける。保存済みcredential、model識別子、endpoint等は一般surfaceへ表示しない。
+- **Provider/model**: 推論先とモデル解決。provider名は利用者向けroute情報として表示でき、provider固有のAPI credential controlは対応するSettings利用箇所に置ける。モデル選択と接続の管理はAI設定へ集約する。カスタム識別子とendpointは対応するサービスの詳細内で扱い、保存済みcredentialは表示しない。
 - **Config/secret**: 永続設定とcredential保存。routeやruntimeそのものではない。
 
 use-caseはruntime種別を知らず、runtimeはroute表示文言を決めない。ADR-009の use-case / runtime / provider / config 境界を維持する。

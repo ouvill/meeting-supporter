@@ -73,6 +73,9 @@ describe("MainMeetingControlScreen", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByLabelText(/経過時間/)).toBeInTheDocument();
     expect(screen.queryByRole("meter")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "会話履歴の内容" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "音声 正常" }));
 
@@ -176,7 +179,7 @@ describe("MainMeetingControlScreen", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it("shows an empty conversation history without requiring another action", () => {
+  it("opens the optional conversation history", () => {
     render(
       <MainMeetingControlScreen
         state={meetingState()}
@@ -185,6 +188,7 @@ describe("MainMeetingControlScreen", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "会話履歴" }));
     const history = screen.getByRole("region", { name: "会話履歴の内容" });
     expect(history).toBeVisible();
     expect(history).toHaveTextContent("発言を待っています");
@@ -210,6 +214,7 @@ describe("MainMeetingControlScreen", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "会話履歴" }));
     const history = screen.getByRole("region", { name: "会話履歴の内容" });
     expect(
       screen.getAllByRole("article").map((article) => article.textContent),
@@ -236,6 +241,7 @@ describe("MainMeetingControlScreen", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "会話履歴" }));
     const entries = screen.getAllByRole("article");
     expect(entries.map((entry) => entry.textContent)).toEqual([
       "自分次の議題です。",
@@ -262,6 +268,7 @@ describe("MainMeetingControlScreen", () => {
         onSettings={() => {}}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "会話履歴" }));
     const history = screen.getByRole("region", { name: "会話履歴の内容" });
     Object.defineProperties(history, {
       clientHeight: { configurable: true, value: 192 },
@@ -318,6 +325,7 @@ describe("MainMeetingControlScreen", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "会話履歴" }));
     const historyReply = screen.getByRole("button", {
       name: /以前の質問です。/,
     });

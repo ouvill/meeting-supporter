@@ -1,321 +1,122 @@
 # Product Surfaces
 
 - **Status**: Active
-- **Updated**: 2026-10-01
-- **Authority**: 画面責務、状態、一般向けコピー
+- **Updated**: 2026-10-04
+- **Authority**: 画面の責務、状態、利用者向けの文言
 - **Requirements**: [Product Requirements](../product/prd.md)
 
-## Experience Principles
-
-1. 会議中は「聞く」「返答案を作る」「コピーする」以外の判断を増やさない。
-2. 一般向け画面では内部用語を使わず、利用者の目的で説明する。
-3. `available`、`experimental`、`planned` と、現在の `readiness` を混同しない。
-4. 状態は色だけで伝えず、短いラベルと次の操作を添える。
-5. unavailableな操作を押せるように見せない。
-6. AI失敗時も会議の終了、履歴、設定への退避を残す。
-7. OS標準のwindow操作とアプリ内navigation/statusを混ぜない。
-
-## Language and Localization Contract
+## 基本方針
 
-- desktop UIの全visible copy、tooltip、dialog、empty/loading/error state、ARIA label/description、日時・数値・通貨、native window titleを日本語と英語で提供する。
-- 初回は`navigator.languages`の先頭localeが`ja`または`ja-*`なら日本語、それ以外（unsupportedまたは空を含む）は英語とする。利用者が表示設定で`システム設定 / System default`、`日本語`、`English`を選ぶと即時に全windowへ反映し、明示選択を次回起動へ保持する。
-- `システム設定 / System default`は起動時とruntimeのOS language変更時に再解決する。fallback catalogは英語とし、未知または不完全な翻訳は安全なgeneric copyへ落とす。
-- UI localeと音声認識のlocaleは別のpreferenceである。表示言語の変更はSTT設定または会議contentを変更しない。
-- OS device名、file名、利用者が付けたmeeting title、transcript、reference、AI reply/minutes、利用者定義のreply style label、license本文は原文のまま表示する。
-- APIとWebSocketの利用者向けstatus/error/route説明はhuman-readable stringではなく`UiMessage` descriptorを返す。backendはlocaleを解釈せず、frontendだけがdescriptorを翻訳する。raw exception、path、credential、prompt、transcript、provider responseをdescriptor valuesまたは画面へ出さない。
-- localeや翻訳済み文言をbehavior分岐へ使わない。severity、message code、readinessなどのstable fieldで状態を判定する。
+初回のモデル取得、毎回の会議準備、継続的な設定を分ける。利用者は音声認識の初期化を個別に操作せず、会議の開始から続けて実行できる。
 
-## Vocabulary and Copy Rules
-
-### General surfaces
+- 会議前は音声入力の確認と開始を優先する。会議の背景情報は任意とする。
+- 会議中は直前の発言と返答案を中心に表示する。
+- AIサービス、モデル、接続設定は「AIと音声認識」にまとめる。
+- アカウント、ログイン、プラン購入の入口は表示しない。hosted service は AI の選択肢にも表示しない。
+- 状態は色だけで伝えず、文言と必要な操作を添える。
+- availability、readiness、selectable は API の値に従い、UI が利用可能と推測しない。
+- OS のウィンドウ操作を HTML で再実装しない。
 
-一般画面で使用する語:
+## 共通の表示
 
-- `AIの使い方`
-- `このPCのChatGPTログイン`
-- `OpenAI`、`Gemini`、`Anthropic`、`Ollama`、`ACP`などの経路名
-- `自分で接続する`
-- `データの処理場所`
-- `費用は外部サービスの契約に基づきます`
-- `現在は提供していません`
+設定は見出し、設定行、区切り線でまとめる。通常のセクションをカードで囲まず、角丸の面を入れ子にしない。主操作には共通のアクセント色を使い、正常状態を大きな通知で繰り返さない。
 
-一般画面で表示しない情報:
+- ラベルと入力欄を揃え、狭いウィンドウでは縦に並べる。
+- 設定ナビゲーションは広いウィンドウではサイドバー、狭いウィンドウでは折り返す一覧とする。
+- 操作のフォーカスを可視化する。設定を閉じると、開いた操作へフォーカスを戻す。
+- 保存済み API キー、raw exception、stderr、prompt、token は画面に表示しない。
+- モデル名はモデル選択欄に表示する。カスタム識別子と接続 URL は、それぞれの AI の設定内で開く。
 
-- 保存済みAPIキー、credentialの既存値
-- model識別子、base URL、endpoint、command
-- adapter、JSON-RPC、stdio、ACP capability、runtime診断
-- token、raw error、stderr、stack trace
-- BYOK（単独の略語として）
+## 会議前
 
-providerやserviceの名称とroute cardは一般設定に表示してよい。例外として、Settingsの対応する利用箇所にprovider固有のAPIキー入力・接続確認controlを表示できる。保存済み値、model、endpoint、command、診断詳細は表示しない。
+「新しい会議」に次の内容を表示する。
 
-### Availability and readiness labels
+- 自分のマイクと相手側の音声の選択、入力レベル、テスト音の再生。
+- 文字起こしと返答案の利用状態。それぞれの設定への入口。
+- 任意の会議の目的。
+- 初期状態では閉じた「会議の詳細・資料を追加」。会議種別、立場、背景、希望する話し方、制約、資料を保持する。
+- 画面下部の「会議を開始」。
 
-availabilityとreadinessを一つのstatusへ畳み込まない。
+### モデルの準備
 
-| availability | General label | Rule                          |
-| ------------ | ------------- | ----------------------------- |
-| available    | ラベルなし    | readinessを併記する。         |
-| experimental | 試験提供      | 常時badgeと既知の制約を示す。 |
-| planned      | 提供前        | 選択操作を置かない。          |
+保存済みの音声認識設定に対応するモデルの状態を確認する。未取得の場合は「モデルを準備」から設定の文字起こし欄へ直接進む。ダウンロード中、確認中、確認失敗を準備済みとして扱わない。
 
-| readiness      | General label          | Supporting copy                                | Primary action      |
-| -------------- | ---------------------- | ---------------------------------------------- | ------------------- |
-| ready          | 準備できました         | この方法で返答案を利用できます。               | この方法を使う      |
-| setup_required | 準備が必要です         | 利用前に接続またはログインを確認してください。 | APIの`action`に従う |
-| unknown        | 確認できていません     | 現在の利用状態をまだ確認できません。           | APIの`action`に従う |
-| unavailable    | 現在利用できません     | APIのsafe `message`を表示する。                | APIの`action`に従う |
-| not_offered    | 現在は提供していません | 提供時期・価格は未定です。                     | なし                |
+ダウンロードの操作は「モデルをダウンロード」と明示する。取得による通信と会議音声の処理を区別し、取得中は進捗と取得量を表示する。設定を閉じても取得は続く。
 
-`reason_code` は分岐にだけ使い、そのまま画面へ表示しない。`message` と `action` はAPIが返す安全な値だけを表示する。
+### 会議開始
 
-## Surface Map
+モデルを取得済みであれば、「会議を開始」から必要な音声認識の初期化を行い、成功後に同じ会議情報で開始する。
 
-```text
-起動・準備
-  -> 会議中メイン
-      -> ライブ支援パネル
-  -> 会議履歴
-設定
-  -> AIの使い方
-      -> 上級者向け設定
-  -> 音声認識
-  -> データと保存
-```
+| 状態               | 表示と操作                                        |
+| ------------------ | ------------------------------------------------- |
+| 開始可能           | 「会議を開始」                                    |
+| 音声認識の初期化中 | 「準備中…」、キャンセル。入力変更と重複開始を防ぐ |
+| 会議開始待ち       | 「開始中…」。重複開始を防ぐ                       |
+| 初期化・開始失敗   | 短い説明、設定への入口、再度の開始                |
+| 切断               | 再接続の説明。接続が戻っても勝手に開始しない      |
+| モデル未取得       | モデル準備への入口。会議開始は無効                |
+| 返答案のみ利用不可 | 録音と文字起こしの開始は可能                      |
 
-## 1. Start / Preparation
+キャンセル、画面を離れる操作、切断、エラーは開始待ちを解除する。解除後に遅れて届いた準備完了通知から会議を開始しない。
 
-### Purpose
+会議終了時に保存失敗や中断があった場合は、履歴への入口を残す。音声処理の停止を確認できない場合は、再起動するまで次の会議を開始させない。
 
-会議を始められる状態かを短時間で確認し、会議文脈を任意で補う。
+## 設定
 
-### Content
+設定の入口はアプリのツールバーと関連する操作の近くに置く。メインウィンドウでは Command / Control + comma でも開ける。
 
-- アプリと音声認識の準備状態
-- 相手の声、自分の声の入力選択
-- 会議の場面、役割、目的、制約
-- 参照資料の追加と受理/拒否結果
-- `会議を始める`
-- `AIの使い方` の要約状態
-- 履歴、設定への導線
-- OS native window bar直下のapp toolbarにbrand、home、履歴、設定、mainの前面固定を置く。会議中はbrand、`会議中`、設定、前面固定だけに絞る。
+### AI と音声認識
 
-AI routeの詳細カード一覧は置かない。準備できていない場合だけ、`AIの準備を確認` を示す。
+返答案と文字起こしを同じページに置き、ページ内の移動操作を用意する。
 
-### States
+返答案では次を表示する。
 
-- **booting**: `アプリを準備しています…`
-- **audio_not_ready**: `音声認識の準備が必要です` / `音声認識を使えるようにする`。実行前に`初回は必要なデータの読み込みに時間がかかる場合があります。`と示す。
-- **audio_preparing**: `音声認識を準備しています…`とprogressを一つ表示し、二重起動を防ぐ。完了時は`音声認識を使えます`、失敗時は`音声認識を準備できませんでした。もう一度お試しください。`と示す。
-- **ready**: `会議を始められます`
-- **partial**: 音声は使えるがAIが使えない場合、`会話の記録は開始できます。返答案は現在利用できません。`
-- **error**: safe messageと`もう一度試す`。raw detailは表示しない。
+- 返答案の有効・無効。
+- 利用する AI の選択。未提供の選択肢は選択できない。
+- 選択した AI のモデル、利用状態、データの処理場所、費用負担。
+- 選択したサービスの API 接続。未使用のサービスの入力欄を並べない。
+- 「エージェントを追加・管理」の先に、検索、導入、認証、更新、削除。
+- 折りたたんだ「返答案の動作」に自動生成の設定。
 
-## 2. Main Meeting Window
+OpenAI、Gemini、Anthropic のモデル一覧は選択中のサービスについて取得する。Ollama の接続先と接続テストはモデル欄の近くで開く。接続済みエージェントがモデル選択に対応していれば、このページで変更できる。エージェントのモデル変更は即時反映と明示し、会議中は変更できない。
 
-### Purpose
+文字起こしでは、Whisper / ReazonSpeech、モデル、会議の言語、取得状態を表示する。実行デバイス、無音の時間、音声判定のしきい値は「音声認識の詳細な調整」に置く。会議中や初期化中は変更できない。
 
-会議の進行、音声状態、経過時間、ライブ支援ウィンドウを制御し、必要なときだけ直近までの会話を確認できるようにする。
+### 音声入力
 
-### Content
+マイクと相手側の音声を確認・変更する。会議前と共通の入力選択・音量表示・テストを使用する。入力の変更は即時反映と明示する。会議中や初期化中は変更できない。
 
-- `会議中` と経過時間
-- 自分/相手の音声レベルと聞き取り状態
-- 会議を終了する主操作
-- `ライブ支援を表示`
-- 最小限の設定導線
-- OS native window bar直下のapp toolbar。会議中は効果のないnavigationを表示せず、設定とmainの前面固定だけを残す。
-- 初期状態では閉じた`会話履歴`。確定発言と聞き取り中の発言を同じ時系列で確認する。
+### データと保存
 
-会話履歴は会議操作を圧迫しない高さに制限し、パネル内だけをスクロールさせる。AI方式の選択、モデル、費用詳細は置かない。
+データの送信範囲、保存先、共通の参考資料フォルダ、録音の整理を管理する。削除対象の確認と削除の操作を分ける。
 
-### States
+### 保存と終了
 
-- **listening**: `聞き取り中`
-- **no_input**: `音声が届いていません` / `入力を確認`
-- **assistant_unavailable**: `返答案は利用できません。会議の記録は続けられます。`
-- **ending**: `会議を保存しています…`。終了操作を重複送信しない。
-- **saved**: `会議を保存しました`
+AI、音声認識、保存設定の変更は「保存」で反映する。未保存の変更がある場合は閉じる際に破棄を確認し、戻った場合は入力を保持する。API キーの削除も保存まで確定しない。
 
-mainのnative closeはアプリを終了する。minimize、maximize、restore、closeはOSへ委ね、HTMLで再実装しない。
+「このアプリ」にはアプリと依存ソフトウェアのライセンスを表示する。
 
-## 3. Live Assistance Panel
+## 会議中
 
-### Purpose
+上部に会議名、経過時間、音声状態、プロンプター表示、会議終了を置く。返答案を生成する操作を主操作とする。
 
-ビデオ会議の横で、最新の会話文脈だけを確認しながら、必要な瞬間に返答案を得る。
+中央に直前の発言と一つの主な返答案を表示する。返答案には生成、停止、コピー、言い換えを用意する。新しい発言だけを理由に表示中の返答案を置換しない。
 
-### Layout
+会話履歴は初期状態では閉じ、「会話履歴」から開く。広いウィンドウでは返答案の横、狭いウィンドウでは下に表示する。確定発言、聞き取り中の発言、過去の返答案を時系列で確認できる。
 
-1. OS native window bar直下のapp toolbar: `会議中`、聞き取り状態、前面固定
-2. `常に前面に表示` の実状態とON/OFF操作。Main Windowとは独立し、利用者の選択を再起動後も復元する。
-3. 最新の発言を1件だけ表示する短い文脈領域。全会話履歴はMain Meeting Windowで確認する。
-4. 返答案領域
-5. `返答案を作る` と、少数の意図選択
+生成の停止・再試行・破棄は generation_id で対象を区別する。停止後や破棄後の遅延イベントで返答案を復活させない。AI が利用できないときも、会議の記録と終了を続けられる。
 
-内部route、model、token、単価、設定フォームは置かない。
+独立したプロンプターには直前の発言、返答案、生成操作、前面固定を置く。接続設定やモデル選択は置かない。閉じる操作はウィンドウを非表示にし、再表示時も会議状態を保持する。
 
-### Reply states
+## 会議履歴
 
-| State             | Display                                                            | Actions                  |
-| ----------------- | ------------------------------------------------------------------ | ------------------------ |
-| idle              | `必要なときに「返答案を作る」を押してください`                     | 返答案を作る             |
-| no_context        | `相手の発言が聞き取れると返答案を作れます`                         | なし                     |
-| generating        | `返答案を作っています…` とpartial text                             | 停止                     |
-| ready             | `返答案` と1つの主結果                                             | コピー、言い換える、破棄 |
-| cancelled         | `返答案の生成を停止しました`。partial textは確定結果と混同しない。 | もう一度                 |
-| disabled          | `返答案はオフです`                                                 | 設定へ                   |
-| route_unavailable | `AIの準備を確認してください` とsafe reason                         | 準備を確認               |
-| error_retryable   | `返答案を作れませんでした`                                         | もう一度                 |
-| error_terminal    | `この方法は現在利用できません`                                     | AIの使い方へ             |
+会議一覧と選択した会議の詳細を並べる。狭いウィンドウでは一覧と詳細を切り替え、戻ると選択した会議へフォーカスを戻す。
 
-### Interaction
+会話、返答案、録音、タイトル編集、削除を扱う。読み込み中、空、取得失敗、再試行、保存・削除の失敗を区別する。内容の区分には見出しと余白を使い、カードの入れ子を避ける。
 
-- 手動生成を既定にする。
-- 生成中も最新の発言を隠さない。長い会話ログをプロンプターへ持ち込まない。
-- 新しい発言が入っても現在の返答案を勝手に置換しない。
-- 1つの主結果を読みやすく示し、候補カードを無制限に増やさない。
-- コピー成功は短時間の`コピーしました`で伝える。
-- 支援ウィンドウ内で`常に前面に表示`をON/OFFでき、現在状態を色だけに依存せず確認できるようにする。
-- `停止`はcancelを送り、完了後にgeneratingへ戻らない。
-- stop/retry/言い換え/破棄は`generation_id`で対象を区別し、cancelled/discarded generationの遅延chunkや完了を表示・保存しない。
-- shortcutは入力欄・ボタン操作と衝突させない。
-- native closeはwindowを破棄せずhideし、再表示時に会議中の状態と前面固定状態を保つ。
+## 参考ガイド
 
-## 4. AI Usage Setup
-
-### Purpose
-
-専門知識なしで、利用できるAIの方法と現在の準備状態を理解する。
-
-### Route cards
-
-カードはAPIのroute read modelだけから描画する。
-
-表示順:
-
-1. 選択中かつ利用可能な方法
-2. 準備済みの方法
-3. 準備が必要な方法（OpenAI、Gemini、Anthropic、Ollama、ACPなどの個別route cardを含む）
-4. hosted service未設定の説明（選択カードではない）
-
-各選択可能カードには `label`、短い`description`、安定/試験提供、readiness、データの処理場所、費用負担、safe `message` と `action` を表示する。
-
-### Required route copy
-
-#### Rust 構成の Registry エージェント
-
-「支援方法」に検索・追加・認証・更新・削除をまとめ、会議中は変更を無効にする。
-自動確認で導入可能な更新が見つかった場合は、この設定内に件数と「まとめて更新」を表示する。個別更新と手動確認も残し、会話画面には更新通知を出さない。
-公開後待機設定で導入できない版は更新対象に含めない。更新に失敗した場合は旧版を保持し、対象ごとの結果を設定内で示す。
-導入は明示操作で行い、接続済みのエージェントを返答案に割り当てて保存する。
-未対応の配布形式や未認証の状態を利用可能と表示しない。画面に command や protocol payload を出さない。
-旧 Codex direct と「外部エージェント連携」のカード、手動 command 入力は表示しない。
-境界は [ADR-017](../adr/017-acp-registry-and-shared-rust-client.md) を参照する。
-
-#### BYOK/local
-
-一般設定にOpenAI、Gemini、Anthropic、Ollamaなどのprovider/service名、個別route card、readinessを表示してよい。Gemini、OpenAI、Anthropicのroute card内にはprovider固有のAPIキー入力・接続確認controlを置く。mappingにないBYOK routeへ認証方式を推測しない。音声設定にはAPIキー入力を置かない。
-
-保存済みAPIキーの値は表示しない。model識別子、endpointの表示・編集はAdvancedに残す。
-
-#### Hosted service
-
-Meeting Supporterが運営するhosted serviceのserver実装・運用文書は、このOSSリポジトリに含まれない。通常のOSS buildではhosted serviceは未設定で利用できず、`not_offered`かつ`selectable = false`として表示する。login、checkout、hosted route選択を開始できる操作は置かない。
-
-local STT、利用者自身のAPI credential、Ollama、ACPエージェントはhosted accountなしで利用できる。public clientに残る認証境界とschema validationは外部応答を信頼せず、未設定または不正な状態をfail closedで扱う。
-
-### Audio selection
-
-音声設定は Whisper / ReazonSpeech を選択できる。音声認識用の API キー、接続先、クラウドモデルと未提供の方式は表示しない。
-Rust の旧設定は読み込まず、新形式の既定値から設定する。設定形式の扱いは [ADR-020](../adr/020-versioned-rust-settings.md) に従う。
-
-## 5. Advanced AI Settings
-
-### Purpose
-
-provider固有model、local serviceを理解している利用者が、API credential以外の構成値と診断を管理する。
-
-### Content
-
-- cloud provider固有のmodel識別子
-- Ollama/OpenAI-compatible endpointとmodel
-- data locationとbilling owner
-
-### Rules
-
-- API credentialの既存値はSupport/Audioを含む全surfaceで再表示しない。
-- secretをcopyable text、URL query、error detailへ出さない。
-- loopbackでないlocal-compatible endpointには`このPC外へ送信される可能性があります`を表示する。
-- API credentialの接続確認と設定全体の保存を区別する。
-- failed testで保存済みの値を勝手に消さない。
-
-## Settings dialog behavior
-
-- Settingsはnative `<dialog>`のtop layerへ表示し、titleへ初期focusを置く。
-- Tab/Shift+Tabはdialog内を循環し、Escape、backdrop、close操作は同じclose requestを使う。
-- 変更がなければ直ちに閉じ、変更があれば`変更を破棄して閉じる` / `設定に戻る`を表示する。確認dialogのcloseとEscapeはSettingsと変更を保持する。
-- `変更を破棄して閉じる`はform、secret draft/deletion、未保存のroute選択をsaved baselineへ戻してから一度だけ閉じる。
-- 実際に閉じた後、起点要素が存在する場合だけfocusを戻す。
-
-## 6. Meeting History
-
-### Purpose
-
-ライブ支援の副産物を確認し、必要な記録を保持・削除する。
-
-### Content
-
-- 会議一覧、日時、長さ、保存成果物の有無
-- 会議詳細、会話、保存された返答案、利用可能な録音
-- タイトル変更
-- 確認dialog付き削除
-
-### States
-
-- loading: skeletonまたは`読み込み中`
-- empty: `保存された会議はありません`
-- load_error: `履歴を読み込めませんでした` / `もう一度`
-- deleting: dialog操作を無効化し`削除しています…`
-- missing_asset: 会議全体をerrorにせず、該当成果物だけ`利用できません`
-- interrupted: `中断` と記録の欠落の可能性を表示し、保存済みの内容の閲覧と確認付き削除を提供する。専用の復旧画面は設けない。Rust の開始画面では中断・一部未保存・停止確認失敗を分けて案内する。判断条件は [ADR-018](../adr/018-interrupted-meeting-history.md) に従う。
-
-### Saved minutes
-
-保存済みの議事録があれば、会議状態にかかわらず履歴詳細に「保存済みの議事録」として表示する。
-本文がない場合は欄を表示しない。新規生成、再生成、生成中止、議事録用の AI 割当は提供しない。
-
-## Error and Privacy Copy Contract
-
-UIへ表示してよいもの:
-
-- safe codeに対応する短いmessage
-- retryableかどうか
-- 再確認、設定、ログイン手順へのaction
-- data locationとbilling owner
-
-表示してはならないもの:
-
-- raw exception / stack trace
-- prompt / transcript dump
-- subprocess stdout/stderr
-- access token / API credential / auth header
-- local absolute path（利用者が明示選択したpath表示を除く）
-
-不明なerrorを推測して`ログインが必要`等へ変換しない。安全なgeneric copy `処理を完了できませんでした` と recovery actionを使う。
-
-## Review Gate
-
-一般画面を変更するPRは、少なくとも次を確認する。
-
-- route/provider/runtime/configの語が混ざっていない
-- 通常のOSS buildでhosted serviceが`not_offered/selectable=false`になっている
-- experimental badgeと制約が常時見える
-- loading/empty/ready/disabled/error/cancelledを扱う
-- keyboard、focus、色以外の状態表現がある
-- unsafe detailがUIへ流れない
-- PRDのavailabilityと一致する
-- 重要surfaceをbase stateで表示し、opacity animation成功へ依存させない
-- 対応OSのnative shellでwindow close/前面固定/返答案controlを実行し、WCAG A/AAの自動検査を通す
-
-実装進捗と公開可能なbug・featureは[GitHub Issues](https://github.com/ouvill/meeting-supporter/issues)で管理する。
+- [Apple: Settings](https://developer.apple.com/design/human-interface-guidelines/settings)
+- [Android: Settings](https://developer.android.com/design/ui/mobile/guides/patterns/settings)
+- [Android: Card](https://developer.android.com/develop/ui/compose/components/card)
+- [Android: Canonical layouts](https://developer.android.com/develop/adaptive-apps/guides/canonical-layouts)

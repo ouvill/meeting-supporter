@@ -24,7 +24,7 @@ import {
 } from "../../platform/managedServiceClient";
 import { Button } from "../ui/Button";
 import { InlineNotice } from "../ui/InlineNotice";
-import { SettingsCard, SettingsPage } from "./SettingsPrimitives";
+import { SettingsSection, SettingsPage } from "./SettingsPrimitives";
 
 interface Props {
   offered: boolean;
@@ -151,7 +151,7 @@ export function AccountSettingsPanel({
       ) : (
         <>
           {error && <InlineNotice tone="danger">{error}</InlineNotice>}
-          <SettingsCard title="Meeting Supporter アカウント">
+          <SettingsSection title="Meeting Supporter アカウント">
             {loading ? (
               <div
                 className="flex items-center gap-2 py-6 text-sm text-ink-muted"
@@ -214,11 +214,11 @@ export function AccountSettingsPanel({
                 </Button>
               </div>
             )}
-          </SettingsCard>
+          </SettingsSection>
 
           {auth?.authenticated && entitlement && (
             <>
-              <SettingsCard title="月額プラン">
+              <SettingsSection title="月額プラン">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border border-line bg-surface p-4">
                     <div className="flex items-center gap-2 text-xs font-semibold text-ink-muted">
@@ -266,9 +266,9 @@ export function AccountSettingsPanel({
                     </Button>
                   )}
                 </div>
-              </SettingsCard>
+              </SettingsSection>
 
-              <SettingsCard title="プランに含まれるAI利用枠">
+              <SettingsSection title="プランに含まれるAI利用枠">
                 <div className="flex items-end justify-between gap-4 rounded-xl border border-primary/15 bg-primary-soft p-4">
                   <div>
                     <div className="flex items-center gap-2 text-xs font-semibold text-primary">
@@ -286,9 +286,9 @@ export function AccountSettingsPanel({
                 <p className="mt-3 text-xs leading-relaxed text-ink-muted">
                   返答案とクラウド音声認識を月額内で利用できます。利用枠は毎月リセットされ、上限に達すると自動で停止します。追加料金は発生しません。
                 </p>
-              </SettingsCard>
+              </SettingsSection>
 
-              <SettingsCard title="アカウントの削除">
+              <SettingsSection title="アカウントの削除">
                 {!confirmingDeletion ? (
                   <Button
                     size="sm"
@@ -324,7 +324,7 @@ export function AccountSettingsPanel({
                     </div>
                   </InlineNotice>
                 )}
-              </SettingsCard>
+              </SettingsSection>
             </>
           )}
         </>

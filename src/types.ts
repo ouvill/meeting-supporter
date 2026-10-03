@@ -102,6 +102,7 @@ export interface ReplyCancelResult {
 export interface SocketState {
   connected: boolean;
   statusText: string;
+  errorRevision?: number;
   isRunning: boolean;
   meetingSaved?: boolean;
   meetingEndStatus?:
@@ -112,6 +113,7 @@ export interface SocketState {
     | null;
   sttBackend: string;
   sttInitialized: boolean;
+  sttStateRevision?: number;
   sttInitializing: boolean;
   sttInitRequested: boolean;
   agentSettings: AgentSettings;

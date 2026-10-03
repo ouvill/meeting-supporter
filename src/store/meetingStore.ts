@@ -485,6 +485,7 @@ function reduce(s: SocketState, msg: InboundMessage): SocketState {
         ...s,
         sttBackend: msg.backend,
         sttInitialized: msg.initialized,
+        sttStateRevision: (s.sttStateRevision ?? 0) + 1,
         sttInitializing: msg.initializing,
         sttInitRequested: false,
       };
@@ -494,6 +495,7 @@ function reduce(s: SocketState, msg: InboundMessage): SocketState {
       return {
         ...s,
         statusText: `エラー: ${msg.text}`,
+        errorRevision: (s.errorRevision ?? 0) + 1,
         sttInitializing: false,
         sttInitRequested: false,
       };

@@ -1,14 +1,4 @@
 import { useId, useState } from "react";
-import {
-  ChevronDown,
-  FileText,
-  Headphones,
-  History,
-  Mic2,
-  Settings,
-  Sparkles,
-  Volume2,
-} from "lucide-react";
 import type {
   MeetingContextInput,
   ReferenceDocumentInput,
@@ -19,11 +9,9 @@ import type {
   AiRoutesReloadStatus,
   AiUseCaseRouteStatus,
 } from "../hooks/useAiRoutes";
-import {
-  AudioPreparation,
-  SystemAudioTestControl,
-} from "./setup/AudioPreparation";
-import { DeviceSelect } from "./setup/DeviceSelect";
+import { useMeetingStart } from "../hooks/useMeetingStart";
+import type { SavedSpeechReadiness } from "../hooks/useSavedSpeechReadiness";
+import { AudioInputs } from "./setup/AudioInputs";
 import { ReferenceDocuments } from "./setup/ReferenceDocuments";
 import { contextWithFallback } from "./setup/setupUtils";
 import { Button, InlineNotice, StickyActionBar } from "./ui";
@@ -33,15 +21,13 @@ interface Props {
   send: SendFn;
   showFirstRunGuidance: boolean;
   onSettings: () => void;
+  onSpeechSettings?: () => void;
   onHistory?: () => void;
   replyStatus: AiUseCaseRouteStatus;
   replyReloadStatus: AiRoutesReloadStatus;
   onReloadReplyStatus: () => void;
+  speechReadiness?: SavedSpeechReadiness;
 }
-
-const MEETING_TYPES = ["商談", "面接", "1on1", "定例", "相談", "その他"];
-const ROLE_PRESETS = ["進行役", "提案する側", "聞き手", "意思決定者", "参加者"];
-
 const DEFAULT_MEETING_CONTEXT: MeetingContextInput = {
   scenario: "",
   userRole: "",
@@ -52,83 +38,71 @@ const DEFAULT_MEETING_CONTEXT: MeetingContextInput = {
   constraints: "",
   customInstructions: "",
 };
+const SPEECH_LABELS: Record<SavedSpeechReadiness, string> = {
+  checking: "モデルを確認しています…",
+  ready: "準備済み・この端末で処理",
+  missing: "初回のモデルダウンロードが必要です",
+  downloading: "モデルをダウンロードしています…",
+  error: "モデルの準備状態を確認できません",
+};
 
 export function SetupScreen({
   state,
   send,
   showFirstRunGuidance,
   onSettings,
+  onSpeechSettings = onSettings,
   onHistory,
   replyStatus,
   replyReloadStatus,
   onReloadReplyStatus,
+  speechReadiness,
 }: Props) {
   const [meetingContext, setMeetingContext] = useState<MeetingContextInput>(
     DEFAULT_MEETING_CONTEXT,
   );
   const [references, setReferences] = useState<ReferenceDocumentInput[]>([]);
-  const monitors = state.devices.filter((device) => device.is_monitor);
-  const mics = state.devices.filter((device) => !device.is_monitor);
-  const needsAudioPreparation = ["local", "whisper", "reazonspeech"].includes(
-    state.sttBackend,
-  );
-  const audioLocked =
-    state.sttInitialized || state.sttInitializing || state.sttInitRequested;
-  const audioReady = !needsAudioPreparation || state.sttInitialized;
+  const start = useMeetingStart(state, send);
+  const busy = start.phase !== "idle";
   const stopFailed = state.meetingEndStatus === "stop_failed";
-  const canStart = state.connected && audioReady && !stopFailed;
-  const replyFeatureEnabled = state.agentSettings.replyEnabled;
-  const replyFeatureReady = replyFeatureEnabled && replyStatus.canGenerate;
-  const replyReadinessLoading =
-    replyFeatureEnabled &&
-    replyStatus.readiness === "unknown" &&
-    replyStatus.message === null;
-  const showReplyRecovery =
-    canStart && !replyFeatureReady && !replyReadinessLoading;
-  const retryReplyReadiness =
-    replyFeatureEnabled &&
-    (replyStatus.readiness === "error" ||
-      replyStatus.readiness === "unavailable");
-  const startStatus = stopFailed
-    ? "アプリの再起動が必要です"
-    : !state.connected
-      ? "接続を確認しています"
-      : !audioReady
-        ? "音声認識の準備が必要です"
-        : replyFeatureReady
-          ? "開始できます"
-          : replyReadinessLoading
-            ? "AIの準備を確認しています…"
-            : "会話の記録は開始できます。返答案は現在利用できません。";
-  const startStatusDetail =
-    canStart && !replyFeatureReady
-      ? !replyFeatureEnabled
-        ? "返答案は設定でオフになっています。"
-        : (replyStatus.message ?? "返答案の確認中も会議を開始できます。")
-      : "会議中も支援の設定は変更できます";
-
+  const audioReady =
+    state.sttInitialized ||
+    speechReadiness === undefined ||
+    speechReadiness === "ready";
+  const canStart =
+    state.connected &&
+    audioReady &&
+    !stopFailed &&
+    !busy &&
+    !state.sttInitializing &&
+    !state.sttInitRequested;
+  const replyReady =
+    state.agentSettings.replyEnabled && replyStatus.canGenerate;
+  const replyMessage = !state.agentSettings.replyEnabled
+    ? "オフ・文字起こしのみ利用"
+    : replyReady
+      ? "利用可能"
+      : (replyStatus.message ?? "AIの準備を確認しています…");
   function updateContext<K extends keyof MeetingContextInput>(
     key: K,
     value: MeetingContextInput[K],
   ) {
     setMeetingContext((current) => ({ ...current, [key]: value }));
   }
-
   function startMeeting() {
     if (!canStart) return;
-    send({
+    start.start({
       type: "start_meeting",
       meeting_context: contextWithFallback(meetingContext),
       references: references.filter((document) => document.status !== "failed"),
     });
   }
-
   return (
     <div
       data-testid="setup-screen"
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-paper text-ink"
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-surface text-ink"
     >
-      <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-8 pt-6 sm:px-7">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-6 pb-6 pt-6 sm:px-10 sm:pt-7">
         {state.meetingEndStatus && state.meetingEndStatus !== "completed" && (
           <InlineNotice
             className="mb-5"
@@ -157,272 +131,138 @@ export function SetupScreen({
                 : "保存できた記録は履歴から確認できます。文字起こしや録音が欠けている可能性があります。"}
           </InlineNotice>
         )}
-        <div className="mb-6 flex items-start gap-3">
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-sm">
-            <Sparkles aria-hidden="true" size={18} />
-          </div>
-          <div>
-            <h1 className="font-display text-2xl font-bold tracking-[0.01em] text-ink">
-              {showFirstRunGuidance
-                ? "まず、音声を確認しましょう"
-                : "次の会議を準備しましょう"}
-            </h1>
-            <p className="mt-1 text-sm leading-6 text-ink-muted">
-              {showFirstRunGuidance
-                ? "音が届くことを確かめれば、AIの設定はあとからでも大丈夫です。"
-                : "会議について、わかる範囲で教えてください。"}
-            </p>
-          </div>
-        </div>
 
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight">新しい会議</h1>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">
+            {showFirstRunGuidance
+              ? "音声を確認して、会議を始めましょう。会議の情報はあとからでも大丈夫です。"
+              : "音声を確認したら、そのまま開始できます。"}
+          </p>
+        </header>
+        <section aria-labelledby="audio-check-heading">
+          <h2 id="audio-check-heading" className="text-base font-semibold">
+            音声チェック
+          </h2>
+          <p className="mt-1 text-sm text-ink-muted">
+            話すか音を流して、音量バーが動くことを確認してください。
+          </p>
+          <AudioInputs state={state} send={send} locked={busy} />
+        </section>
         <section
-          className="rounded-2xl border border-line bg-surface p-4 shadow-sm"
-          aria-labelledby="audio-check-heading"
+          aria-label="利用する機能"
+          className="my-4 border-y border-line"
         >
-          <div className="mb-3 flex items-start gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-positive-soft text-positive">
-              <Headphones aria-hidden="true" size={17} />
-            </div>
-            <div>
-              <h2
-                id="audio-check-heading"
-                className="font-display text-base font-bold text-ink"
-              >
-                音声チェック
-              </h2>
-              <p className="mt-0.5 text-xs leading-5 text-ink-muted">
-                話すか、相手の声を流してバーが動くか確認します。
-              </p>
-            </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3 text-sm">
+            <span className="w-20 font-medium">文字起こし</span>
+            <span role="status" className="min-w-0 flex-1 text-ink-muted">
+              {start.phase === "cancelling"
+                ? "準備を取り消しています…"
+                : start.phase === "preparing"
+                  ? "音声認識を準備しています…"
+                  : state.sttInitialized
+                    ? SPEECH_LABELS.ready
+                    : SPEECH_LABELS[speechReadiness ?? "ready"]}
+            </span>
+            <Button
+              variant="quiet"
+              size="sm"
+              onClick={onSpeechSettings}
+              disabled={busy}
+            >
+              {speechReadiness === "missing" ? "モデルを準備" : "設定"}
+            </Button>
           </div>
-
-          <div className="space-y-3">
-            <DeviceSelect
-              label="相手側の音声"
-              icon={Volume2}
-              value={state.deviceOther}
-              monitors={monitors}
-              mics={mics}
-              primary="monitors"
-              disabled={audioLocked}
-              level={state.levelOther}
-              onChange={(value) =>
-                send({ type: "set_device", role: "other", device: value })
-              }
-            />
-            <SystemAudioTestControl />
-            <DeviceSelect
-              label="自分のマイク"
-              icon={Mic2}
-              value={state.deviceSelf}
-              monitors={monitors}
-              mics={mics}
-              primary="mics"
-              disabled={audioLocked}
-              level={state.levelSelf}
-              onChange={(value) =>
-                send({ type: "set_device", role: "self", device: value })
-              }
-            />
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3 text-sm">
+            <span className="w-20 font-medium">返答案</span>
+            <span role="status" className="min-w-0 flex-1 text-ink-muted">
+              {replyMessage}
+            </span>
+            <Button
+              variant="quiet"
+              size="sm"
+              onClick={onSettings}
+              disabled={busy}
+            >
+              AIを設定
+            </Button>
+            {state.agentSettings.replyEnabled &&
+              ["error", "unavailable"].includes(replyStatus.readiness) && (
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  onClick={onReloadReplyStatus}
+                  disabled={replyReloadStatus === "loading"}
+                >
+                  {replyReloadStatus === "loading" ? "確認中…" : "再確認"}
+                </Button>
+              )}
           </div>
-
-          {needsAudioPreparation && (
-            <AudioPreparation
-              initialized={state.sttInitialized}
-              initializing={state.sttInitializing}
-              initRequested={state.sttInitRequested}
-              failed={state.statusText.trim().startsWith("エラー:")}
-              onInit={() => send({ type: "init_stt" })}
-              onShutdown={() => send({ type: "shutdown_stt" })}
-            />
+          {!replyReady && (
+            <p className="pb-3 text-xs text-ink-muted">
+              返答案を利用できない場合も、録音と文字起こしは開始できます。
+            </p>
           )}
         </section>
-
-        <section
-          className="mt-4 rounded-2xl border border-line bg-surface p-4 shadow-sm"
-          aria-labelledby="reply-readiness-heading"
-        >
-          <div className="flex items-start gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-              <Sparkles aria-hidden="true" size={17} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2
-                id="reply-readiness-heading"
-                className="font-display text-base font-bold text-ink"
-              >
-                返答案
-              </h2>
-              <p
-                role="status"
-                aria-live="polite"
-                className="mt-1 text-sm leading-6 text-ink"
-              >
-                {!state.agentSettings.replyEnabled
-                  ? "返答案は設定でオフになっています。"
-                  : replyStatus.canGenerate
-                    ? "返答案を利用できます。"
-                    : (replyStatus.message ?? "返答案の準備を確認しています。")}
-              </p>
-              <p className="mt-1 text-xs leading-5 text-ink-muted">
-                {showFirstRunGuidance
-                  ? "返答案は後から設定できます。今は録音と文字起こしだけでも会議を開始できます。"
-                  : "返答案を利用できない場合も、録音と文字起こしは開始できます。"}
-              </p>
-            </div>
-            {!state.agentSettings.replyEnabled ||
-            replyStatus.readiness === "setup_required" ? (
-              <Button variant="quiet" size="sm" onClick={onSettings}>
-                {showFirstRunGuidance ? "AIも準備する" : "設定"}
-              </Button>
-            ) : !replyStatus.canGenerate &&
-              replyStatus.readiness !== "unknown" ? (
-              <Button
-                variant="quiet"
-                size="sm"
-                onClick={onReloadReplyStatus}
-                disabled={replyReloadStatus === "loading"}
-              >
-                {replyReloadStatus === "loading" ? "確認中…" : "再確認"}
-              </Button>
-            ) : null}
-          </div>
-        </section>
-
-        <div className="mb-3 mt-6">
-          <h2 className="font-display text-lg font-bold text-ink">
-            会議について
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-ink-muted">
-            すべて任意です。空欄のままでも会議を開始できます。
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <DecisionCard number="1" title="どんな会議ですか？">
-            <div
-              className="flex flex-wrap gap-2"
-              role="group"
-              aria-label="会議種別"
-            >
-              {MEETING_TYPES.map((meetingType) => {
-                const selected = meetingContext.scenario === meetingType;
-                return (
-                  <button
-                    key={meetingType}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() =>
-                      updateContext("scenario", selected ? "" : meetingType)
-                    }
-                    className={`rounded-full border px-3.5 py-2 text-sm font-medium transition-colors motion-reduce:transition-none ${
-                      selected
-                        ? "border-primary bg-primary text-white shadow-sm"
-                        : "border-line bg-surface text-ink hover:border-primary/45 hover:bg-primary-soft"
-                    }`}
-                  >
-                    {meetingType}
-                  </button>
-                );
-              })}
-            </div>
-            <Field
-              label="上にない場合"
-              value={meetingContext.scenario}
-              placeholder="例：プロジェクトの振り返り"
-              onChange={(value) => updateContext("scenario", value)}
-            />
-          </DecisionCard>
-
-          <DecisionCard number="2" title="今日、何を持ち帰りたいですか？">
-            <label className="block">
-              <span className="sr-only">今日持ち帰りたいこと</span>
-              <textarea
-                value={meetingContext.objective}
-                onChange={(event) =>
-                  updateContext("objective", event.target.value)
-                }
-                placeholder="例：次回までの担当と期限を決めたい"
-                rows={2}
-                className="field resize-none text-sm leading-6"
-              />
-            </label>
-          </DecisionCard>
-
-          <DecisionCard number="3" title="あなたの立場は？">
-            <div
-              className="flex flex-wrap gap-2"
-              role="group"
-              aria-label="あなたの立場"
-            >
-              {ROLE_PRESETS.map((role) => {
-                const selected = meetingContext.userRole === role;
-                return (
-                  <button
-                    key={role}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() =>
-                      updateContext("userRole", selected ? "" : role)
-                    }
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors motion-reduce:transition-none ${
-                      selected
-                        ? "border-primary bg-primary text-white"
-                        : "border-line bg-surface text-ink-muted hover:border-primary/45"
-                    }`}
-                  >
-                    {role}
-                  </button>
-                );
-              })}
-            </div>
-            <Field
-              label="上にない場合"
-              value={meetingContext.userRole}
-              placeholder="例：採用担当、顧客側の責任者"
-              onChange={(value) => updateContext("userRole", value)}
-            />
-          </DecisionCard>
-        </div>
-
-        <details className="group mt-4 rounded-2xl border border-line bg-surface shadow-sm">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 text-sm font-semibold text-ink outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
-            <span className="flex items-center gap-2">
-              <FileText
-                aria-hidden="true"
-                size={16}
-                className="text-ink-muted"
-              />
-              任意の詳細・資料
+        <fieldset disabled={busy} className="min-w-0 space-y-5 border-0 p-0">
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium">
+              会議の目的{" "}
+              <span className="ml-1 text-xs font-normal text-ink-muted">
+                任意
+              </span>
             </span>
-            <ChevronDown
-              aria-hidden="true"
-              size={17}
-              className="transition-transform group-open:rotate-180 motion-reduce:transition-none"
+            <textarea
+              aria-label="今日持ち帰りたいこと"
+              value={meetingContext.objective}
+              onChange={(event) =>
+                updateContext("objective", event.target.value)
+              }
+              placeholder="例：次回までの担当と期限を決めたい"
+              rows={2}
+              className="field resize-y text-sm"
             />
-          </summary>
-          <div className="space-y-4 border-t border-line px-4 py-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field
-                label="相手の立場"
-                value={meetingContext.counterpartRole ?? ""}
-                placeholder="例：取引先の担当者"
-                onChange={(value) => updateContext("counterpartRole", value)}
+          </label>
+          <details className="border-b border-line pb-5">
+            <summary className="cursor-pointer py-2 text-sm font-medium">
+              会議の詳細・資料を追加
+            </summary>
+            <p className="my-3 text-xs text-ink-muted">
+              すべて任意です。わかる範囲で入力してください。
+            </p>
+            <div className="space-y-5 pt-1">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field
+                  label="会議の種類"
+                  value={meetingContext.scenario}
+                  placeholder="例：商談、面接、1on1"
+                  onChange={(value) => updateContext("scenario", value)}
+                />
+                <Field
+                  label="あなたの立場"
+                  value={meetingContext.userRole}
+                  placeholder="例：進行役、提案する側"
+                  onChange={(value) => updateContext("userRole", value)}
+                />
+                <Field
+                  label="相手の立場"
+                  value={meetingContext.counterpartRole ?? ""}
+                  placeholder="例：取引先の担当者"
+                  onChange={(value) => updateContext("counterpartRole", value)}
+                />
+                <Field
+                  label="希望する話し方"
+                  value={meetingContext.tone ?? ""}
+                  placeholder="例：率直に、やわらかく"
+                  onChange={(value) => updateContext("tone", value)}
+                />
+              </div>
+              <Area
+                label="これまでの経緯"
+                value={meetingContext.background ?? ""}
+                placeholder="共有しておきたい背景や前提"
+                onChange={(value) => updateContext("background", value)}
               />
-              <Field
-                label="希望する話し方"
-                value={meetingContext.tone ?? ""}
-                placeholder="例：率直に、やわらかく"
-                onChange={(value) => updateContext("tone", value)}
-              />
-            </div>
-            <Area
-              label="これまでの経緯"
-              value={meetingContext.background ?? ""}
-              placeholder="共有しておきたい背景や前提"
-              onChange={(value) => updateContext("background", value)}
-            />
-            <div className="grid gap-3 sm:grid-cols-2">
               <Field
                 label="避けたいこと"
                 value={meetingContext.constraints ?? ""}
@@ -435,96 +275,70 @@ export function SetupScreen({
                 placeholder="特に意識してほしいこと"
                 onChange={(value) => updateContext("customInstructions", value)}
               />
+              <ReferenceDocuments
+                references={references}
+                onChange={setReferences}
+              />
             </div>
-
-            <ReferenceDocuments
-              references={references}
-              onChange={setReferences}
-            />
-          </div>
-        </details>
-
-        <nav
-          className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2"
-          aria-label="補助メニュー"
-        >
-          {onHistory && (
-            <button
-              type="button"
-              onClick={onHistory}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-primary"
-            >
-              <History aria-hidden="true" size={14} />
-              過去の会議
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onSettings}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-ink"
+          </details>
+        </fieldset>
+        {start.error && (
+          <InlineNotice
+            className="mt-5"
+            tone="danger"
+            title="開始できませんでした"
+            action={
+              <Button variant="quiet" size="sm" onClick={onSpeechSettings}>
+                設定を確認
+              </Button>
+            }
           >
-            <Settings aria-hidden="true" size={14} />
-            設定
-          </button>
-        </nav>
+            {start.error}
+          </InlineNotice>
+        )}
       </main>
-
-      <StickyActionBar className="px-5 py-3 sm:px-7">
-        <div className="mx-auto flex w-full max-w-2xl items-center gap-3">
-          <div className="min-w-0 flex-1" aria-live="polite">
-            <p className="text-sm font-semibold leading-5 text-ink">
-              {startStatus}
-            </p>
-            <p className="text-xs leading-5 text-ink-muted">
-              {startStatusDetail}
-            </p>
-          </div>
-          {showReplyRecovery && (
+      <StickyActionBar className="px-6 py-4 sm:px-10">
+        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4">
+          <p className="text-sm text-ink-muted" aria-live="polite">
+            {stopFailed
+              ? "アプリの再起動が必要です"
+              : !state.connected
+                ? "接続を確認しています"
+                : busy
+                  ? start.phase === "preparing"
+                    ? "初回の読み込みには時間がかかる場合があります"
+                    : start.phase === "cancelling"
+                      ? "準備の停止を確認しています…"
+                      : "会議を開始しています…"
+                  : !audioReady
+                    ? "音声認識の準備を完了してください"
+                    : "開始すると録音と文字起こしを行います"}
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            {start.phase === "preparing" && (
+              <Button variant="quiet" onClick={start.cancel}>
+                キャンセル
+              </Button>
+            )}
             <Button
-              variant="quiet"
-              size="sm"
-              onClick={retryReplyReadiness ? onReloadReplyStatus : onSettings}
-              disabled={replyReloadStatus === "loading"}
-              className="shrink-0"
+              variant="primary"
+              size="lg"
+              onClick={startMeeting}
+              disabled={!canStart}
+              loading={busy}
             >
-              {retryReplyReadiness ? "もう一度試す" : "AIの準備を確認"}
+              {busy
+                ? start.phase === "preparing"
+                  ? "準備中…"
+                  : start.phase === "cancelling"
+                    ? "取り消し中…"
+                    : "開始中…"
+                : "会議を開始"}
             </Button>
-          )}
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={startMeeting}
-            disabled={!canStart}
-            className="shrink-0 rounded-xl px-5 text-sm font-bold motion-reduce:transform-none motion-reduce:transition-none"
-          >
-            会議を開始
-          </Button>
+          </div>
         </div>
       </StickyActionBar>
     </div>
-  );
-}
-
-interface DecisionCardProps {
-  number: string;
-  title: string;
-  children: React.ReactNode;
-}
-
-function DecisionCard({ number, title, children }: DecisionCardProps) {
-  return (
-    <section className="rounded-2xl border border-line bg-surface p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2.5">
-        <span
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-white"
-          aria-hidden="true"
-        >
-          {number}
-        </span>
-        <h3 className="font-display text-base font-bold text-ink">{title}</h3>
-      </div>
-      <div className="space-y-3">{children}</div>
-    </section>
   );
 }
 

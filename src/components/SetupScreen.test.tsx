@@ -147,47 +147,23 @@ describe("SetupScreen", () => {
     },
   );
 
-  it("guides a first meeting through audio before optional context", () => {
+  it("keeps optional context collapsed and links directly to AI setup", () => {
     const onSettings = vi.fn();
     render(
       <SetupScreen
         {...replyRouteProps}
         showFirstRunGuidance
-        replyStatus={{
-          readiness: "setup_required",
-          canGenerate: false,
-          message: "返答案を利用する支援方法を設定してください。",
-        }}
-        state={idleState({ sttBackend: "google" })}
-        send={vi.fn<SendFn>()}
+        state={idleState()}
+        send={vi.fn()}
         onSettings={onSettings}
       />,
     );
-
+    expect(screen.getByRole("heading", { name: "新しい会議" })).toBeVisible();
     expect(
-      screen.getByRole("heading", { name: "まず、音声を確認しましょう" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "音が届くことを確かめれば、AIの設定はあとからでも大丈夫です。",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "返答案は後から設定できます。今は録音と文字起こしだけでも会議を開始できます。",
-      ),
-    ).toBeInTheDocument();
-
-    const headings = screen
-      .getAllByRole("heading")
-      .map((heading) => heading.textContent);
-    expect(headings.indexOf("音声チェック")).toBeLessThan(
-      headings.indexOf("会議について"),
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "AIも準備する" }));
+      screen.getByText("会議の詳細・資料を追加").closest("details"),
+    ).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("button", { name: "AIを設定" }));
     expect(onSettings).toHaveBeenCalledOnce();
-    expect(screen.getByRole("button", { name: "会議を開始" })).toBeEnabled();
   });
 
   it("plays one system test sound at a time and reports completion", async () => {
@@ -279,9 +255,9 @@ describe("SetupScreen", () => {
     expect(audio.context.close).toHaveBeenCalledOnce();
   });
 
-  it("starts audio preparation from the setup flow", () => {
+  it("prepares then starts once from a single start action", () => {
     const send = vi.fn<SendFn>();
-    render(
+    const view = render(
       <SetupScreen
         {...replyRouteProps}
         state={idleState()}
@@ -289,38 +265,11 @@ describe("SetupScreen", () => {
         onSettings={noopVoid}
       />,
     );
-
-    expect(
-      screen.getByText(
-        "初回は必要なデータの読み込みに時間がかかる場合があります。",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText("音声認識の準備が必要です")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "音声認識を使えるようにする" }),
-    );
-    expect(send).toHaveBeenCalledWith({ type: "init_stt" });
-  });
-
-  it("lets a user cancel a pending audio preparation", () => {
-    const send = vi.fn<SendFn>();
-    render(
-      <SetupScreen
-        {...replyRouteProps}
-        state={idleState({ sttInitRequested: true })}
-        send={send}
-        onSettings={noopVoid}
-      />,
-    );
-
-    expect(screen.getByText("音声認識を準備しています…")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
-    expect(send).toHaveBeenCalledWith({ type: "shutdown_stt" });
-  });
-
-  it("reports when speech recognition is ready", () => {
-    const send = vi.fn<SendFn>();
-    render(
+    fireEvent.click(screen.getByRole("button", { name: "会議を開始" }));
+    expect(send).toHaveBeenCalledExactlyOnceWith({ type: "init_stt" });
+    expect(screen.getByRole("button", { name: "準備中…" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "準備中…" }));
+    view.rerender(
       <SetupScreen
         {...replyRouteProps}
         state={idleState({ sttInitialized: true })}
@@ -328,43 +277,125 @@ describe("SetupScreen", () => {
         onSettings={noopVoid}
       />,
     );
-
-    expect(screen.getByText("音声認識を使えます")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "やり直す" }));
-    expect(send).toHaveBeenCalledWith({ type: "shutdown_stt" });
-  });
-
-  it("explains how to retry failed speech recognition preparation", () => {
-    render(
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: "start_meeting" }),
+    );
+    view.rerender(
       <SetupScreen
         {...replyRouteProps}
-        state={idleState({ statusText: "エラー: initialization failed" })}
-        send={vi.fn<SendFn>()}
+        state={idleState({ sttInitialized: true })}
+        send={send}
         onSettings={noopVoid}
       />,
     );
-
-    expect(
-      screen.getByText(
-        "音声認識を準備できませんでした。もう一度お試しください。",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "音声認識を使えるようにする" }),
-    ).toBeEnabled();
+    expect(send).toHaveBeenCalledTimes(2);
   });
 
-  it("blocks meeting start until local audio preparation completes", () => {
-    render(
+  it("does not start after cancelling even if a late ready event arrives", () => {
+    const send = vi.fn<SendFn>();
+    const view = render(
       <SetupScreen
         {...replyRouteProps}
-        state={idleState({ sttBackend: "whisper" })}
-        send={vi.fn<SendFn>()}
+        state={idleState()}
+        send={send}
         onSettings={noopVoid}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "会議を開始" }));
+    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    expect(send).toHaveBeenLastCalledWith({ type: "shutdown_stt" });
+    view.rerender(
+      <SetupScreen
+        {...replyRouteProps}
+        state={idleState({ sttInitialized: true })}
+        send={send}
+        onSettings={noopVoid}
+      />,
+    );
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "取り消し中…" })).toBeDisabled();
+    view.rerender(
+      <SetupScreen
+        {...replyRouteProps}
+        state={idleState({ sttStateRevision: 2 })}
+        send={send}
+        onSettings={noopVoid}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "会議を開始" })).toBeEnabled();
+  });
 
+  it.each(["error", "disconnect"])(
+    "stops the pending start on %s and allows retry",
+    (reason) => {
+      const send = vi.fn<SendFn>();
+      const view = render(
+        <SetupScreen
+          {...replyRouteProps}
+          state={idleState()}
+          send={send}
+          onSettings={noopVoid}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "会議を開始" }));
+      view.rerender(
+        <SetupScreen
+          {...replyRouteProps}
+          state={idleState(
+            reason === "error" ? { errorRevision: 1 } : { connected: false },
+          )}
+          send={send}
+          onSettings={noopVoid}
+        />,
+      );
+      expect(screen.getByText("開始できませんでした")).toBeVisible();
+      view.rerender(
+        <SetupScreen
+          {...replyRouteProps}
+          state={idleState({ errorRevision: 1, sttInitialized: true })}
+          send={send}
+          onSettings={noopVoid}
+        />,
+      );
+      expect(send).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole("button", { name: "会議を開始" }));
+      expect(send).toHaveBeenLastCalledWith(
+        expect.objectContaining({ type: "start_meeting" }),
+      );
+    },
+  );
+
+  it("cancels preparation when leaving the screen", () => {
+    const send = vi.fn<SendFn>();
+    const view = render(
+      <SetupScreen
+        {...replyRouteProps}
+        state={idleState()}
+        send={send}
+        onSettings={noopVoid}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "会議を開始" }));
+    view.unmount();
+    expect(send).toHaveBeenLastCalledWith({ type: "shutdown_stt" });
+  });
+
+  it("offers model setup when the first download is missing", () => {
+    const onSpeechSettings = vi.fn();
+    render(
+      <SetupScreen
+        {...replyRouteProps}
+        state={idleState()}
+        speechReadiness="missing"
+        send={vi.fn()}
+        onSettings={noopVoid}
+        onSpeechSettings={onSpeechSettings}
+      />,
+    );
     expect(screen.getByRole("button", { name: "会議を開始" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "モデルを準備" }));
+    expect(onSpeechSettings).toHaveBeenCalledOnce();
   });
 
   it("starts a prepared meeting with the choices the user supplied", () => {
@@ -378,14 +409,17 @@ describe("SetupScreen", () => {
       />,
     );
 
-    expect(screen.getByText("開始できます")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "商談" }));
+    fireEvent.click(screen.getByText("会議の詳細・資料を追加"));
+    fireEvent.change(screen.getByLabelText("会議の種類"), {
+      target: { value: "商談" },
+    });
     fireEvent.change(
       screen.getByRole("textbox", { name: "今日持ち帰りたいこと" }),
       { target: { value: "次回の担当者を決める" } },
     );
-    fireEvent.click(screen.getByRole("button", { name: "進行役" }));
-    fireEvent.click(screen.getByText("任意の詳細・資料"));
+    fireEvent.change(screen.getByLabelText("あなたの立場"), {
+      target: { value: "進行役" },
+    });
     fireEvent.change(screen.getByLabelText("希望する話し方"), {
       target: { value: "率直に" },
     });
@@ -422,11 +456,11 @@ describe("SetupScreen", () => {
 
     expect(
       screen.getByText(
-        "会話の記録は開始できます。返答案は現在利用できません。",
+        "返答案を利用できない場合も、録音と文字起こしは開始できます。",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "AIの準備を確認" }),
+      screen.getByRole("button", { name: "AIを設定" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "会議を開始" })).toBeEnabled();
   });
@@ -472,8 +506,8 @@ describe("SetupScreen", () => {
       screen.getAllByText(
         "支援方法の状態を確認できませんでした。しばらくしてから再度お試しください。",
       ),
-    ).toHaveLength(2);
-    fireEvent.click(screen.getByRole("button", { name: "もう一度試す" }));
+    ).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "再確認" }));
     expect(reload).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "会議を開始" })).toBeEnabled();
   });
@@ -504,14 +538,12 @@ describe("SetupScreen", () => {
         />,
       );
 
-      expect(
-        screen.getAllByText("返答案は設定でオフになっています。"),
-      ).toHaveLength(2);
+      expect(screen.getAllByText("オフ・文字起こしのみ利用")).toHaveLength(1);
       expect(
         screen.queryByText("AIの準備を確認しています…"),
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByRole("button", { name: "もう一度試す" }),
+        screen.queryByRole("button", { name: "再確認" }),
       ).not.toBeInTheDocument();
       expect(
         screen.getAllByRole("button", { name: "設定" }).length,

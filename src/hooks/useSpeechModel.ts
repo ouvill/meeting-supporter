@@ -14,6 +14,17 @@ export type WhisperModelAlias =
   | "large-v3-turbo";
 export type SpeechModelAction = "starting" | "cancelling" | null;
 
+export function isWhisperModelAlias(
+  value: unknown,
+): value is WhisperModelAlias {
+  return (
+    typeof value === "string" &&
+    ["tiny", "base", "small", "medium", "large-v2", "large-v3-turbo"].includes(
+      value,
+    )
+  );
+}
+
 export type SpeechModelStatus = SpeechModelStatusResponse;
 
 export interface SpeechModelController {

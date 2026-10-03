@@ -6,6 +6,7 @@ interface AppFrameProps {
   onNavigate: (destination: ProductDestination) => void;
   onSettings: () => void;
   status: string;
+  meetingActive?: boolean;
   connectionNotice?: ReactNode;
   children: ReactNode;
 }
@@ -15,6 +16,7 @@ export function AppFrame({
   onNavigate,
   onSettings,
   status,
+  meetingActive,
   connectionNotice,
   children,
 }: AppFrameProps) {
@@ -25,6 +27,7 @@ export function AppFrame({
         onNavigate={onNavigate}
         onSettings={onSettings}
         status={status}
+        meetingActive={meetingActive}
       />
       {connectionNotice}
       <div className="app-frame__content flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

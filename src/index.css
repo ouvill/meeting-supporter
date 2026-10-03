@@ -9,17 +9,17 @@
     "BIZ UDPGothic", "Yu Gothic UI", "Hiragino Kaku Gothic ProN", Meiryo,
     sans-serif;
 
-  --color-paper: #f6f9fc;
+  --color-paper: #f5f6f8;
   --color-surface: #ffffff;
   --color-surface-muted: #eef2f7;
-  --color-ink: #1a1f36;
+  --color-ink: #20242d;
   --color-ink-muted: #4f566b;
   --color-ink-faint: #697386;
   --color-line: #d8dee9;
   --color-line-strong: #aeb8c8;
-  --color-primary: #5b54e8;
-  --color-primary-hover: #4c46c7;
-  --color-primary-soft: #f3f2ff;
+  --color-primary: #3565c9;
+  --color-primary-hover: #2853ad;
+  --color-primary-soft: #edf2fd;
   --color-cue: #b54708;
   --color-cue-hover: #963b06;
   --color-cue-soft: #fff1e8;
@@ -128,7 +128,7 @@ body {
   min-width: 320px;
   font-size: 14px;
   line-height: 1.55;
-  background: linear-gradient(180deg, #f9fbff 0%, #f6f9fc 35%, #f6f9fc 100%);
+  background: var(--color-paper);
   color: var(--color-ink);
 }
 

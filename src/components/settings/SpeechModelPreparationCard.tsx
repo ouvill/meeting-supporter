@@ -5,7 +5,6 @@ import type {
 } from "../../hooks/useSpeechModel";
 import type { SpeechModelStatusResponse } from "../../api/generated/types.gen";
 import { Button, InlineNotice, Status, type StatusTone } from "../ui";
-import { SettingsCard } from "./SettingsPrimitives";
 
 interface Props {
   model: SpeechModelController;
@@ -18,7 +17,7 @@ const WHISPER_MODEL_LABEL: Record<WhisperModelAlias, string> = {
   small: "バランス",
   medium: "高精度",
   "large-v2": "より高精度",
-  "large-v3-turbo": "最高精度",
+  "large-v3-turbo": "高速・高精度",
 };
 
 const FAILURE_RECOVERY: Record<
@@ -114,14 +113,7 @@ export function SpeechModelPreparationCard({
     : "ReazonSpeech日本語モデル";
 
   return (
-    <SettingsCard
-      title={preparationName}
-      description={
-        isWhisper
-          ? `選択した${whisperModelLabel}モデルを端末内で使えるように準備します。`
-          : "ReazonSpeech K2-v2の軽量化モデルを端末内で使えるように準備します。"
-      }
-    >
+    <section aria-label="音声認識モデルの準備">
       <div className="space-y-4">
         <div
           className="flex flex-wrap items-center justify-between gap-2"
@@ -141,15 +133,13 @@ export function SpeechModelPreparationCard({
           ) : null}
         </div>
 
-        <div className="space-y-2 border-t border-line pt-3 text-xs leading-relaxed text-ink-muted">
-          <p>
-            取得を始めたときだけインターネット通信を行います。会議の音声は送信しません。
-          </p>
-          <dl className="grid gap-1 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-3">
-            <dt className="font-semibold text-ink">保存先</dt>
-            <dd className="break-all">Hugging Face の共有キャッシュ</dd>
-          </dl>
-        </div>
+        {status?.state !== "ready" && (
+          <div className="space-y-2 text-xs leading-relaxed text-ink-muted">
+            <p>
+              取得を始めたときだけインターネット通信を行います。会議の音声は送信しません。
+            </p>
+          </div>
+        )}
 
         {language === null && (
           <InlineNotice tone="warning" title="会議の言語を選んでください">
@@ -262,20 +252,9 @@ export function SpeechModelPreparationCard({
               }
             >
               <Download aria-hidden="true" className="size-3.5" />
-              {`モデルを取得${isReazonSpeech ? "（約153 MB）" : ""}`}
+              {`モデルをダウンロード${isReazonSpeech ? "（約153 MB）" : ""}`}
             </Button>
           </div>
-        )}
-
-        {status?.state === "ready" && (
-          <InlineNotice
-            tone="positive"
-            title={`${preparationName}の準備ができました`}
-          >
-            {isReazonSpeech
-              ? "ReazonSpeech日本語モデルを端末内で使用できます。"
-              : `選択した${whisperModelLabel}モデルを端末内で使用できます。`}
-          </InlineNotice>
         )}
 
         {status?.state === "failed" && (
@@ -327,6 +306,6 @@ export function SpeechModelPreparationCard({
           </InlineNotice>
         )}
       </div>
-    </SettingsCard>
+    </section>
   );
 }

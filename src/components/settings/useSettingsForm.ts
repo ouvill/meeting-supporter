@@ -1,19 +1,11 @@
 import { useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getOllamaModelsApiSettingsOllamaModelsGet } from "../../api/generated/sdk.gen";
-import type {
-  AiRouteReadModel,
-  AiRoutesController,
-} from "../../hooks/useAiRoutes";
+import type { AiRoutesController } from "../../hooks/useAiRoutes";
 import {
   useSpeechModel,
   type WhisperModelAlias,
 } from "../../hooks/useSpeechModel";
-import {
-  openManagedBillingPortal,
-  openManagedCheckout,
-  startManagedAuth,
-} from "../../platform/managedServiceClient";
 import { useConnectionSettings } from "./useConnectionSettings";
 import { useSettingsPersistence } from "./useSettingsPersistence";
 import type { SettingsForm } from "./types";
@@ -26,14 +18,8 @@ export function useSettingsForm({
   audioSettingsLocked: boolean;
 }) {
   const persistence = useSettingsPersistence({ routes, audioSettingsLocked });
-  const {
-    form,
-    setForm,
-    savedBaseline,
-    setFieldErrors,
-    setSectionError,
-    setSaveMessage,
-  } = persistence;
+  const { form, setForm, setFieldErrors, setSectionError, setSaveMessage } =
+    persistence;
   const connections = useConnectionSettings({
     form,
     setForm,
@@ -81,11 +67,6 @@ export function useSettingsForm({
     hasSecretDraft ||
     connections.pendingDeleteSecrets.length > 0 ||
     routes.assignmentDirty;
-  const currentSttBackend =
-    audioSettingsLocked && savedBaseline !== null
-      ? savedBaseline.sttBackend
-      : form.sttBackend;
-
   const updateForm = <K extends keyof SettingsForm>(
     key: K,
     value: SettingsForm[K],
@@ -121,42 +102,6 @@ export function useSettingsForm({
         category: "privacy",
         message: "フォルダを開けませんでした。もう一度お試しください。",
       });
-    }
-  };
-
-  const handleRouteAction = async (route: AiRouteReadModel) => {
-    if (route.action === "sign_in") {
-      try {
-        await startManagedAuth();
-      } catch {
-        setSectionError({
-          category: "support",
-          message:
-            "ログインを開始できませんでした。アカウント設定を確認してください。",
-        });
-      }
-      return;
-    }
-    if (route.action === "subscribe" || route.action === "manage_billing") {
-      try {
-        if (route.action === "subscribe") await openManagedCheckout();
-        else await openManagedBillingPortal();
-      } catch {
-        setSectionError({
-          category: "support",
-          message:
-            "プラン管理を開けませんでした。アカウント設定を確認してください。",
-        });
-      }
-      return;
-    }
-    if (route.action === "view_usage") {
-      persistence.setActiveCategory("account");
-      return;
-    }
-    if (route.action === "retry") {
-      await routes.reload();
-      return;
     }
   };
 
@@ -228,7 +173,6 @@ export function useSettingsForm({
     connectionTestingProvider: connections.connectionTestingProvider,
     connectionTestMessages: connections.connectionTestMessages,
     speechModel,
-    currentSttBackend,
     selectedRoute,
     connectionStates: connections.connectionStates,
     updateForm,
@@ -240,7 +184,6 @@ export function useSettingsForm({
     cancelSecretDeletion: connections.cancelSecretDeletion,
     assignRoute,
     chooseContextDirectory,
-    handleRouteAction,
     testOllamaConnection,
     save,
     discardChanges,

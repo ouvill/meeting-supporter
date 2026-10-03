@@ -1,7 +1,7 @@
 import { useState } from "react";
 import applicationLicense from "../../../LICENSE?raw";
 import thirdPartyNoticesUrl from "../../../THIRD-PARTY-NOTICES.txt?url";
-import { SettingsCard, SettingsPage } from "./SettingsPrimitives";
+import { SettingsSection, SettingsPage } from "./SettingsPrimitives";
 
 export function AboutSettingsPanel() {
   const [notices, setNotices] = useState<string | null>(null);
@@ -23,7 +23,7 @@ export function AboutSettingsPanel() {
       title="このアプリについて"
       description="Meeting Supporter本体と、利用する第三者ソフトウェアのライセンス情報です。"
     >
-      <SettingsCard
+      <SettingsSection
         title="Meeting Supporter"
         description="Copyright © 2026 Meeting Supporter contributors"
       >
@@ -42,9 +42,9 @@ export function AboutSettingsPanel() {
             {applicationLicense}
           </pre>
         </details>
-      </SettingsCard>
+      </SettingsSection>
 
-      <SettingsCard
+      <SettingsSection
         title="第三者ソフトウェア"
         description="フロントエンド、Rust、文書変換用Pythonワーカーと、同梱するライブラリ・モデルの通知を収録しています。"
       >
@@ -63,7 +63,7 @@ export function AboutSettingsPanel() {
             {notices ?? noticeError ?? "読み込み中..."}
           </pre>
         </details>
-      </SettingsCard>
+      </SettingsSection>
     </SettingsPage>
   );
 }
