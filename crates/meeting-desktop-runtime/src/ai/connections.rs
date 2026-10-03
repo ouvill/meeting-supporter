@@ -3,6 +3,13 @@ use crate::{settings::Store, Error};
 use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::{collections::HashSet, time::Duration};
+
+const MODEL_LIST_TIMEOUT: Duration = Duration::from_secs(8);
+const MAX_MODEL_LIST_BYTES: usize = 2 * 1024 * 1024;
+const MAX_MODELS: usize = 2000;
+const MAX_MODEL_PAGES: usize = 100;
+
 #[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum Provider {
@@ -42,6 +49,34 @@ impl Provider {
             Self::Anthropic => "anthropic",
         }
     }
+
+    fn request(
+        self,
+        client: &reqwest::Client,
+        url: &str,
+        credential: &str,
+        cursor: Option<&str>,
+    ) -> Result<reqwest::RequestBuilder, super::AiError> {
+        let mut url = reqwest::Url::parse(url).map_err(|_| super::AiError::Provider)?;
+        if let Some(cursor) = cursor {
+            let parameter = match self {
+                Self::Anthropic => Some("after_id"),
+                Self::Gemini => Some("pageToken"),
+                Self::Openai => None,
+            };
+            if let Some(parameter) = parameter {
+                url.query_pairs_mut().append_pair(parameter, cursor);
+            }
+        }
+        let (_, _, header, prefix) = self.connection();
+        let mut call = client
+            .get(url)
+            .header(header, format!("{prefix}{credential}"));
+        if matches!(self, Self::Anthropic) {
+            call = call.header("anthropic-version", "2023-06-01");
+        }
+        Ok(call)
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -50,7 +85,7 @@ pub(crate) struct Request {
     api_key: Option<String>,
 }
 pub(crate) async fn check(store: Store, request: Request) -> Result<Value, Error> {
-    let (key, url, header, prefix) = request.provider.connection();
+    let (key, url, _, _) = request.provider.connection();
     let credential = match request.api_key.filter(|s| !s.is_empty()) {
         Some(s) => Some(s),
         None => tokio::task::spawn_blocking(move || store.secret(key))
@@ -67,12 +102,7 @@ pub(crate) async fn check(store: Store, request: Request) -> Result<Value, Error
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|_| super::AiError::Provider)?;
-    let mut call = client
-        .get(url)
-        .header(header, format!("{prefix}{credential}"));
-    if matches!(request.provider, Provider::Anthropic) {
-        call = call.header("anthropic-version", "2023-06-01");
-    }
+    let call = request.provider.request(&client, url, &credential, None)?;
     let (ok, status, message) = match call.send().await {
         Ok(r) if r.status().is_success() => (true, "verified", "接続を確認しました。"),
         Ok(r) if matches!(r.status().as_u16(), 401 | 403) => {
@@ -84,7 +114,7 @@ pub(crate) async fn check(store: Store, request: Request) -> Result<Value, Error
 }
 
 pub(crate) async fn models(store: Store, provider: Provider) -> Result<Value, Error> {
-    let (key, url, header, prefix) = provider.connection();
+    let (key, url, _, _) = provider.connection();
     let credential = tokio::task::spawn_blocking(move || store.secret(key))
         .await
         .map_err(|_| Error::Closed)??;
@@ -94,46 +124,89 @@ pub(crate) async fn models(store: Store, provider: Provider) -> Result<Value, Er
         );
     };
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(8))
+        .timeout(MODEL_LIST_TIMEOUT)
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|_| super::AiError::Provider)?;
-    let mut call = client
-        .get(url)
-        .header(header, format!("{prefix}{credential}"));
-    if matches!(provider, Provider::Anthropic) {
-        call = call.header("anthropic-version", "2023-06-01");
-    }
-    let response = match call.send().await {
-        Ok(response) if response.status().is_success() => response,
-        Ok(response) if matches!(response.status().as_u16(), 401 | 403) => {
-            return Ok(
-                json!({"ok":false,"provider":provider.id(),"models":[],"message":"APIキーを確認してください。"}),
-            );
-        }
-        _ => {
-            return Ok(
-                json!({"ok":false,"provider":provider.id(),"models":[],"message":"モデル一覧を取得できませんでした。"}),
-            );
-        }
-    };
-    let mut stream = response.bytes_stream();
-    let mut body = Vec::new();
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|_| super::AiError::Provider)?;
-        if body.len() + chunk.len() > 2 * 1024 * 1024 {
-            return Err(super::AiError::Provider.into());
-        }
-        body.extend_from_slice(&chunk);
-    }
-    let models = parse_models(provider, &body)?;
-    Ok(json!({"ok":true,"provider":provider.id(),"models":models,"message":null}))
+    // Keep the existing time budget for the whole catalog, including all pages.
+    tokio::time::timeout(
+        MODEL_LIST_TIMEOUT,
+        fetch_models(&client, provider, url, &credential),
+    )
+    .await
+    .map_err(|_| super::AiError::Provider)?
 }
 
-fn parse_models(provider: Provider, body: &[u8]) -> Result<Vec<Value>, Error> {
+async fn fetch_models(
+    client: &reqwest::Client,
+    provider: Provider,
+    url: &str,
+    credential: &str,
+) -> Result<Value, Error> {
+    let mut models = Vec::new();
+    let mut cursor = None::<String>;
+    let mut seen_cursors = HashSet::new();
+    let mut total_bytes = 0;
+    for _ in 0..MAX_MODEL_PAGES {
+        let response = match provider
+            .request(client, url, credential, cursor.as_deref())?
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() => response,
+            Ok(response) if matches!(response.status().as_u16(), 401 | 403) => {
+                return Ok(
+                    json!({"ok":false,"provider":provider.id(),"models":[],"message":"APIキーを確認してください。"}),
+                );
+            }
+            _ => {
+                return Ok(
+                    json!({"ok":false,"provider":provider.id(),"models":[],"message":"モデル一覧を取得できませんでした。"}),
+                );
+            }
+        };
+        let mut stream = response.bytes_stream();
+        let mut body = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|_| super::AiError::Provider)?;
+            total_bytes += chunk.len();
+            if total_bytes > MAX_MODEL_LIST_BYTES {
+                return Err(super::AiError::Provider.into());
+            }
+            body.extend_from_slice(&chunk);
+        }
+        let page = parse_model_page(provider, &body)?;
+        models.extend(page.models);
+        if models.len() > MAX_MODELS {
+            return Err(super::AiError::Provider.into());
+        }
+        let Some(next_cursor) = page.next_cursor else {
+            let models = normalize_models(models);
+            return Ok(json!({"ok":true,"provider":provider.id(),"models":models,"message":null}));
+        };
+        if !seen_cursors.insert(next_cursor.clone()) {
+            return Err(super::AiError::Provider.into());
+        }
+        cursor = Some(next_cursor);
+    }
+    Err(super::AiError::Provider.into())
+}
+
+struct ModelPage {
+    models: Vec<(String, String)>,
+    next_cursor: Option<String>,
+}
+
+fn parse_model_page(provider: Provider, body: &[u8]) -> Result<ModelPage, Error> {
     #[derive(Deserialize)]
     struct DataResponse {
         data: Vec<DataModel>,
+    }
+    #[derive(Deserialize)]
+    struct AnthropicResponse {
+        data: Vec<DataModel>,
+        has_more: bool,
+        last_id: Option<String>,
     }
     #[derive(Deserialize)]
     struct DataModel {
@@ -142,8 +215,11 @@ fn parse_models(provider: Provider, body: &[u8]) -> Result<Vec<Value>, Error> {
         display_name: Option<String>,
     }
     #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
     struct GeminiResponse {
+        #[serde(default)]
         models: Vec<GeminiModel>,
+        next_page_token: Option<String>,
     }
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -154,23 +230,52 @@ fn parse_models(provider: Provider, body: &[u8]) -> Result<Vec<Value>, Error> {
         #[serde(default)]
         supported_generation_methods: Vec<String>,
     }
-    let mut models: Vec<(String, String)> = match provider {
-        Provider::Openai | Provider::Anthropic => {
+    let (models, next_cursor) = match provider {
+        // https://developers.openai.com/api/reference/resources/models/methods/list
+        // OpenAI returns a single list with no pagination parameters.
+        Provider::Openai => {
             let response: DataResponse =
                 serde_json::from_slice(body).map_err(|_| super::AiError::Provider)?;
-            response
-                .data
-                .into_iter()
-                .map(|model| {
-                    let label = model.display_name.unwrap_or_else(|| model.id.clone());
-                    (model.id, label)
-                })
-                .collect()
+            (
+                response
+                    .data
+                    .into_iter()
+                    .map(|model| (model.id.clone(), model.id))
+                    .collect(),
+                None,
+            )
         }
+        // https://platform.claude.com/docs/en/api/models/list
+        Provider::Anthropic => {
+            let response: AnthropicResponse =
+                serde_json::from_slice(body).map_err(|_| super::AiError::Provider)?;
+            let next_cursor = if response.has_more {
+                Some(
+                    response
+                        .last_id
+                        .filter(|id| !id.trim().is_empty())
+                        .ok_or(super::AiError::Provider)?,
+                )
+            } else {
+                None
+            };
+            (
+                response
+                    .data
+                    .into_iter()
+                    .map(|model| {
+                        let label = model.display_name.unwrap_or_else(|| model.id.clone());
+                        (model.id, label)
+                    })
+                    .collect(),
+                next_cursor,
+            )
+        }
+        // https://ai.google.dev/api/models#method:-models.list
         Provider::Gemini => {
             let response: GeminiResponse =
                 serde_json::from_slice(body).map_err(|_| super::AiError::Provider)?;
-            response
+            let models = response
                 .models
                 .into_iter()
                 .filter(|model| {
@@ -188,52 +293,31 @@ fn parse_models(provider: Provider, body: &[u8]) -> Result<Vec<Value>, Error> {
                     };
                     Some((id, label))
                 })
-                .collect()
+                .collect();
+            (
+                models,
+                response.next_page_token.filter(|token| !token.is_empty()),
+            )
         }
     };
+    Ok(ModelPage {
+        models,
+        next_cursor,
+    })
+}
+
+fn normalize_models(mut models: Vec<(String, String)>) -> Vec<Value> {
     models.retain(|(id, label)| {
-        !id.is_empty() && id.len() <= 256 && !label.is_empty() && label.len() <= 256
+        !id.is_empty() && id.len() <= 256 && !label.is_empty() && label.chars().count() <= 256
     });
     models.sort_by(|left, right| left.1.cmp(&right.1).then(left.0.cmp(&right.0)));
-    models.dedup_by(|left, right| left.0 == right.0);
-    if models.len() > 2000 {
-        return Err(super::AiError::Provider.into());
-    }
-    Ok(models
+    let mut seen_ids = HashSet::new();
+    models
         .into_iter()
+        .filter(|(id, _)| seen_ids.insert(id.clone()))
         .map(|(id, label)| json!({"id":id,"label":label}))
-        .collect())
+        .collect()
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn provider_model_lists_are_typed_filtered_and_normalized() {
-        let openai = parse_models(
-            Provider::Openai,
-            br#"{"data":[{"id":"gpt-z"},{"id":"gpt-a"}]}"#,
-        )
-        .unwrap();
-        assert_eq!(openai[0], json!({"id":"gpt-a","label":"gpt-a"}));
-
-        let anthropic = parse_models(
-            Provider::Anthropic,
-            br#"{"data":[{"id":"claude-a","display_name":"Claude A"}]}"#,
-        )
-        .unwrap();
-        assert_eq!(anthropic, vec![json!({"id":"claude-a","label":"Claude A"})]);
-
-        let gemini = parse_models(
-            Provider::Gemini,
-            br#"{"models":[{"name":"models/gemini-chat","displayName":"Gemini Chat","supportedGenerationMethods":["generateContent"]},{"name":"models/gemini-embed","displayName":"Embedding","supportedGenerationMethods":["embedContent"]}]}"#,
-        )
-        .unwrap();
-        assert_eq!(
-            gemini,
-            vec![json!({"id":"gemini-chat","label":"Gemini Chat"})]
-        );
-        assert!(parse_models(Provider::Openai, br#"{"models":[]}"#).is_err());
-    }
-}
+mod tests;
