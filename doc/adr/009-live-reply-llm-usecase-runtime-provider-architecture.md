@@ -6,6 +6,7 @@
 - **Updated**: 2026-09-30（情報 AI を機能・移植対象から削除）
 
 - **Partially superseded by**: [ADR-020](./020-versioned-rust-settings.md)（Rust の設定形式・旧設定と認証情報の扱い）
+- **Partially superseded by**: [ADR-022](./022-rust-backend-authority.md)（Pydantic AI の実装構成を Rust の責務へ置換。本文は判断当時の記録として保持する）
 
 ## Context
 

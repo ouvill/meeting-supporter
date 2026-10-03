@@ -4,6 +4,7 @@
 - **Date**: 2026-07-18
 - **Builds on**: ADR-009、ADR-011、ADR-013
 - **Supersedes**: API / WebSocketが利用者向け日本語文言を直接返す既存contract
+- **Partially superseded by**: [ADR-022](./022-rust-backend-authority.md)（backend producer と coverage の対象を Python から Rust へ置換。本文は判断当時の記録として保持する）
 
 ## Context
 

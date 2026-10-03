@@ -4,7 +4,6 @@ import { spawnSync } from "node:child_process";
 
 const ALLOWED_TOP_LEVEL = new Set([
   ".envrc.example",
-  ".omp",
   ".github",
   ".gitignore",
   ".python-version",
@@ -58,6 +57,7 @@ const ALLOWED_DOCS = new Set([
   "doc/adr/019-local-speech-and-saved-history.md",
   "doc/adr/020-versioned-rust-settings.md",
   "doc/adr/021-retire-python-backend.md",
+  "doc/adr/022-rust-backend-authority.md",
   "doc/adr/009-live-reply-llm-usecase-runtime-provider-architecture.md",
   "doc/adr/010-ai-route-strategy.md",
   "doc/adr/011-general-route-card-visibility.md",

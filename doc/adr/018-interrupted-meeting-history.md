@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-10-01
 - **Supersession**: ADR-003 の中断会議の管理方針と、ADR-016 の Rust 直接接続における復旧待ち方針を部分置換する。
+- **Partially superseded by**: [ADR-022](./022-rust-backend-authority.md)（Python バックエンドと移行用 adapter が別 lifecycle として残る前提。本文は判断当時の記録として保持する）
 
 ## Context
 

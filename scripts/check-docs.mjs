@@ -30,6 +30,7 @@ const REQUIRED_AUTHORITIES = [
   "doc/adr/019-local-speech-and-saved-history.md",
   "doc/adr/020-versioned-rust-settings.md",
   "doc/adr/021-retire-python-backend.md",
+  "doc/adr/022-rust-backend-authority.md",
 ];
 
 const REQUIRED_LINKS = [
