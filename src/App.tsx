@@ -14,6 +14,7 @@ import { BootstrapScreen } from "./components/BootstrapScreen";
 import { AppFrame } from "./components/product/AppFrame";
 import type { ProductDestination } from "./components/product/ProductBar";
 import { SetupScreen } from "./components/SetupScreen";
+import { SettingsTaskNotice } from "./components/SettingsTaskNotice";
 import { Button } from "./components/ui/Button";
 import { InlineNotice } from "./components/ui/InlineNotice";
 import { TooltipProvider } from "./components/ui/Tooltip";
@@ -306,13 +307,18 @@ function MainWindowContent({
               : "待機中"
         }
         connectionNotice={
-          !state.connected ? (
-            <div className="shrink-0 px-4 pt-3">
-              <InlineNotice tone="warning" title="接続を戻しています">
-                画面はそのままにしてお待ちください。操作は接続後に再開できます。
-              </InlineNotice>
-            </div>
-          ) : undefined
+          <>
+            {!settingsOpen && (
+              <SettingsTaskNotice onOpenSettings={onOpenSettings} />
+            )}
+            {!state.connected && (
+              <div className="shrink-0 px-4 pt-3">
+                <InlineNotice tone="warning" title="接続を戻しています">
+                  画面はそのままにしてお待ちください。操作は接続後に再開できます。
+                </InlineNotice>
+              </div>
+            )}
+          </>
         }
       >
         <Suspense fallback={<ScreenLoadingState />}>

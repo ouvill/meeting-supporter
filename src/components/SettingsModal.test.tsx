@@ -17,6 +17,9 @@ import type {
   AiRoutesController,
 } from "../hooks/useAiRoutes";
 import { SettingsModal } from "./SettingsModal";
+import { SettingsTaskNotice } from "./SettingsTaskNotice";
+import { resetSpeechModelTasks } from "../store/speechModelStore";
+import { useSettingsTaskStore } from "../store/settingsTaskStore";
 
 const sdkMocks = vi.hoisted(() => ({
   getSettings: vi.fn(),
@@ -155,11 +158,16 @@ async function renderModal(
   await screen.findByText("支援方法");
   return { ...rendered, onClose };
 }
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetSpeechModelTasks();
+});
 
 describe("SettingsModal connection UX", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetSpeechModelTasks();
+    useSettingsTaskStore.setState({ tasks: {} });
     sdkMocks.getSpeechStatus.mockResolvedValue({
       data: speechStatus(),
       error: undefined,
@@ -230,6 +238,76 @@ describe("SettingsModal connection UX", () => {
         "会議中・準備中は音声認識の設定を変更できません。",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("keeps a model download alive across closing and reopening settings and reports completion outside the dialog", async () => {
+    sdkMocks.getSettings.mockResolvedValue({
+      data: settings(),
+      error: undefined,
+      request,
+      response,
+    });
+    sdkMocks.getSpeechStatus.mockResolvedValue({
+      data: { ...speechStatus(), state: "missing" },
+      error: undefined,
+    });
+    let finishStart!: (value: {
+      data: SpeechModelStatusResponse;
+      error: undefined;
+    }) => void;
+    let startSignal: AbortSignal | undefined;
+    sdkMocks.startSpeechDownload.mockImplementation(
+      ({ signal }: { signal: AbortSignal }) => {
+        startSignal = signal;
+        return new Promise((resolve) => {
+          finishStart = resolve;
+        });
+      },
+    );
+    const routes = routeCatalog();
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return open ? (
+        <SettingsModal onClose={() => setOpen(false)} routes={routes} />
+      ) : (
+        <SettingsTaskNotice onOpenSettings={() => setOpen(true)} />
+      );
+    }
+    render(<Harness />);
+    fireEvent.click(await screen.findByText("音声"));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "モデルを取得" }),
+    );
+    fireEvent.click(screen.getByLabelText("設定を閉じる"));
+    expect(screen.queryByTestId("settings-modal")).not.toBeInTheDocument();
+    expect(startSignal?.aborted).toBe(false);
+    expect(
+      screen.getByText(/設定を閉じても処理は続きます/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "設定を開く" }));
+    fireEvent.click(await screen.findByText("音声"));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "モデルを取得" }),
+      ).toBeDisabled(),
+    );
+    expect(sdkMocks.startSpeechDownload).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByLabelText("設定を閉じる"));
+    await act(async () => {
+      finishStart({
+        data: { ...speechStatus(), state: "downloading", progress_percent: 40 },
+        error: undefined,
+      });
+    });
+    expect(screen.getByText(/取得中 40%/)).toBeInTheDocument();
+    sdkMocks.getSpeechStatus.mockResolvedValue({
+      data: speechStatus(),
+      error: undefined,
+    });
+    expect(await screen.findByText(/取得が完了しました/)).toBeInTheDocument();
+    expect(sdkMocks.cancelSpeechDownload).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "処理の通知を閉じる" }));
+    expect(screen.queryByText(/取得が完了しました/)).not.toBeInTheDocument();
   });
 
   it("focuses the native dialog title and restores the opening control after close", async () => {

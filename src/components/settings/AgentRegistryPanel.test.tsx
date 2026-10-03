@@ -16,6 +16,8 @@ import {
   type RegistryAgent,
 } from "../../api/agentRegistry";
 import { AgentRegistryPanel } from "./AgentRegistryPanel";
+import { useAgentRegistryStore } from "../../store/agentRegistryStore";
+import { useSettingsTaskStore } from "../../store/settingsTaskStore";
 
 vi.mock("../../api/agentRegistry", () => ({
   getAgentCatalog: vi.fn(),
@@ -47,6 +49,8 @@ const catalog = (agents: RegistryAgent[]) => ({
 
 beforeEach(() => {
   vi.resetAllMocks();
+  useAgentRegistryStore.setState(useAgentRegistryStore.getInitialState(), true);
+  useSettingsTaskStore.setState({ tasks: {} });
 });
 
 describe("AgentRegistryPanel", () => {
@@ -367,5 +371,88 @@ describe("AgentRegistryPanel", () => {
     ).toBeInTheDocument();
     expect(getAgentCatalog).toHaveBeenCalledWith(true);
     expect(installAgent).not.toHaveBeenCalled();
+  });
+  it("continues installation and connection after closing, restores pending state, and blocks duplicate updates", async () => {
+    let finishInstall!: () => void;
+    const installation = new Promise<void>((resolve) => {
+      finishInstall = resolve;
+    });
+    vi.mocked(getAgentCatalog).mockResolvedValue(
+      catalog([
+        { ...agent, installed_version: "0.9.0", update_version: "1.0.0" },
+      ]),
+    );
+    vi.mocked(installAgent).mockReturnValue(installation);
+    vi.mocked(connectAgent).mockResolvedValue({
+      ready: true,
+      message: "接続済みです。",
+      auth_methods: [],
+    });
+    const onChanged = vi.fn();
+    const first = render(
+      <AgentRegistryPanel locked={false} onChanged={onChanged} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "1.0.0に更新" }));
+    first.unmount();
+    const reopened = render(
+      <AgentRegistryPanel locked={false} onChanged={vi.fn()} />,
+    );
+    expect(
+      screen.getByText(/Synthetic Agentを導入しています/),
+    ).toBeInTheDocument();
+    const update = screen.getByRole("button", { name: "1.0.0に更新" });
+    expect(update).toBeDisabled();
+    fireEvent.click(update);
+    expect(installAgent).toHaveBeenCalledOnce();
+    reopened.unmount();
+    await act(async () => {
+      finishInstall();
+    });
+    expect(connectAgent).toHaveBeenCalledExactlyOnceWith(
+      "synthetic",
+      undefined,
+    );
+    expect(onChanged).toHaveBeenCalledOnce();
+    expect(useSettingsTaskStore.getState().tasks.agents).toMatchObject({
+      state: "completed",
+      message: "接続済みです。",
+    });
+    render(<AgentRegistryPanel locked={false} onChanged={vi.fn()} />);
+    expect(await screen.findByText("接続済みです。")).toBeInTheDocument();
+    await act(async () => {});
+  });
+
+  it("retains a failed background update for the next visit and permits retrying", async () => {
+    let rejectUpdate!: (error: Error) => void;
+    vi.mocked(getAgentCatalog).mockResolvedValue(
+      catalog([
+        { ...agent, installed_version: "0.9.0", update_version: "1.0.0" },
+      ]),
+    );
+    vi.mocked(updateAllAgents).mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectUpdate = reject;
+      }),
+    );
+    const first = render(
+      <AgentRegistryPanel locked={false} onChanged={vi.fn()} />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "まとめて更新" }),
+    );
+    first.unmount();
+    await act(async () => {
+      rejectUpdate(new Error("更新に失敗しました。"));
+    });
+    expect(useSettingsTaskStore.getState().tasks.agents).toMatchObject({
+      state: "failed",
+      message: "更新に失敗しました。",
+    });
+    render(<AgentRegistryPanel locked={false} onChanged={vi.fn()} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "更新に失敗しました。",
+    );
+    expect(screen.getByRole("button", { name: "まとめて更新" })).toBeEnabled();
+    await act(async () => {});
   });
 });

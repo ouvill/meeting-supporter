@@ -7,9 +7,9 @@ import {
   removeAgent,
   selectAgentModel,
   updateAllAgents,
-  type AgentCatalog,
   type RegistryAgent,
 } from "../../api/agentRegistry";
+import { useAgentRegistryStore } from "../../store/agentRegistryStore";
 import { Button } from "../ui/Button";
 import { SettingsCard } from "./SettingsPrimitives";
 
@@ -18,88 +18,51 @@ interface Props {
   onChanged: () => void;
 }
 export function AgentRegistryPanel({ locked, onChanged }: Props) {
-  const [catalog, setCatalog] = useState<AgentCatalog | null>(null);
+  const {
+    catalog,
+    pending,
+    error,
+    message,
+    refresh,
+    perform: performTask,
+  } = useAgentRegistryStore();
+  const setCatalog = (catalog: Awaited<ReturnType<typeof getAgentCatalog>>) =>
+    useAgentRegistryStore.setState({ catalog });
+  const setMessage = (message: string | null) =>
+    useAgentRegistryStore.setState({ message });
+  const setError = (error: string | null) =>
+    useAgentRegistryStore.setState({ error });
   const [browse, setBrowse] = useState(false);
   const [query, setQuery] = useState("");
-  const [pending, setPending] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [editingAuth, setEditingAuth] = useState<string | null>(null);
   const mounted = useRef(true);
-  const inFlight = useRef(false);
-  const revision = useRef(0);
-
   useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
-    const refresh = () => {
-      if (inFlight.current) return;
-      const currentRevision = revision.current;
-      void getAgentCatalog(false, controller.signal)
-        .then((value) => {
-          if (
-            !controller.signal.aborted &&
-            revision.current === currentRevision
-          )
-            setCatalog(value);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted)
-            setError("エージェントの一覧を取得できませんでした。");
-        });
-    };
-    refresh();
-    const timer = locked ? undefined : window.setInterval(refresh, 15_000);
+    const poll = () => void refresh(controller.signal);
+    poll();
+    const timer = locked ? undefined : window.setInterval(poll, 15_000);
     return () => {
       mounted.current = false;
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [locked]);
+  }, [locked, refresh]);
 
-  const perform = async (label: string, action: () => Promise<void>) => {
-    if (locked || inFlight.current) return;
-    inFlight.current = true;
-    revision.current += 1;
-    setPending(label);
-    setError(null);
-    setMessage(null);
-    try {
-      await action();
-    } catch (cause) {
-      if (mounted.current)
-        setError(
-          cause instanceof Error ? cause.message : "操作に失敗しました。",
-        );
-    } finally {
-      // Installation can succeed even when the subsequent connection fails.
-      try {
-        const next = await getAgentCatalog();
-        if (mounted.current) {
-          setCatalog(next);
-          onChanged();
-        }
-      } catch {
-        /* Preserve the original action error and allow another attempt. */
-      }
-      inFlight.current = false;
-      if (mounted.current) setPending(null);
-    }
+  const perform = (label: string, action: () => Promise<void>) => {
+    if (locked) return;
+    return performTask(label, action, onChanged);
   };
   const connect = async (agent: RegistryAgent, method?: string) => {
     const status = await connectAgent(agent.id, method);
-    if (mounted.current) {
-      setMessage(status.message);
-      if (method && status.ready) setEditingAuth(null);
-    }
+    setMessage(status.message);
+    if (mounted.current && method && status.ready) setEditingAuth(null);
   };
   const openCatalog = () =>
     void perform("一覧を取得しています", async () => {
       const next = await getAgentCatalog(true);
-      if (mounted.current) {
-        setCatalog(next);
-        setBrowse(true);
-      }
+      setCatalog(next);
+      if (mounted.current) setBrowse(true);
     });
   if (!catalog && !error) return null;
   const agents = (catalog?.agents ?? []).filter(
@@ -149,11 +112,9 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
               onClick={() =>
                 void perform("更新を確認しています", async () => {
                   const next = await getAgentCatalog(true);
-                  if (mounted.current) {
-                    setCatalog(next);
-                    if (next && next.update_count === 0 && !next.update_message)
-                      setMessage("更新できるエージェントはありません。");
-                  }
+                  setCatalog(next);
+                  if (next && next.update_count === 0 && !next.update_message)
+                    setMessage("更新できるエージェントはありません。");
                 })
               }
             >
@@ -168,24 +129,22 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
               onClick={() =>
                 void perform("エージェントを更新しています", async () => {
                   const result = await updateAllAgents();
-                  if (mounted.current) {
-                    const updated = result.results.filter(
-                      (item) => item.updated,
-                    ).length;
-                    setMessage(`${updated}件更新しました。`);
-                    const failures = result.results.filter(
-                      (item) => item.error !== null,
+                  const updated = result.results.filter(
+                    (item) => item.updated,
+                  ).length;
+                  setMessage(`${updated}件更新しました。`);
+                  const failures = result.results.filter(
+                    (item) => item.error !== null,
+                  );
+                  if (failures.length)
+                    setError(
+                      failures
+                        .map(
+                          (item) =>
+                            `${item.name}: ${item.error} 以前の版を保持しています。`,
+                        )
+                        .join("\n"),
                     );
-                    if (failures.length)
-                      setError(
-                        failures
-                          .map(
-                            (item) =>
-                              `${item.name}: ${item.error} 以前の版を保持しています。`,
-                          )
-                          .join("\n"),
-                      );
-                  }
                 })
               }
             >
@@ -225,7 +184,7 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
             role="status"
           >
             <LoaderCircle className="h-3 w-3 animate-spin" />
-            {pending}
+            {pending}。設定を閉じても処理は続きます。
           </p>
         )}
         {message && (
@@ -285,7 +244,7 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
                             agent.id,
                             model,
                           );
-                          if (mounted.current) setMessage(status.message);
+                          setMessage(status.message);
                         },
                       );
                     }}

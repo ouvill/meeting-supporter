@@ -180,6 +180,14 @@ export function SpeechModelPreparationCard({
           </InlineNotice>
         )}
 
+        {(model.action === "starting" ||
+          model.confirmingStart ||
+          model.isDownloading) && (
+          <p className="text-xs text-ink-muted">
+            設定を閉じても取得は続きます。
+          </p>
+        )}
+
         {status?.state === "downloading" && (
           <div className="space-y-3">
             <div className="space-y-1.5">
