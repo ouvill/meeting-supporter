@@ -240,6 +240,7 @@ fn parse_model_page(provider: Provider, body: &[u8]) -> Result<ModelPage, Error>
                 response
                     .data
                     .into_iter()
+                    .filter(|model| is_text_generation_model(provider, &model.id))
                     .map(|model| (model.id.clone(), model.id))
                     .collect(),
                 None,
@@ -263,6 +264,7 @@ fn parse_model_page(provider: Provider, body: &[u8]) -> Result<ModelPage, Error>
                 response
                     .data
                     .into_iter()
+                    .filter(|model| is_text_generation_model(provider, &model.id))
                     .map(|model| {
                         let label = model.display_name.unwrap_or_else(|| model.id.clone());
                         (model.id, label)
@@ -286,6 +288,9 @@ fn parse_model_page(provider: Provider, body: &[u8]) -> Result<ModelPage, Error>
                 })
                 .filter_map(|model| {
                     let id = model.name.strip_prefix("models/")?.to_owned();
+                    if !is_text_generation_model(provider, &id) {
+                        return None;
+                    }
                     let label = if model.display_name.is_empty() {
                         id.clone()
                     } else {
@@ -304,6 +309,56 @@ fn parse_model_page(provider: Provider, body: &[u8]) -> Result<ModelPage, Error>
         models,
         next_cursor,
     })
+}
+
+fn is_text_generation_model(provider: Provider, id: &str) -> bool {
+    // OpenAI's list has no modality metadata; Gemini's generateContent also
+    // covers image generation and TTS. Use known language-model families and
+    // exclude specialized variants by ID, never by the human-readable label.
+    // https://developers.openai.com/api/docs/models/all
+    // https://ai.google.dev/gemini-api/docs/models
+    let id = match provider {
+        // Classify fine-tunes by the base model, not the user-defined suffix.
+        Provider::Openai => id
+            .strip_prefix("ft:")
+            .and_then(|rest| rest.split(':').next())
+            .unwrap_or(id),
+        _ => id,
+    };
+    let known_family = match provider {
+        Provider::Openai => {
+            id.starts_with("gpt-")
+                || id.starts_with("chatgpt-")
+                || id.starts_with("codex-")
+                || id == "chat-latest"
+                || id.strip_prefix('o').is_some_and(|rest| {
+                    let version = rest.split('-').next().unwrap_or("");
+                    !version.is_empty() && version.bytes().all(|byte| byte.is_ascii_digit())
+                })
+        }
+        Provider::Gemini => id.starts_with("gemini-") || id.starts_with("gemma-"),
+        // Anthropic's catalog currently consists of Claude language models.
+        // Do not require optional capabilities such as image input or thinking.
+        Provider::Anthropic => id.starts_with("claude-"),
+    };
+    known_family
+        && !id.split('-').any(|part| {
+            matches!(
+                part,
+                "image"
+                    | "audio"
+                    | "tts"
+                    | "live"
+                    | "realtime"
+                    | "transcribe"
+                    | "transcription"
+                    | "embedding"
+                    | "embeddings"
+                    | "moderation"
+                    // Legacy OpenAI instruct models use the Completions API.
+                    | "instruct"
+            )
+        })
 }
 
 fn normalize_models(mut models: Vec<(String, String)>) -> Vec<Value> {
