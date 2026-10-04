@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { getOllamaModelsApiSettingsOllamaModelsGet } from "../../api/generated/sdk.gen";
 import type { AiRoutesController } from "../../hooks/useAiRoutes";
 import {
   useSpeechModel,
@@ -27,9 +26,6 @@ export function useSettingsForm({
     setSectionError,
     setSaveMessage,
   });
-  const [ollamaTesting, setOllamaTesting] = useState(false);
-  const [ollamaMessage, setOllamaMessage] = useState("");
-  const [ollamaMessageIsError, setOllamaMessageIsError] = useState(false);
 
   const speechModelBackend =
     form.sttBackend === "whisper" || form.sttBackend === "reazonspeech"
@@ -105,42 +101,6 @@ export function useSettingsForm({
     }
   };
 
-  const testOllamaConnection = async () => {
-    if (!form.ollamaBaseUrl.trim()) {
-      setOllamaMessage("ベースURLを入力してください。");
-      setOllamaMessageIsError(true);
-      return;
-    }
-    setOllamaTesting(true);
-    setOllamaMessage("");
-    try {
-      const { data, error } = await getOllamaModelsApiSettingsOllamaModelsGet({
-        query: { base_url: form.ollamaBaseUrl },
-      });
-      if (error || !data?.ok) {
-        setOllamaMessage(
-          data?.message ??
-            "接続できませんでした。URLとOllamaの起動状態を確認してください。",
-        );
-        setOllamaMessageIsError(true);
-        return;
-      }
-      setOllamaMessage(
-        data.models.length
-          ? `${data.models.length}件のモデルを確認しました。`
-          : "接続できましたが、モデルがありません。",
-      );
-      setOllamaMessageIsError(false);
-    } catch {
-      setOllamaMessage(
-        "接続できませんでした。URLとOllamaの起動状態を確認してください。",
-      );
-      setOllamaMessageIsError(true);
-    } finally {
-      setOllamaTesting(false);
-    }
-  };
-
   const save = () =>
     persistence.save({
       blocksSettingsSave: speechModel.blocksSettingsSave,
@@ -166,9 +126,6 @@ export function useSettingsForm({
     clearSaveMessage: persistence.clearSaveMessage,
     busy,
     dirty,
-    ollamaTesting,
-    ollamaMessage,
-    ollamaMessageIsError,
     connectionEditingProvider: connections.connectionEditingProvider,
     connectionTestingProvider: connections.connectionTestingProvider,
     connectionTestMessages: connections.connectionTestMessages,
@@ -184,7 +141,6 @@ export function useSettingsForm({
     cancelSecretDeletion: connections.cancelSecretDeletion,
     assignRoute,
     chooseContextDirectory,
-    testOllamaConnection,
     save,
     discardChanges,
   };

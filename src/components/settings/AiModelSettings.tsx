@@ -4,8 +4,8 @@ import type {
   AiModelOption,
   ConnectionProvider,
 } from "../../api/generated/types.gen";
-import { Button } from "../ui/Button";
 import { InlineNotice } from "../ui/InlineNotice";
+import { OllamaModelSettings } from "./OllamaModelSettings";
 import { FieldRow } from "./SettingsPrimitives";
 import type { SettingsForm } from "./types";
 
@@ -13,14 +13,10 @@ interface Props {
   provider: string;
   form: SettingsForm;
   error?: string;
-  ollamaTesting: boolean;
-  ollamaMessage: string;
-  ollamaMessageIsError: boolean;
   update: <K extends keyof SettingsForm>(
     key: K,
     value: SettingsForm[K],
   ) => void;
-  onTestOllama: () => void;
 }
 
 const CUSTOM_MODEL = "__custom_model__";
@@ -50,11 +46,7 @@ export function AiModelSettings({
   provider: selectedProvider,
   form,
   error,
-  ollamaTesting,
-  ollamaMessage,
-  ollamaMessageIsError,
   update,
-  onTestOllama,
 }: Props) {
   const [catalogs, setCatalogs] = useState<
     Record<ConnectionProvider, ModelCatalog>
@@ -169,63 +161,14 @@ export function AiModelSettings({
           },
         )}
         {selectedProvider === "ollama" && (
-          <FieldRow label="モデル">
-            <input
-              type="text"
-              value={form.ollamaModel}
-              onChange={(event) => update("ollamaModel", event.target.value)}
-              className="field"
-              maxLength={256}
-              aria-label="Ollamaモデル"
-            />
-          </FieldRow>
+          <OllamaModelSettings
+            baseUrl={form.ollamaBaseUrl}
+            model={form.ollamaModel}
+            onBaseUrlChange={(value) => update("ollamaBaseUrl", value)}
+            onModelChange={(value) => update("ollamaModel", value)}
+          />
         )}
       </div>
-      {selectedProvider === "ollama" && (
-        <details open={Boolean(error)}>
-          <summary className="cursor-pointer text-sm font-medium">
-            Ollamaの接続設定
-          </summary>
-          <div className="space-y-4">
-            <FieldRow label="ベースURL" hint="通常は変更不要です">
-              <input
-                type="url"
-                value={form.ollamaBaseUrl}
-                onChange={(event) =>
-                  update("ollamaBaseUrl", event.target.value)
-                }
-                placeholder="http://localhost:11434/v1"
-                className="field"
-                aria-label="OllamaベースURL"
-              />
-            </FieldRow>
-            <FieldRow label="接続確認">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={onTestOllama}
-                  loading={ollamaTesting}
-                >
-                  接続テスト
-                </Button>
-                {ollamaMessage && (
-                  <span
-                    className={`text-xs font-medium ${ollamaMessageIsError ? "text-danger" : "text-positive"}`}
-                    role={ollamaMessageIsError ? "alert" : "status"}
-                  >
-                    {ollamaMessage}
-                  </span>
-                )}
-              </div>
-            </FieldRow>
-            <InlineNotice tone="warning">
-              localhost / 127.0.0.1 / ::1
-              以外のURLを指定すると、会議テキストが外部へ送信される可能性があります。
-            </InlineNotice>
-          </div>
-        </details>
-      )}
     </div>
   );
 }

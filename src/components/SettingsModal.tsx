@@ -58,9 +58,6 @@ export function SettingsModal({
     clearSaveMessage,
     busy,
     dirty,
-    ollamaTesting,
-    ollamaMessage,
-    ollamaMessageIsError,
     connectionEditingProvider,
     connectionTestingProvider,
     connectionTestMessages,
@@ -76,7 +73,6 @@ export function SettingsModal({
     cancelSecretDeletion,
     assignRoute,
     chooseContextDirectory,
-    testOllamaConnection,
     save,
     discardChanges,
   } = controller;
@@ -241,13 +237,7 @@ export function SettingsModal({
                             provider={selectedRoute.id}
                             error={fieldErrors.advanced}
                             form={form}
-                            ollamaTesting={ollamaTesting}
-                            ollamaMessage={ollamaMessage}
-                            ollamaMessageIsError={ollamaMessageIsError}
                             update={updateForm}
-                            onTestOllama={() => {
-                              void testOllamaConnection();
-                            }}
                           />
                         ) : null
                       }

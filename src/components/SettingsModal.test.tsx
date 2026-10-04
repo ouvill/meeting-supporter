@@ -175,6 +175,17 @@ describe("SettingsModal connection UX", () => {
       request,
       response,
     });
+    sdkMocks.getOllamaModels.mockImplementation(async ({ query }) => ({
+      data: {
+        ok: true,
+        base_url: query.base_url,
+        models: ["qwen3", "synthetic-model:8b"],
+        message: null,
+      },
+      error: undefined,
+      request,
+      response,
+    }));
     sdkMocks.getAiModels.mockImplementation(async ({ query }) => ({
       data: {
         ok: true,
@@ -766,6 +777,32 @@ describe("SettingsModal connection UX", () => {
       screen.getByRole("dialog", { name: "変更を破棄しますか？" }),
     ).toBeInTheDocument();
   });
+  it("shows the Ollama URL before the model selector and saves the selected model", async () => {
+    await renderModal();
+    const url = screen.getByRole("textbox", { name: "OllamaベースURL" });
+    const model = screen.getByRole("combobox", { name: "Ollamaモデル" });
+    expect(url).toBeVisible();
+    expect(
+      url.compareDocumentPosition(model) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await screen.findByRole("option", { name: "synthetic-model:8b" });
+    expect(model).toHaveValue("qwen3");
+
+    fireEvent.change(model, { target: { value: "synthetic-model:8b" } });
+    expect(sdkMocks.saveSettings).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => expect(sdkMocks.saveSettings).toHaveBeenCalledOnce());
+    expect(sdkMocks.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          ollama: { base_url: "http://127.0.0.1:11434/v1" },
+          ai_models: expect.objectContaining({ ollama: "synthetic-model:8b" }),
+        }),
+      }),
+    );
+  });
+
   it("keeps legacy agent commands out of Advanced settings", async () => {
     await renderModal();
     await act(async () => {
