@@ -25,10 +25,21 @@ describe("reply latency diagnostics", () => {
     expect(latest("meeting.reply.manual.")).toBeUndefined();
     now = 250;
     timing.rendered("synthetic-generation", "合成の", false);
+    expect(
+      timing.details("synthetic-generation", null).firstSentenceMs,
+    ).toBeNull();
     now = 500;
     timing.rendered("synthetic-generation", "合成の返答です。", false);
+    expect(timing.details("synthetic-generation", null).firstSentenceMs).toBe(
+      400,
+    );
     now = 900;
     timing.rendered("synthetic-generation", "合成の返答です。補足です。", true);
+    expect(timing.details("synthetic-generation", null).firstSentenceMs).toBe(
+      400,
+    );
+    expect(timing.details("unrequested", null).firstSentenceMs).toBeNull();
+    expect(timing.details(null, null).firstSentenceMs).toBeNull();
     expect(latest("meeting.reply.manual.")).toMatchObject({
       startTime: 100,
       duration: 800,
@@ -123,5 +134,56 @@ describe("reply latency diagnostics", () => {
     timing.disconnected();
     timing.rendered("one", "合成。", true);
     expect(latest("meeting.reply.manual.").detail.outcome).toBe("disconnected");
+  });
+
+  it("keeps backend phases tied to the selected suggestion and bounds their lifetime", () => {
+    const timing = new ReplyLatency();
+    for (let index = 0; index < 60; index++) {
+      timing.received({
+        type: "reply_timing",
+        generation_id: `generation-${index}`,
+        suggestion_id: `suggestion-${index}`,
+        preparation_ms: 20,
+        first_text_ms: 250,
+        first_sentence_ms: 1450,
+        total_ms: 1500,
+        outcome: "completed",
+      });
+    }
+    expect(timing.details("generation-59", "suggestion-59")).toEqual({
+      firstTextMs: null,
+      firstSentenceMs: null,
+      preparationMs: 20,
+      responseWaitMs: 230,
+      sentenceStreamingMs: 1200,
+    });
+    expect(
+      timing.details("generation-58", "suggestion-59").preparationMs,
+    ).toBeNull();
+    expect(
+      timing.details("generation-0", "suggestion-0").preparationMs,
+    ).toBeNull();
+    timing.disconnected();
+    expect(
+      timing.details("generation-59", "suggestion-59").preparationMs,
+    ).toBeNull();
+  });
+
+  it("does not invent phase durations when timestamps are missing or out of order", () => {
+    const timing = new ReplyLatency();
+    timing.received({
+      type: "reply_timing",
+      generation_id: "generation",
+      suggestion_id: "suggestion",
+      preparation_ms: 20,
+      first_text_ms: 10,
+      first_sentence_ms: null,
+      total_ms: 30,
+      outcome: "failed",
+    });
+    expect(timing.details("generation", "suggestion")).toMatchObject({
+      responseWaitMs: null,
+      sentenceStreamingMs: null,
+    });
   });
 });

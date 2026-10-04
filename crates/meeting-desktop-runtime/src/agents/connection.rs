@@ -77,6 +77,12 @@ struct Connection {
 }
 struct TransportTask(JoinHandle<()>);
 struct PreparingSession(JoinHandle<Result<Session, AgentError>>);
+struct PreparingConnection(JoinHandle<Result<Connection, AgentError>>);
+impl Drop for PreparingConnection {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
 impl Drop for PreparingSession {
     fn drop(&mut self) {
         self.0.abort();
@@ -477,8 +483,52 @@ fn map_error(error: acp::Error) -> AgentError {
     }
 }
 #[derive(Default)]
+struct ConnectionSlot {
+    active: Option<Connection>,
+    preparing: Option<PreparingConnection>,
+}
+impl ConnectionSlot {
+    async fn finish_preparing(&mut self) -> Result<(), AgentError> {
+        if let Some(mut preparing) = self.preparing.take() {
+            self.active = Some(
+                (&mut preparing.0)
+                    .await
+                    .map_err(|_| AgentError::Connect)??,
+            );
+        }
+        Ok(())
+    }
+    async fn acquire(&mut self, launch: Launch) -> Result<&mut Connection, AgentError> {
+        // An unsuccessful speculative reconnect is retried once on demand.
+        let _ = self.finish_preparing().await;
+        if self.active.as_ref().is_none_or(|c| c.task.is_finished()) {
+            self.active = None;
+            self.active = Some(Connection::open(launch).await?);
+        }
+        self.active.as_mut().ok_or(AgentError::Connect)
+    }
+
+    fn recycle(&mut self, launch: Launch, cwd: PathBuf) {
+        // Retire the old transport before preparing its replacement. The slot
+        // owns this task, so disconnect/shutdown also cancels the preparation.
+        self.active = None;
+        self.preparing = Some(PreparingConnection(tokio::spawn(async move {
+            let model = launch.model.clone();
+            let thought = launch.thought_level.clone();
+            let mut connection = Connection::open(launch).await?;
+            connection.idle_session = Some(
+                connection
+                    .session(cwd, model.as_deref(), thought.as_deref())
+                    .await?,
+            );
+            Ok(connection)
+        })));
+    }
+}
+
+#[derive(Default)]
 struct Slot {
-    connection: Mutex<Option<Connection>>,
+    connection: Mutex<ConnectionSlot>,
     status: std::sync::Mutex<Status>,
     cancel: tokio::sync::Notify,
 }
@@ -497,12 +547,38 @@ impl Pool {
     }
     pub async fn status(&self, id: &str) -> Status {
         let slot = self.slot(id).await;
-        let mut status = slot.status.lock().unwrap().clone();
-        if let Ok(connection) = slot.connection.try_lock() {
-            if connection.as_ref().is_none_or(|c| c.task.is_finished()) {
-                status.ready = false;
+        if let Ok(mut connection) = slot.connection.try_lock() {
+            if connection
+                .preparing
+                .as_ref()
+                .is_some_and(|task| task.0.is_finished())
+            {
+                let result = connection.finish_preparing().await;
+                let mut status = slot.status.lock().unwrap();
+                if let Err(error) = result {
+                    *status = Status {
+                        message: error.to_string(),
+                        ..Status::default()
+                    };
+                } else if let Some(active) = &connection.active {
+                    status.model = active.idle_session.as_ref().and_then(Session::selector);
+                    status.thought_level = active
+                        .idle_session
+                        .as_ref()
+                        .and_then(|s| s.thought_level.selector());
+                    status.auth_methods = active.auth_methods.clone();
+                }
+            }
+            if connection.preparing.is_none()
+                && connection
+                    .active
+                    .as_ref()
+                    .is_none_or(|c| c.task.is_finished())
+            {
+                slot.status.lock().unwrap().ready = false;
             }
         }
+        let status = slot.status.lock().unwrap().clone();
         status
     }
     pub async fn connect(
@@ -515,20 +591,17 @@ impl Pool {
         let requested_model = launch.model.clone();
         let requested_thought_level = launch.thought_level.clone();
         let mut guard = slot.connection.try_lock().map_err(|_| AgentError::Busy)?;
-        if guard.as_ref().is_none_or(|c| c.task.is_finished()) {
-            let opened = tokio::select! { result = Connection::open(launch) => result, _ = slot.cancel.notified() => Err(AgentError::Cancelled) };
-            match opened {
-                Ok(connection) => *guard = Some(connection),
-                Err(error) => {
-                    *slot.status.lock().unwrap() = Status {
-                        message: error.to_string(),
-                        ..Status::default()
-                    };
-                    return Err(error);
-                }
+        let opened = tokio::select! { result = guard.acquire(launch) => result, _ = slot.cancel.notified() => Err(AgentError::Cancelled) };
+        let connection = match opened {
+            Ok(connection) => connection,
+            Err(error) => {
+                *slot.status.lock().unwrap() = Status {
+                    message: error.to_string(),
+                    ..Status::default()
+                };
+                return Err(error);
             }
-        }
-        let connection = guard.as_mut().ok_or(AgentError::Connect)?;
+        };
         let operation = async {
             if let Some(method) = method {
                 if !connection.auth_methods.iter().any(|m| m.id == method) {
@@ -583,7 +656,7 @@ impl Pool {
             result,
             Err(AgentError::Timeout | AgentError::Cancelled | AgentError::Connect)
         ) {
-            *guard = None;
+            *guard = ConnectionSlot::default();
         }
         // Auth-required is a useful setup state, not an HTTP failure.
         match result {
@@ -605,13 +678,7 @@ impl Pool {
             let requested_thought_level = launch.thought_level.clone();
             let mut guard = tokio::select! { guard = slot.connection.lock() => guard, _ = tx.closed() => return };
             let result = async {
-                if guard
-                    .as_ref()
-                    .is_none_or(|c| c.task.is_finished() || c.completed >= 32)
-                {
-                    *guard = Some(Connection::open(launch).await?);
-                }
-                let connection = guard.as_mut().ok_or(AgentError::Connect)?;
+                let connection = guard.acquire(launch.clone()).await?;
                 let session = connection
                     .session(
                         cwd.clone(),
@@ -663,14 +730,14 @@ impl Pool {
             let result = tokio::select! { result = result => result, _ = tx.closed() => Err(AgentError::Cancelled), _ = slot.cancel.notified() => Err(AgentError::Cancelled) };
             // A cancelled/failed session never becomes the next request's transport.
             if let Err(error) = &result {
-                if let Some(connection) = &*guard {
+                if let Some(connection) = &guard.active {
                     if let Some((session, _)) = connection.sink.lock().unwrap().take() {
                         let _ = connection
                             .peer
                             .send_notification(acp::CancelNotification::new(session));
                     }
                 }
-                *guard = None;
+                *guard = ConnectionSlot::default();
                 *slot.status.lock().unwrap() = Status {
                     message: error.to_string(),
                     ..Status::default()
@@ -678,7 +745,9 @@ impl Pool {
             }
             match result {
                 Ok(previous) => {
-                    if let Some(connection) = guard.as_mut() {
+                    if guard.active.as_ref().is_some_and(|c| c.completed >= 32) {
+                        guard.recycle(launch, cwd);
+                    } else if let Some(connection) = guard.active.as_mut() {
                         connection.prepare_next(
                             cwd,
                             requested_model,
@@ -726,13 +795,7 @@ impl Pool {
         }
         .map(str::to_owned);
         let thought_level = launch.thought_level.clone();
-        if guard
-            .as_ref()
-            .is_none_or(|connection| connection.task.is_finished())
-        {
-            *guard = Some(Connection::open(launch).await?);
-        }
-        let connection = guard.as_mut().ok_or(AgentError::Connect)?;
+        let connection = guard.acquire(launch).await?;
         let result = async {
             let mut session = connection
                 .session(cwd, model.as_deref(), thought_level.as_deref())
@@ -763,7 +826,7 @@ impl Pool {
                 | AgentError::Cancelled)
         ) {
             // An uncertain remote outcome must not be reused as confirmed settings.
-            *guard = None;
+            *guard = ConnectionSlot::default();
             status.ready = false;
             status.model = None;
             status.thought_level = None;
@@ -775,7 +838,7 @@ impl Pool {
     pub async fn disconnect(&self, id: &str) -> Result<(), AgentError> {
         let slot = self.slot(id).await;
         let mut guard = slot.connection.try_lock().map_err(|_| AgentError::Busy)?;
-        *guard = None;
+        *guard = ConnectionSlot::default();
         *slot.status.lock().unwrap() = Status::default();
         Ok(())
     }
@@ -784,14 +847,14 @@ impl Pool {
             // 呼出側が更新操作を直列化し、会議開始を止めている間に切り替える。
             let previous = self.slots.lock().await.insert(id.into(), slot);
             if let Some(previous) = previous {
-                *previous.connection.lock().await = None;
+                *previous.connection.lock().await = ConnectionSlot::default();
             }
         }
     }
     pub async fn shutdown(&self) {
         for slot in self.slots.lock().await.values() {
             slot.cancel.notify_one();
-            *slot.connection.lock().await = None;
+            *slot.connection.lock().await = ConnectionSlot::default();
         }
     }
 }

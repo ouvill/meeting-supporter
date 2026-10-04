@@ -14,13 +14,30 @@ interface ManualTiming {
   firstSentence: number | null;
   outcome: Outcome;
 }
+type BackendTiming = Extract<InboundMessage, { type: "reply_timing" }>;
 
-// Local User Timing entries only. No transcript, reply text, model or identifiers
-// are included in their names or details, and each series is bounded to 50 entries.
+// Local duration diagnostics only. No transcript, reply text, model or identifiers
+// are included in Performance entries, and each series/cache is bounded to 50 entries.
 export class ReplyLatency {
   private manual = new Map<string, ManualTiming>();
   private manualSlot = 0;
   private backendSlot = 0;
+  private backend = new Map<string, BackendTiming>();
+  private listeners = new Set<() => void>();
+  private revision = 0;
+
+  subscribe = (listener: () => void) => {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  };
+  getRevision = () => this.revision;
+
+  private changed() {
+    this.revision += 1;
+    for (const listener of this.listeners) listener();
+  }
 
   constructor(
     private clock: Pick<
@@ -44,6 +61,7 @@ export class ReplyLatency {
       firstSentence: null,
       outcome: "pending",
     });
+    this.changed();
   }
 
   rendered(generationId: string | null, text: string, completed: boolean) {
@@ -69,8 +87,38 @@ export class ReplyLatency {
     if (changed) this.write(timing);
   }
 
+  details(generationId: string | null, suggestionId: string | null) {
+    const manual = generationId ? this.manual.get(generationId) : undefined;
+    const candidate = suggestionId ? this.backend.get(suggestionId) : undefined;
+    const backend =
+      candidate?.generation_id === generationId ? candidate : undefined;
+    const difference = (
+      end: number | null | undefined,
+      start: number | null | undefined,
+    ) => (end != null && start != null && end >= start ? end - start : null);
+    return {
+      firstTextMs: manual?.firstText ?? null,
+      firstSentenceMs: manual?.firstSentence ?? null,
+      preparationMs: backend?.preparation_ms ?? null,
+      responseWaitMs: difference(
+        backend?.first_text_ms,
+        backend?.preparation_ms,
+      ),
+      sentenceStreamingMs: difference(
+        backend?.first_sentence_ms,
+        backend?.first_text_ms,
+      ),
+    };
+  }
+
   received(message: InboundMessage) {
     if (message.type === "reply_timing") {
+      this.backend.delete(message.suggestion_id);
+      if (this.backend.size === LIMIT) {
+        const oldest = this.backend.keys().next().value;
+        if (oldest !== undefined) this.backend.delete(oldest);
+      }
+      this.backend.set(message.suggestion_id, message);
       const name = `meeting.reply.backend.${this.backendSlot++ % LIMIT}`;
       this.clock.clearMeasures(name);
       this.clock.measure(name, {
@@ -84,6 +132,7 @@ export class ReplyLatency {
           outcome: message.outcome,
         },
       });
+      this.changed();
     } else if (message.type === "suggestion_error") {
       this.finish(message.generation_id, "failed");
     } else if (
@@ -97,6 +146,8 @@ export class ReplyLatency {
   disconnected() {
     for (const id of this.manual.keys()) this.finish(id, "disconnected");
     this.manual.clear();
+    this.backend.clear();
+    this.changed();
   }
 
   private finish(id: string, outcome: Outcome) {
@@ -117,6 +168,7 @@ export class ReplyLatency {
         outcome: timing.outcome,
       },
     });
+    this.changed();
   }
 }
 

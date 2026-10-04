@@ -2656,6 +2656,180 @@ async fn acp_failed_preparation_is_retried_on_demand_without_an_extra_prompt() {
     server.shutdown().await.unwrap();
 }
 
+async fn wait_for_agent_event_count(marker: &std::path::Path, event: &str, expected: usize) {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let count = std::fs::read_to_string(marker)
+                .unwrap_or_default()
+                .lines()
+                .filter(|line| *line == event)
+                .count();
+            if count >= expected {
+                assert_eq!(count, expected);
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("expected synthetic agent lifecycle event");
+}
+
+async fn recycling_acp(
+    temp: &tempfile::TempDir,
+) -> (
+    Server,
+    Socket,
+    String,
+    std::path::PathBuf,
+    std::path::PathBuf,
+) {
+    let (config, marker, gate) = saved_acp_config(temp, true);
+    std::fs::write(&gate, b"release").unwrap();
+    let server = Server::start(config).await.unwrap();
+    wait_for_agent_event(&marker, "thought:brief").await;
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    let target = manual_target(&mut ws).await;
+    for index in 1..=32 {
+        // The replacement's session is deliberately blocked, while the 32nd
+        // reply still has to complete and persist normally.
+        if index == 32 {
+            wait_for_agent_event_count(&marker, "thought:brief", 32).await;
+            std::fs::remove_file(&gate).unwrap();
+        }
+        let generation = format!("recycle-{index}");
+        send(&mut ws, json!({"type":"generate_reply","generation_id":generation,"target_utterance_id":target})).await;
+        let timing = until(&mut ws, |v| {
+            v["type"] == "reply_timing" && v["generation_id"] == generation
+        })
+        .await;
+        assert_eq!(timing["outcome"], "completed");
+    }
+    wait_for_agent_event_count(&marker, "start", 2).await;
+    wait_for_agent_event_count(&marker, "session-waiting", 33).await;
+    (server, ws, target, marker, gate)
+}
+
+#[tokio::test]
+async fn acp_recycles_before_the_next_reply_and_restores_saved_configuration() {
+    let temp = tempfile::tempdir().unwrap();
+    let (server, mut ws, target, marker, gate) = recycling_acp(&temp).await;
+    let events = std::fs::read_to_string(&marker).unwrap();
+    assert_eq!(
+        events
+            .lines()
+            .filter(|line| line.starts_with("prompt:"))
+            .count(),
+        32
+    );
+    assert!(!events.lines().any(|line| line.starts_with("auth:")));
+    std::fs::write(&gate, b"release").unwrap();
+    wait_for_agent_event_count(&marker, "thought:brief", 33).await;
+    send(&mut ws, json!({"type":"generate_reply","generation_id":"after-recycle","target_utterance_id":target})).await;
+    let timing = until(&mut ws, |v| {
+        v["type"] == "reply_timing" && v["generation_id"] == "after-recycle"
+    })
+    .await;
+    assert_eq!(timing["outcome"], "completed");
+    let events = std::fs::read_to_string(&marker).unwrap();
+    assert_eq!(events.lines().filter(|line| *line == "start").count(), 2);
+    assert_eq!(
+        events
+            .lines()
+            .filter(|line| line.starts_with("prompt:"))
+            .count(),
+        33
+    );
+    assert_eq!(saved_suggestions(&server).await.len(), 33);
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn acp_recycle_preparation_can_be_disconnected_or_shutdown_while_blocked() {
+    for disconnect in [true, false] {
+        let temp = tempfile::tempdir().unwrap();
+        let (server, mut ws, _, marker, gate) = recycling_acp(&temp).await;
+        if disconnect {
+            send(&mut ws, json!({"type":"stop_meeting"})).await;
+            until(&mut ws, |v| {
+                v["type"] == "meeting_state" && v["running"] == false
+            })
+            .await;
+            let response = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                assert_eq!(
+                    agent_request(
+                        &server,
+                        "PUT",
+                        "/api/ai/routes/assignments",
+                        json!({"reply":null})
+                    )
+                    .await
+                    .0,
+                    200
+                );
+                http(&server, "DELETE", "/api/ai/agents/synthetic", "").await
+            })
+            .await
+            .unwrap();
+            assert_eq!(response.0, 200);
+            std::fs::write(&gate, b"release after disconnect").unwrap();
+            let (_, catalog) = agent_request(&server, "GET", "/api/ai/agents", json!(null)).await;
+            assert!(catalog["agents"].as_array().unwrap().is_empty());
+        }
+        drop(ws);
+        tokio::time::timeout(std::time::Duration::from_secs(3), server.shutdown())
+            .await
+            .unwrap()
+            .unwrap();
+        let events = std::fs::read_to_string(&marker).unwrap();
+        assert_eq!(
+            events
+                .lines()
+                .filter(|line| line.starts_with("prompt:"))
+                .count(),
+            32
+        );
+    }
+}
+
+#[tokio::test]
+async fn acp_failed_recycle_is_retried_on_demand() {
+    let temp = tempfile::tempdir().unwrap();
+    let (server, mut ws, target, marker, gate) = recycling_acp(&temp).await;
+    std::fs::write(marker.with_extension("fail-prepare"), b"fail once").unwrap();
+    std::fs::write(&gate, b"release").unwrap();
+    wait_for_agent_event(&marker, "prepare-failed").await;
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        loop {
+            let (_, catalog) = agent_request(&server, "GET", "/api/ai/agents", json!(null)).await;
+            if catalog["agents"][0]["status"]["ready"] == false {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    send(&mut ws, json!({"type":"generate_reply","generation_id":"retry-recycle","target_utterance_id":target})).await;
+    let timing = until(&mut ws, |v| {
+        v["type"] == "reply_timing" && v["generation_id"] == "retry-recycle"
+    })
+    .await;
+    assert_eq!(timing["outcome"], "completed");
+    assert_eq!(
+        std::fs::read_to_string(&marker)
+            .unwrap()
+            .lines()
+            .filter(|line| *line == "start")
+            .count(),
+        3
+    );
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
 #[tokio::test]
 async fn acp_thought_level_survives_restart_and_follows_model_capabilities() {
     let temp = tempfile::tempdir().unwrap();

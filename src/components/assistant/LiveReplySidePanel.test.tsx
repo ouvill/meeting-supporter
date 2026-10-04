@@ -1,8 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveReplySidePanel } from "./LiveReplySidePanel";
 import type { SendFn, SocketState } from "../../types";
 import type { AiRouteReadModel } from "../../hooks/useAiRoutes";
+import { replyLatency } from "../../utils/replyLatency";
 
 const hideCurrentWindowMock = vi.hoisted(() =>
   vi.fn<() => Promise<void>>(async () => {}),
@@ -138,6 +145,105 @@ describe("LiveReplySidePanel", () => {
       type: "generate_reply",
       generation_id: expect.any(String),
     });
+  });
+
+  it("keeps diagnostics collapsed and separates first text, sentence and late backend timing", () => {
+    let now = 100;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    const generationId = "synthetic-timed-reply";
+    replyLatency.requested(generationId);
+    const card: SocketState["suggestionCards"][number] = {
+      generationId,
+      suggestionId: "synthetic-suggestion",
+      agentId: "standard",
+      agentLabel: "標準",
+      agentPriority: 10,
+      targetUtteranceId: "synthetic-turn",
+      targetRole: "other",
+      mode: "normal",
+      text: "合成の",
+      status: "generating",
+      errorText: null,
+    };
+    const state = (text: string, id = generationId): SocketState =>
+      createState({
+        activeSuggestionGenerationId: id,
+        activeSuggestionTargetId: card.targetUtteranceId,
+        suggestionCards: [{ ...card, generationId: id, text }],
+        replyText: text,
+        isGeneratingReply: true,
+      });
+    try {
+      now = 400;
+      const { rerender } = render(
+        <LiveReplySidePanel state={state(card.text)} send={vi.fn()} />,
+      );
+      const summary = screen.getByText("応答時間の内訳（開発用）");
+      expect(summary.closest("details")).not.toHaveAttribute("open");
+      expect(screen.getByText("0.30秒")).not.toBeVisible();
+      fireEvent.click(summary);
+      expect(screen.getByText("0.30秒")).toBeVisible();
+      now = 1600;
+      rerender(
+        <LiveReplySidePanel state={state("合成の返答です。")} send={vi.fn()} />,
+      );
+      expect(screen.getByText("1.50秒")).toBeVisible();
+      now = 3000;
+      rerender(
+        <LiveReplySidePanel
+          state={state("合成の返答です。補足です。")}
+          send={vi.fn()}
+        />,
+      );
+      expect(screen.getByText("1.50秒")).toBeVisible();
+      act(() =>
+        replyLatency.received({
+          type: "reply_timing",
+          generation_id: generationId,
+          suggestion_id: card.suggestionId,
+          preparation_ms: 20,
+          first_text_ms: 250,
+          first_sentence_ms: 1450,
+          total_ms: 2500,
+          outcome: "completed",
+        }),
+      );
+      expect(screen.getByText("0.02秒")).toBeVisible();
+      expect(screen.getByText("0.23秒")).toBeVisible();
+      expect(screen.getByText("1.20秒")).toBeVisible();
+      rerender(
+        <LiveReplySidePanel
+          state={state("別画面からの返答です。", "unmeasured")}
+          send={vi.fn()}
+        />,
+      );
+      expect(screen.queryByText("1.50秒")).not.toBeInTheDocument();
+      expect(screen.queryByText("0.23秒")).not.toBeInTheDocument();
+      expect(
+        screen.getByText("応答時間の内訳（開発用）").closest("details"),
+      ).not.toHaveAttribute("open");
+    } finally {
+      clock.mockRestore();
+      act(() => replyLatency.disconnected());
+    }
+  });
+
+  it("does not show timing diagnostics in a production build", () => {
+    vi.stubEnv("DEV", false);
+    try {
+      render(
+        <LiveReplySidePanel
+          state={createState({ replyText: "合成の返答です。" })}
+          send={vi.fn()}
+        />,
+      );
+      expect(
+        screen.queryByText("応答時間の内訳（開発用）"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("合成の返答です。")).toBeVisible();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("does not generate when the active route is ready but not selectable", () => {

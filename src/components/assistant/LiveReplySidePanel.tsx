@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { replyLatency } from "../../utils/replyLatency";
+import { ReplyTimingDetails } from "./ReplyTimingDetails";
 import {
   AlertCircle,
   Check,
@@ -512,6 +513,14 @@ function LiveReplySurface({
             )}
           </div>
         </section>
+
+        {import.meta.env.DEV && replyText && (
+          <ReplyTimingDetails
+            key={state.activeSuggestionGenerationId}
+            generationId={state.activeSuggestionGenerationId}
+            suggestionId={primarySuggestion?.suggestionId ?? null}
+          />
+        )}
 
         {suggestionError && (
           <InlineNotice
