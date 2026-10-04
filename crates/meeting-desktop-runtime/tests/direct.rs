@@ -1003,6 +1003,7 @@ async fn settings_reads_remain_responsive_and_writes_conflict_during_preparation
 struct MockAi {
     url: String,
     requests: std::sync::Arc<std::sync::Mutex<Vec<Value>>>,
+    peers: std::sync::Arc<std::sync::Mutex<Vec<std::net::SocketAddr>>>,
     task: tokio::task::JoinHandle<()>,
 }
 impl Drop for MockAi {
@@ -1012,16 +1013,20 @@ impl Drop for MockAi {
 }
 async fn mock_ai(delay_ms: u64, finish: bool) -> MockAi {
     use axum::{
+        extract::ConnectInfo,
         response::Sse,
         routing::{get, post},
         Json, Router,
     };
     let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let captured = requests.clone();
+    let peers = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let connections = peers.clone();
     let router=Router::new()
         .route("/v1/models",get(||async{Json(json!({"data":[{"id":"synthetic-model"}]}))}))
-        .route("/v1/chat/completions",post(move |Json(body):Json<Value>| {
+        .route("/v1/chat/completions",post(move |ConnectInfo(peer):ConnectInfo<std::net::SocketAddr>, Json(body):Json<Value>| {
             captured.lock().unwrap().push(body);
+            connections.lock().unwrap().push(peer);
             async move {
                 let frames=vec![
                     json!({"choices":[{"index":0,"delta":{"role":"assistant","content":"synthetic "},"finish_reason":null}]}),
@@ -1040,11 +1045,17 @@ async fn mock_ai(delay_ms: u64, finish: bool) -> MockAi {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let task = tokio::spawn(async move {
-        axum::serve(listener, router).await.unwrap();
+        axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .unwrap();
     });
     MockAi {
         url: format!("http://127.0.0.1:{port}/v1"),
         requests,
+        peers,
         task,
     }
 }
@@ -1132,6 +1143,40 @@ async fn rig_reply_streams_saves_and_ignores_replayed_generation() {
     server.shutdown().await.unwrap();
 }
 #[tokio::test]
+async fn reply_reuses_http_connection_and_reports_phase_timings() {
+    let ai = mock_ai(50, true).await;
+    let temp = tempfile::tempdir().unwrap();
+    let server = Server::start(ai_config(&temp, &ai, false)).await.unwrap();
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    let target = manual_target(&mut ws).await;
+    for generation in ["timing-one", "timing-two"] {
+        send(&mut ws, json!({"type":"generate_reply","generation_id":generation,"target_utterance_id":target})).await;
+        let timing = until(&mut ws, |v| {
+            v["type"] == "reply_timing" && v["generation_id"] == generation
+        })
+        .await;
+        assert_eq!(timing["outcome"], "completed");
+        let preparation = timing["preparation_ms"].as_u64().unwrap();
+        let first = timing["first_text_ms"].as_u64().unwrap();
+        let sentence = timing["first_sentence_ms"].as_u64().unwrap();
+        let total = timing["total_ms"].as_u64().unwrap();
+        assert!(preparation <= first && first < sentence && sentence <= total);
+        // The synthetic answer has no punctuation; its sentence completes at EOF.
+        assert!(sentence - first >= 90);
+        assert!(!timing.to_string().contains("synthetic"));
+    }
+    let peers = ai.peers.lock().unwrap().clone();
+    assert_eq!(peers.len(), 2);
+    assert_eq!(
+        peers[0], peers[1],
+        "successive requests must reuse a live TCP connection"
+    );
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn rig_cancellation_reaps_stream_without_saving_partial_reply() {
     let ai = mock_ai(500, true).await;
     let temp = tempfile::tempdir().unwrap();
@@ -1159,6 +1204,10 @@ async fn rig_cancellation_reaps_stream_without_saving_partial_reply() {
         json!({"type":"cancel_reply","generation_id":"cancel-me","target_utterance_id":id}),
     )
     .await;
+    let timing = until(&mut ws, |v| v["type"] == "reply_timing").await;
+    assert_eq!(timing["outcome"], "cancelled");
+    assert!(timing["first_text_ms"].is_number());
+    assert!(timing["first_sentence_ms"].is_null());
     assert_eq!(
         until(&mut ws, |v| v["type"] == "reply_cancel_result").await["status"],
         "applied"
@@ -1186,6 +1235,9 @@ async fn rig_truncated_stream_is_an_error_and_recording_still_completes() {
     )
     .await;
     until(&mut ws, |v| v["type"] == "suggestion_error").await;
+    let timing = until(&mut ws, |v| v["type"] == "reply_timing").await;
+    assert_eq!(timing["outcome"], "failed");
+    assert!(timing["first_sentence_ms"].is_null());
     send(&mut ws, json!({"type":"stop_meeting"})).await;
     let state = until(&mut ws, |v| {
         v["type"] == "meeting_state" && v["running"] == false
@@ -2189,12 +2241,29 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
         409
     );
     let target = manual_target(&mut ws).await;
-    for generation in ["first", "second"] {
+    for (index, generation) in ["first", "second"].into_iter().enumerate() {
         send(&mut ws, json!({"type":"generate_reply","generation_id":generation,"target_utterance_id":target})).await;
         let chunk = until(&mut ws, |v| {
             v["type"] == "reply_chunk" && v["final"] == false
         })
         .await;
+        // Preparation includes both selections and happens before another request.
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let events = std::fs::read_to_string(&marker).unwrap();
+                if events
+                    .lines()
+                    .filter(|line| *line == "thought:brief")
+                    .count()
+                    == index + 2
+                {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("the next ACP session must be prepared without another generation");
         assert_eq!(chunk["text"], "合成の返答です。");
         until(&mut ws, |v| {
             v["type"] == "reply_chunk" && v["final"] == true
@@ -2214,13 +2283,20 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
     assert_eq!(usage["usage"]["current_month"]["incomplete_requests"], 2);
     let events = std::fs::read_to_string(marker).unwrap();
     assert_eq!(events.lines().filter(|l| *l == "start").count(), 1);
-    assert_eq!(events.lines().filter(|l| *l == "session").count(), 2);
+    assert_eq!(events.lines().filter(|l| *l == "session").count(), 3);
+    assert_eq!(
+        events
+            .lines()
+            .filter(|l| l.starts_with("prompt:"))
+            .collect::<Vec<_>>(),
+        vec!["prompt:session-1", "prompt:session-2"]
+    );
     assert_eq!(
         events
             .lines()
             .filter(|line| *line == "model:synthetic-accurate")
             .count(),
-        2,
+        3,
         "the persisted selection is applied to each new ACP session"
     );
     assert_eq!(
@@ -2228,7 +2304,7 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
             .lines()
             .filter(|line| *line == "thought:brief")
             .count(),
-        2,
+        3,
         "the reasoning preference is applied through the advertised config ID on each session"
     );
 
@@ -2254,6 +2330,151 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
             .await
             .0,
         200
+    );
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn acp_prepares_next_session_without_waiting_for_close_and_reauthenticates_it() {
+    let temp = tempfile::tempdir().unwrap();
+    let (config, marker) = acp_config(&temp);
+    let manifest = config.data_dir.join("agents/installed.json");
+    let gate = temp.path().join("close-gate");
+    let mut installed: Value = serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+    installed["synthetic"]["env"] = json!({"SYNTHETIC_CLOSE_GATE":gate});
+    std::fs::write(&manifest, installed.to_string()).unwrap();
+    let server = Server::start(config).await.unwrap();
+    assert_eq!(
+        agent_request(
+            &server,
+            "POST",
+            "/api/ai/agents/synthetic/connect",
+            json!({"method":"synthetic-login"})
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(
+        agent_request(
+            &server,
+            "PUT",
+            "/api/ai/routes/assignments",
+            json!({"reply":"acp:synthetic"})
+        )
+        .await
+        .0,
+        200
+    );
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    let target = manual_target(&mut ws).await;
+    send(
+        &mut ws,
+        json!({"type":"generate_reply","generation_id":"prepared","target_utterance_id":target}),
+    )
+    .await;
+    let timing = until(&mut ws, |v| v["type"] == "reply_timing").await;
+    assert_eq!(timing["outcome"], "completed");
+    assert_eq!(timing["first_text_ms"], timing["first_sentence_ms"]);
+    assert!(
+        timing["total_ms"].as_u64().unwrap() < 1500,
+        "the two-second close timeout must not delay completion"
+    );
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            if std::fs::read_to_string(&marker)
+                .unwrap()
+                .lines()
+                .filter(|line| *line == "session")
+                .count()
+                == 2
+            {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!gate.exists());
+    send(&mut ws, json!({"type":"stop_meeting"})).await;
+    until(&mut ws, |v| {
+        v["type"] == "meeting_state" && v["running"] == false
+    })
+    .await;
+    std::fs::write(&gate, b"release").unwrap();
+    assert_eq!(
+        agent_request(
+            &server,
+            "POST",
+            "/api/ai/agents/synthetic/connect",
+            json!({"method":"synthetic-alternate"})
+        )
+        .await
+        .0,
+        200
+    );
+    let events = std::fs::read_to_string(&marker).unwrap();
+    assert_eq!(events.lines().filter(|line| *line == "session").count(), 3);
+    assert!(events.contains("auth:alternate\nsession"));
+    // Only the requested reply was generated; the spare session is empty.
+    assert_eq!(
+        events
+            .lines()
+            .filter(|line| line.starts_with("prompt:"))
+            .count(),
+        1
+    );
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn acp_failed_preparation_is_retried_on_demand_without_an_extra_prompt() {
+    let temp = tempfile::tempdir().unwrap();
+    let (config, marker) = acp_config(&temp);
+    let server = Server::start(config).await.unwrap();
+    agent_request(
+        &server,
+        "POST",
+        "/api/ai/agents/synthetic/connect",
+        json!({"method":"synthetic-login"}),
+    )
+    .await;
+    assert_eq!(
+        agent_request(
+            &server,
+            "PUT",
+            "/api/ai/routes/assignments",
+            json!({"reply":"acp:synthetic"})
+        )
+        .await
+        .0,
+        200
+    );
+    std::fs::write(marker.with_extension("fail-prepare"), b"fail once").unwrap();
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    let target = manual_target(&mut ws).await;
+    for generation in ["before-failure", "after-failure"] {
+        send(&mut ws, json!({"type":"generate_reply","generation_id":generation,"target_utterance_id":target})).await;
+        let timing = until(&mut ws, |v| {
+            v["type"] == "reply_timing" && v["generation_id"] == generation
+        })
+        .await;
+        assert_eq!(timing["outcome"], "completed");
+    }
+    let events = std::fs::read_to_string(&marker).unwrap();
+    assert!(events.contains("prepare-failed"));
+    assert_eq!(events.lines().filter(|line| *line == "start").count(), 1);
+    assert_eq!(
+        events
+            .lines()
+            .filter(|line| line.starts_with("prompt:"))
+            .count(),
+        2
     );
     drop(ws);
     server.shutdown().await.unwrap();

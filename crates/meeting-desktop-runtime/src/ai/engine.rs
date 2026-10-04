@@ -7,19 +7,36 @@ use rig::{
     client::CompletionClient, completion::CompletionModel, providers,
     streaming::StreamingCompletionResponse,
 };
-use std::time::Duration;
+use std::{sync::OnceLock, time::Duration};
+
+/// One connection pool per runtime, with credentials applied by each adapter.
+#[derive(Default)]
+pub(crate) struct HttpClient(OnceLock<reqwest::Client>);
+
+impl HttpClient {
+    fn get(&self) -> Result<reqwest::Client, AiError> {
+        if let Some(client) = self.0.get() {
+            return Ok(client.clone());
+        }
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(90))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|_| AiError::Configuration)?;
+        // Concurrent first requests share the winning pool as well.
+        let _ = self.0.set(client);
+        self.0.get().cloned().ok_or(AiError::Configuration)
+    }
+}
 
 pub(super) async fn stream(
+    client: &HttpClient,
     route: &Route,
     instruction: String,
     prompt: String,
 ) -> Result<StreamingCompletionResponse, AiError> {
-    let http = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(90))
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .map_err(|_| AiError::Configuration)?;
+    let http = client.get()?;
     macro_rules! request {
         ($client:expr) => {{
             $client
@@ -117,6 +134,7 @@ mod tests {
                 key: Some("synthetic-credential".into()),
             };
             let result = stream(
+                &HttpClient::default(),
                 &route,
                 "synthetic instruction".into(),
                 "synthetic prompt".into(),

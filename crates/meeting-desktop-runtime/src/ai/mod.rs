@@ -2,6 +2,8 @@ pub(crate) mod connections;
 mod engine;
 mod reply;
 pub(crate) mod routes;
+mod timing;
+pub(crate) use engine::HttpClient;
 pub(crate) use reply::Replies;
 use thiserror::Error;
 

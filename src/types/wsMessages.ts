@@ -42,6 +42,16 @@ const SuggestionModeSchema = z.enum([
 ]);
 
 export const InboundMessageSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("reply_timing"),
+    generation_id: z.string(),
+    suggestion_id: z.string(),
+    preparation_ms: z.number().int().nonnegative().nullable(),
+    first_text_ms: z.number().int().nonnegative().nullable(),
+    first_sentence_ms: z.number().int().nonnegative().nullable(),
+    total_ms: z.number().int().nonnegative(),
+    outcome: z.enum(["completed", "failed", "cancelled"]),
+  }),
   z.object({ type: z.literal("status"), text: z.string() }),
   z.object({
     type: z.literal("meeting_state"),

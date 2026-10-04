@@ -98,6 +98,15 @@ pub struct ReplyAgent {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
+    ReplyTiming {
+        generation_id: String,
+        suggestion_id: String,
+        preparation_ms: Option<u64>,
+        first_text_ms: Option<u64>,
+        first_sentence_ms: Option<u64>,
+        total_ms: u64,
+        outcome: ReplyOutcome,
+    },
     SuggestionsStart {
         #[serde(flatten)]
         meta: ReplyMeta,
@@ -170,6 +179,14 @@ pub enum Event {
         speaker_id: Option<String>,
         utterance_id: String,
     },
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReplyOutcome {
+    Completed,
+    Failed,
+    Cancelled,
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]

@@ -1,7 +1,7 @@
-use super::{engine, routes, AiError};
+use super::{engine, routes, timing::Timing, AiError};
 use crate::{
     runtime::Shared,
-    wire::{Event, ReplyMeta, SuggestionMode},
+    wire::{Event, ReplyMeta, ReplyOutcome, SuggestionMode},
     Error,
 };
 use futures_util::StreamExt;
@@ -10,7 +10,7 @@ use rig::streaming::StreamedAssistantContent;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::{sync::Mutex, task::JoinHandle};
 
@@ -39,6 +39,7 @@ impl ReplyRoute {
     }
 }
 struct Job {
+    started: Instant,
     shared: Arc<Shared>,
     meeting_id: String,
     route: ReplyRoute,
@@ -54,6 +55,7 @@ impl Replies {
         target: Option<String>,
         mode: SuggestionMode,
     ) -> Result<(), Error> {
+        let started = Instant::now();
         if generation_id.is_empty()
             || generation_id.len() > 128
             || target.as_ref().is_some_and(|s| s.len() > 128)
@@ -157,11 +159,13 @@ impl Replies {
         let styles: Vec<_> = styles.into_iter().map(|style| {
             let instruction = format!(
                 concat!(
-                    "あなたは会議中の利用者の返答を支援します。",
-                    "本人がそのまま口にできる短い返答案を日本語で1案だけ、1〜3文で出力してください。",
+                    "あなたは面接や電話応対など、会話中の利用者の返答を支援します。",
+                    "本人がそのまま口にできる短い返答案を日本語で1案だけ出力してください。",
+                    "最初の短い1文だけで話し始められるように、結論や必要な確認を先に述べてください。",
+                    "補足が必要な場合だけ短い1文を続け、全体を1〜2文にしてください。",
                     "前置き、解説、Markdown、引用符、思考過程は出力しないでください。",
                     "最後が相手の発言なら相手に返し、自分の発言なら自分の立場で自然に続けてください。",
-                    "会話にない事実や約束を作らないでください。\n{}\n{}",
+                    "本人の経験や実績、対応ルールは渡された情報に従い、ない事実や約束を作らないでください。\n{}\n{}",
                 ),
                 mode.instruction(),
                 style.instruction.chars().take(4000).collect::<String>(),
@@ -186,6 +190,7 @@ impl Replies {
         ));
         self.seen.insert(generation_id.clone());
         let job = Job {
+            started,
             shared,
             meeting_id,
             route,
@@ -237,7 +242,13 @@ impl Job {
                 self.shared
                     .emit(Event::SuggestionsStart { meta: meta.clone() });
             }
-            let result = self.generate(meta, instruction).await;
+            let mut timing = Timing::new(self.shared.clone(), meta, self.started);
+            let result = self.generate(meta, instruction, &mut timing).await;
+            timing.finish(if result.is_ok() {
+                ReplyOutcome::Completed
+            } else {
+                ReplyOutcome::Failed
+            });
             if let Err(error) = result {
                 let mut gate = self.gate.lock().await;
                 if !gate.contains(&meta.suggestion_id) {
@@ -251,7 +262,12 @@ impl Job {
             }
         }
     }
-    async fn generate(&self, meta: &ReplyMeta, instruction: &str) -> Result<(), Error> {
+    async fn generate(
+        &self,
+        meta: &ReplyMeta,
+        instruction: &str,
+        timing: &mut Timing,
+    ) -> Result<(), Error> {
         // A request journal records incomplete/cancelled cloud usage as unknown.
         let store = self.shared.settings.lock().await.clone();
         let request_id = meta.suggestion_id.clone();
@@ -270,11 +286,12 @@ impl Job {
         let usage = tokio::time::timeout(Duration::from_secs(90), async {
             match &self.route {
                 ReplyRoute::Model(route) => {
-                    let mut stream = engine::stream(route, instruction.into(), self.prompt.clone()).await?;
+                    timing.dispatched();
+                    let mut stream = engine::stream(&self.shared.ai_http, route, instruction.into(), self.prompt.clone()).await?;
                     let mut terminal = None;
                     while let Some(chunk) = stream.next().await {
                         match chunk.map_err(|_| AiError::Provider)? {
-                            StreamedAssistantContent::Text(delta) => self.publish(meta, &mut text, delta.text).await?,
+                            StreamedAssistantContent::Text(delta) => { self.publish(meta, &mut text, delta.text).await?; timing.text(&text); },
                             StreamedAssistantContent::Final(response) => terminal = Some(response),
                             StreamedAssistantContent::ToolCall { .. } | StreamedAssistantContent::ToolCallDelta { .. } => return Err(AiError::Incomplete.into()),
                             _ => {}
@@ -290,7 +307,8 @@ impl Job {
                     let mut done = false;
                     while let Some(chunk) = stream.recv().await {
                         match chunk? {
-                            crate::agents::connection::Chunk::Text(delta) => self.publish(meta, &mut text, delta).await?,
+                            crate::agents::connection::Chunk::Ready => timing.dispatched(),
+                            crate::agents::connection::Chunk::Text(delta) => { self.publish(meta, &mut text, delta).await?; timing.text(&text); },
                             crate::agents::connection::Chunk::Done => { done = true; break; }
                         }
                     }
@@ -300,6 +318,7 @@ impl Job {
                 }
             }
         }).await.map_err(|_| AiError::Timeout)??;
+        timing.generated();
         if let Some(usage) = usage {
             crate::usage::finish(
                 &self.shared.config.data_dir,

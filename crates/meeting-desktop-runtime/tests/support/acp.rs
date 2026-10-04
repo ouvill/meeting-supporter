@@ -92,6 +92,16 @@ fn main() {
                 continue;
             }
             "session/new" => {
+                let fail_once = std::path::Path::new(&marker).with_extension("fail-prepare");
+                if fail_once.exists() {
+                    std::fs::remove_file(fail_once).unwrap();
+                    writeln!(log, "prepare-failed").unwrap();
+                    emit(
+                        &output,
+                        json!({"jsonrpc":"2.0","id":id,"error":{"code":-32603,"message":"synthetic preparation failure"}}),
+                    );
+                    continue;
+                }
                 sessions += 1;
                 writeln!(log, "session").unwrap();
                 let session = format!("session-{sessions}");
@@ -146,9 +156,22 @@ fn main() {
             }
             "session/close" => {
                 writeln!(log, "close").unwrap();
+                if let Some(gate) = std::env::var_os("SYNTHETIC_CLOSE_GATE") {
+                    let gate = std::path::PathBuf::from(gate);
+                    let output = output.clone();
+                    let id = id.clone();
+                    std::thread::spawn(move || {
+                        while !gate.exists() {
+                            std::thread::sleep(std::time::Duration::from_millis(10));
+                        }
+                        emit(&output, json!({"jsonrpc":"2.0","id":id,"result":{}}));
+                    });
+                    continue;
+                }
                 json!({})
             }
             "session/prompt" => {
+                writeln!(log, "prompt:{}", params["sessionId"].as_str().unwrap()).unwrap();
                 cancelled.store(false, Ordering::SeqCst);
                 let output = output.clone();
                 let cancelled = cancelled.clone();

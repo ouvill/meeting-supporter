@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { WsMessage } from "../types";
 import { useMeetingStore } from "../store/meetingStore";
 import { InboundMessageSchema } from "../types/wsMessages";
+import { replyLatency } from "../utils/replyLatency";
 
 export function useMeetingSocket(
   apiPort: number | null,
@@ -31,6 +32,7 @@ export function useMeetingSocket(
 
       ws.onclose = () => {
         if (!active) return;
+        replyLatency.disconnected();
         wsRef.current = null;
         setConnected(false);
         useMeetingStore.setState({
@@ -55,6 +57,7 @@ export function useMeetingSocket(
             return;
           }
           dispatch(parsed.data);
+          replyLatency.received(parsed.data);
         } catch {
           /* ignore malformed JSON */
         }
@@ -67,6 +70,7 @@ export function useMeetingSocket(
       active = false;
       clearTimeout(timer);
       wsRef.current?.close();
+      replyLatency.disconnected();
       wsRef.current = null;
       reset();
     };
@@ -74,6 +78,9 @@ export function useMeetingSocket(
 
   const send = useCallback((msg: WsMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      if (msg.type === "generate_reply") {
+        replyLatency.requested(msg.generation_id);
+      }
       wsRef.current.send(JSON.stringify(msg));
       if (msg.type === "init_stt") {
         useMeetingStore.setState({ sttInitRequested: true });

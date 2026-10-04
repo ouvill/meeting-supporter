@@ -57,6 +57,7 @@ struct Session {
     thought_level: SelectCapability,
 }
 pub enum Chunk {
+    Ready,
     Text(String),
     Done,
 }
@@ -70,9 +71,17 @@ struct Connection {
     auth_methods: Vec<AuthMethod>,
     close_supported: bool,
     idle_session: Option<Session>,
+    preparing_session: Option<PreparingSession>,
+    maintenance: Vec<TransportTask>,
     completed: usize,
 }
 struct TransportTask(JoinHandle<()>);
+struct PreparingSession(JoinHandle<Result<Session, AgentError>>);
+impl Drop for PreparingSession {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
 impl Drop for TransportTask {
     fn drop(&mut self) {
         self.0.abort();
@@ -172,6 +181,8 @@ impl Connection {
             auth_methods: vec![],
             close_supported: false,
             idle_session: None,
+            preparing_session: None,
+            maintenance: vec![],
             completed: 0,
         };
         let initialized = tokio::time::timeout(
@@ -223,42 +234,19 @@ impl Connection {
     ) -> Result<Session, AgentError> {
         let mut session = if let Some(session) = self.idle_session.take() {
             session
+        } else if let Some(mut preparing) = self.preparing_session.take() {
+            match (&mut preparing.0).await {
+                Ok(Ok(session)) => session,
+                // Speculative preparation is optional. Retry a transient failure
+                // once on demand, with the same bounded request as a cold session.
+                _ => Session::open(&self.peer, cwd).await?,
+            }
         } else {
-            let response = tokio::time::timeout(
-                Duration::from_secs(30),
-                self.peer
-                    .send_request(acp::NewSessionRequest::new(cwd))
-                    .block_task(),
-            )
-            .await
-            .map_err(|_| AgentError::Timeout)?
-            .map_err(map_error)?;
-            let mut session = Session {
-                id: response.session_id,
-                model: SelectCapability::Unsupported,
-                thought_level: SelectCapability::Unsupported,
-            };
-            session.update(response.config_options.unwrap_or_default());
-            session
+            Session::open(&self.peer, cwd).await?
         };
-        let result = async {
-            if let Some(requested) = requested_model {
-                session
-                    .select(&self.peer, Setting::Model, requested)
-                    .await?;
-            }
-            // Model changes can remove values. Keep the agent's advertised default
-            // instead of sending a stale preference that would prevent generation.
-            if let Some(requested) = requested_thought_level {
-                if session.thought_level.supports(requested) {
-                    session
-                        .select(&self.peer, Setting::ThoughtLevel, requested)
-                        .await?;
-                }
-            }
-            Ok::<_, AgentError>(())
-        }
-        .await;
+        let result = session
+            .configure(&self.peer, requested_model, requested_thought_level)
+            .await;
         if let Err(error) = result {
             self.idle_session = Some(session);
             return Err(error);
@@ -266,14 +254,47 @@ impl Connection {
         Ok(session)
     }
     async fn close_session(&self, id: acp::SessionId) {
-        if self.close_supported {
+        Self::close_on(&self.peer, self.close_supported, id).await;
+    }
+    async fn close_on(peer: &ConnectionTo<Agent>, supported: bool, id: acp::SessionId) {
+        if supported {
             let _ = tokio::time::timeout(
                 Duration::from_secs(2),
-                self.peer
-                    .send_request(acp::CloseSessionRequest::new(id))
+                peer.send_request(acp::CloseSessionRequest::new(id))
                     .block_task(),
             )
             .await;
+        }
+    }
+    /// Prepare exactly one unused session, without a prompt or conversation history.
+    /// Neither preparation nor closing the old session holds the pool's mutex.
+    fn prepare_next(
+        &mut self,
+        cwd: PathBuf,
+        model: Option<String>,
+        thought: Option<String>,
+        previous: acp::SessionId,
+    ) {
+        self.maintenance.retain(|task| !task.is_finished());
+        let peer = self.peer.clone();
+        let supported = self.close_supported;
+        self.maintenance
+            .push(TransportTask(tokio::spawn(async move {
+                Self::close_on(&peer, supported, previous).await;
+            })));
+        if self.completed < 32 {
+            let peer = self.peer.clone();
+            self.preparing_session = Some(PreparingSession(tokio::spawn(async move {
+                let mut session = Session::open(&peer, cwd).await?;
+                if let Err(error) = session
+                    .configure(&peer, model.as_deref(), thought.as_deref())
+                    .await
+                {
+                    Self::close_on(&peer, supported, session.id).await;
+                    return Err(error);
+                }
+                Ok(session)
+            })));
         }
     }
 }
@@ -309,6 +330,40 @@ impl SelectCapability {
     }
 }
 impl Session {
+    async fn open(peer: &ConnectionTo<Agent>, cwd: PathBuf) -> Result<Self, AgentError> {
+        let response = tokio::time::timeout(
+            Duration::from_secs(30),
+            peer.send_request(acp::NewSessionRequest::new(cwd))
+                .block_task(),
+        )
+        .await
+        .map_err(|_| AgentError::Timeout)?
+        .map_err(map_error)?;
+        let mut session = Self {
+            id: response.session_id,
+            model: SelectCapability::Unsupported,
+            thought_level: SelectCapability::Unsupported,
+        };
+        session.update(response.config_options.unwrap_or_default());
+        Ok(session)
+    }
+    async fn configure(
+        &mut self,
+        peer: &ConnectionTo<Agent>,
+        model: Option<&str>,
+        thought: Option<&str>,
+    ) -> Result<(), AgentError> {
+        if let Some(requested) = model {
+            self.select(peer, Setting::Model, requested).await?;
+        }
+        // A model can remove a remembered value; retain its advertised default.
+        if let Some(requested) = thought {
+            if self.thought_level.supports(requested) {
+                self.select(peer, Setting::ThoughtLevel, requested).await?;
+            }
+        }
+        Ok(())
+    }
     fn selector(&self) -> Option<ModelSelector> {
         self.model.selector()
     }
@@ -480,6 +535,11 @@ impl Pool {
                     return Err(AgentError::Auth);
                 }
                 // 認証前のセッションを使うと、変更後の認証状態を確認できない。
+                if connection.preparing_session.is_some() {
+                    if let Ok(session) = connection.session(cwd.clone(), None, None).await {
+                        connection.idle_session = Some(session);
+                    }
+                }
                 if let Some(session) = connection.idle_session.take() {
                     connection.close_session(session.id).await;
                 }
@@ -554,11 +614,14 @@ impl Pool {
                 let connection = guard.as_mut().ok_or(AgentError::Connect)?;
                 let session = connection
                     .session(
-                        cwd,
+                        cwd.clone(),
                         requested_model.as_deref(),
                         requested_thought_level.as_deref(),
                     )
                     .await?;
+                tx.send(Ok(Chunk::Ready))
+                    .await
+                    .map_err(|_| AgentError::Cancelled)?;
                 connection.overflow.store(false, Ordering::Release);
                 *connection.sink.lock().unwrap() = Some((session.id.clone(), tx.clone()));
                 let request = connection
@@ -595,8 +658,7 @@ impl Pool {
                     thought_level: session.thought_level.selector(),
                 };
                 connection.completed += 1;
-                connection.close_session(session.id).await;
-                Ok::<_, AgentError>(())
+                Ok::<_, AgentError>(session.id)
             };
             let result = tokio::select! { result = result => result, _ = tx.closed() => Err(AgentError::Cancelled), _ = slot.cancel.notified() => Err(AgentError::Cancelled) };
             // A cancelled/failed session never becomes the next request's transport.
@@ -614,7 +676,22 @@ impl Pool {
                     ..Status::default()
                 };
             }
-            let _ = tx.send(result.map(|_| Chunk::Done)).await;
+            match result {
+                Ok(previous) => {
+                    if let Some(connection) = guard.as_mut() {
+                        connection.prepare_next(
+                            cwd,
+                            requested_model,
+                            requested_thought_level,
+                            previous,
+                        );
+                    }
+                    let _ = tx.send(Ok(Chunk::Done)).await;
+                }
+                Err(error) => {
+                    let _ = tx.send(Err(error)).await;
+                }
+            }
         });
         rx
     }

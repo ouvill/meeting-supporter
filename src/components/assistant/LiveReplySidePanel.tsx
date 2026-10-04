@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { replyLatency } from "../../utils/replyLatency";
 import {
   AlertCircle,
   Check,
@@ -201,6 +202,17 @@ function LiveReplySurface({
     ],
   );
   const replyText = state.replyText || primarySuggestion?.text || "";
+  useLayoutEffect(() => {
+    replyLatency.rendered(
+      state.activeSuggestionGenerationId,
+      replyText,
+      primarySuggestion?.status === "ready",
+    );
+  }, [
+    state.activeSuggestionGenerationId,
+    replyText,
+    primarySuggestion?.status,
+  ]);
   const replyEnabled = state.agentSettings.replyEnabled;
   const canGenerateReply =
     state.connected &&

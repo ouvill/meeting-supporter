@@ -38,6 +38,7 @@ pub(crate) struct Live {
     pub selected: [Option<String>; 2],
 }
 pub(crate) struct Shared {
+    pub ai_http: crate::ai::HttpClient,
     pub agents: Arc<crate::agents::Manager>,
     pub repository: Repository,
     pub models: Arc<crate::models::Manager>,
@@ -356,6 +357,7 @@ impl Runtime {
         crate::interrupted::reconcile(&repository, &config.data_dir).await?;
         let devices = list_devices(&config).await.unwrap_or_default();
         let shared = Arc::new(Shared {
+            ai_http: crate::ai::HttpClient::default(),
             agents: crate::agents::Manager::open(&config.data_dir)?,
             models: crate::models::Manager::new(&config),
             repository,
