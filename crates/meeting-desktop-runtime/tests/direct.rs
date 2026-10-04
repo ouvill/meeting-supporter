@@ -2086,6 +2086,182 @@ fn acp_config(temp: &tempfile::TempDir) -> (Config, std::path::PathBuf) {
     (config, marker)
 }
 
+fn saved_acp_config(
+    temp: &tempfile::TempDir,
+    authenticated: bool,
+) -> (Config, std::path::PathBuf, std::path::PathBuf) {
+    let (config, marker) = acp_config(temp);
+    let settings = config.data_dir.join("settings.toml");
+    let mut saved = std::fs::read_to_string(&settings).unwrap();
+    saved.push_str("\n[ai.assignments]\nreply = 'acp:synthetic'\n");
+    std::fs::write(settings, saved).unwrap();
+    let manifest = config.data_dir.join("agents/installed.json");
+    let mut installed: Value = serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+    let gate = temp.path().join("session-gate");
+    installed["synthetic"]["env"] = json!({
+        "SYNTHETIC_AUTHENTICATED": authenticated.to_string(),
+        "SYNTHETIC_SESSION_GATE": gate,
+    });
+    installed["synthetic"]["model"] = json!("synthetic-accurate");
+    installed["synthetic"]["thought_level"] = json!("brief");
+    std::fs::write(manifest, installed.to_string()).unwrap();
+    (config, marker, gate)
+}
+
+async fn wait_for_agent_event(marker: &std::path::Path, event: &str) {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            if std::fs::read_to_string(marker)
+                .unwrap_or_default()
+                .lines()
+                .any(|line| line == event)
+            {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("saved agent must reconnect without opening settings or fetching routes");
+}
+
+#[tokio::test]
+async fn saved_acp_restores_at_startup_and_concurrent_routes_wait_during_meeting() {
+    let temp = tempfile::tempdir().unwrap();
+    let (config, marker, gate) = saved_acp_config(&temp, true);
+    let settings = config.data_dir.join("settings.toml");
+    let manifest = config.data_dir.join("agents/installed.json");
+    let saved_settings = std::fs::read(&settings).unwrap();
+    let saved_manifest = std::fs::read(&manifest).unwrap();
+    let server = Server::start(config).await.unwrap();
+    wait_for_agent_event(&marker, "session-waiting").await;
+
+    // Recording may start while the saved AI connection is still preparing.
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    let (first, second) = {
+        let first = http(&server, "GET", "/api/ai/routes", "");
+        let second = http(&server, "GET", "/api/ai/routes", "");
+        tokio::pin!(first, second);
+        for request in [&mut first, &mut second] {
+            assert!(
+                tokio::time::timeout(std::time::Duration::from_millis(50), request)
+                    .await
+                    .is_err()
+            );
+        }
+        std::fs::write(gate, b"ready").unwrap();
+        tokio::join!(first, second)
+    };
+    for (status, body) in [first, second] {
+        assert_eq!(status, 200);
+        let catalog: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(catalog["assignments"]["reply"], "acp:synthetic");
+        let agent = catalog["routes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|route| route["id"] == "acp:synthetic")
+            .unwrap();
+        assert_eq!(agent["readiness"], "ready");
+        assert_eq!(agent["selectable"], true);
+    }
+    let events = std::fs::read_to_string(&marker).unwrap();
+    assert!(events.contains("model:synthetic-accurate\nthought:brief"));
+    assert_eq!(events.lines().filter(|line| *line == "session").count(), 1);
+    assert!(!events.contains("auth:") && !events.contains("prompt:"));
+
+    // No settings read/write or explicit connect request precedes the reply.
+    let target = manual_target(&mut ws).await;
+    send(
+        &mut ws,
+        json!({"type":"generate_reply","generation_id":"startup","target_utterance_id":target}),
+    )
+    .await;
+    let timing = until(&mut ws, |v| {
+        v["type"] == "reply_timing" && v["generation_id"] == "startup"
+    })
+    .await;
+    assert_eq!(timing["outcome"], "completed");
+    send(&mut ws, json!({"type":"stop_meeting"})).await;
+    until(&mut ws, |v| {
+        v["type"] == "meeting_state" && v["running"] == false
+    })
+    .await;
+    let suggestions = saved_suggestions(&server).await;
+    assert_eq!(suggestions.len(), 1);
+    assert_eq!(suggestions[0]["text"], "合成の返答です。");
+    assert_eq!(std::fs::read(settings).unwrap(), saved_settings);
+    assert_eq!(std::fs::read(manifest).unwrap(), saved_manifest);
+    let events = std::fs::read_to_string(marker).unwrap();
+    assert_eq!(events.lines().filter(|line| *line == "start").count(), 1);
+    assert_eq!(
+        events
+            .lines()
+            .filter(|line| line.starts_with("prompt:"))
+            .count(),
+        1
+    );
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn saved_acp_restore_is_cancelled_when_shutting_down() {
+    let temp = tempfile::tempdir().unwrap();
+    let (config, marker, _) = saved_acp_config(&temp, true);
+    let server = Server::start(config).await.unwrap();
+    wait_for_agent_event(&marker, "session-waiting").await;
+    tokio::time::timeout(std::time::Duration::from_secs(2), server.shutdown())
+        .await
+        .expect("shutdown must cancel pending connection restoration")
+        .unwrap();
+}
+
+#[tokio::test]
+async fn saved_acp_needing_auth_does_not_authenticate_or_block_recording() {
+    let temp = tempfile::tempdir().unwrap();
+    let (config, marker, _) = saved_acp_config(&temp, false);
+    let server = Server::start(config).await.unwrap();
+    wait_for_agent_event(&marker, "start").await;
+    let (_, body) = http(&server, "GET", "/api/ai/routes", "").await;
+    let catalog: Value = serde_json::from_slice(&body).unwrap();
+    let agent = catalog["routes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|route| route["id"] == "acp:synthetic")
+        .unwrap();
+    assert_eq!(agent["readiness"], "setup_required");
+    assert_eq!(agent["selectable"], false);
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    let events = std::fs::read_to_string(marker).unwrap();
+    assert!(!events.contains("auth:") && !events.contains("prompt:"));
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn saved_acp_is_not_started_when_disabled_or_unassigned() {
+    for reply in [
+        "[reply]\nenabled = false\n[ai.assignments]\nreply = 'acp:synthetic'\n",
+        "[reply]\nenabled = true\n",
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        let (config, marker, _) = saved_acp_config(&temp, true);
+        std::fs::write(
+            config.data_dir.join("settings.toml"),
+            format!("schema_version = 1\n{reply}"),
+        )
+        .unwrap();
+        let server = Server::start(config).await.unwrap();
+        assert_eq!(http(&server, "GET", "/api/ai/routes", "").await.0, 200);
+        server.shutdown().await.unwrap();
+        assert!(!marker.exists());
+    }
+}
+
 #[tokio::test]
 async fn old_agent_settings_do_not_change_installed_registry_agents() {
     let temp = tempfile::tempdir().unwrap();

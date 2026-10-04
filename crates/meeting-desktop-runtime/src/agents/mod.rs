@@ -77,6 +77,7 @@ pub(crate) struct Manager {
     root: PathBuf,
     entries: Mutex<Vec<Entry>>,
     installed: Mutex<BTreeMap<String, Installed>>,
+    connecting: Mutex<()>,
     pub maintenance: Mutex<()>,
     pub checking: Mutex<()>,
     pub cancel_check: tokio::sync::watch::Sender<u64>,
@@ -92,6 +93,7 @@ impl Manager {
             root,
             entries: Mutex::new(updates.entries.clone()),
             updates: Mutex::new(updates),
+            connecting: Mutex::new(()),
             maintenance: Mutex::new(()),
             checking: Mutex::new(()),
             cancel_check: tokio::sync::watch::channel(0).0,
@@ -272,6 +274,23 @@ impl Manager {
             .launch(&self.root)
     }
     pub async fn connect(
+        &self,
+        id: &str,
+        method: Option<String>,
+    ) -> Result<connection::Status, AgentError> {
+        let _guard = self.connecting.lock().await;
+        self.connect_inner(id, method).await
+    }
+    pub async fn restore(&self, id: &str) -> Result<(), AgentError> {
+        // Startup and all windows wait for the same connection attempt. This
+        // lock is separate from maintenance so recording can start meanwhile.
+        let _guard = self.connecting.lock().await;
+        if !self.pool.status(id).await.ready {
+            self.connect_inner(id, None).await?;
+        }
+        Ok(())
+    }
+    async fn connect_inner(
         &self,
         id: &str,
         method: Option<String>,

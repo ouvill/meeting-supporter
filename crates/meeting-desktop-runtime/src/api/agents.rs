@@ -1,6 +1,35 @@
 use super::*;
 type Reply = Result<Value, ApiError>;
 
+pub(super) async fn restore_assigned(api: &Api) {
+    let mut stopping = api.stopping.clone();
+    if *stopping.borrow() {
+        return;
+    }
+    let id = {
+        let store = api.shared.settings.lock().await;
+        if !store.document.reply.enabled {
+            return;
+        }
+        store
+            .document
+            .ai
+            .assignments
+            .reply
+            .as_deref()
+            .and_then(|id| id.strip_prefix("acp:"))
+            .map(str::to_owned)
+    };
+    if let Some(id) = id {
+        // Reuse the agent's saved login, model and reasoning level. Never open
+        // authentication or send a prompt; failures remain visible in readiness.
+        tokio::select! {
+            _ = api.shared.agents.restore(&id) => {},
+            _ = stopping.changed() => {},
+        }
+    }
+}
+
 #[derive(Default, Deserialize)]
 pub(super) struct CatalogQuery {
     #[serde(default)]

@@ -46,7 +46,8 @@ fn main() {
         .unwrap();
     writeln!(log, "start").unwrap();
     let output = Arc::new(Mutex::new(std::io::stdout()));
-    let authenticated = AtomicBool::new(false);
+    let authenticated =
+        AtomicBool::new(std::env::var("SYNTHETIC_AUTHENTICATED").as_deref() == Ok("true"));
     let cancelled = Arc::new(AtomicBool::new(false));
     let mut sessions = 0;
     let mut settings = HashMap::<String, (String, String)>::new();
@@ -92,6 +93,13 @@ fn main() {
                 continue;
             }
             "session/new" => {
+                if let Some(gate) = std::env::var_os("SYNTHETIC_SESSION_GATE") {
+                    let gate = std::path::PathBuf::from(gate);
+                    writeln!(log, "session-waiting").unwrap();
+                    while !gate.exists() {
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                }
                 let fail_once = std::path::Path::new(&marker).with_extension("fail-prepare");
                 if fail_once.exists() {
                     std::fs::remove_file(fail_once).unwrap();

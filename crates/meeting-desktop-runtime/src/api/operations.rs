@@ -310,23 +310,10 @@ fn model_error(error: crate::models::ModelError) -> ApiError {
 }
 
 pub(super) async fn ai_routes(api: Api) -> Reply {
+    // Wait for restoration even if the meeting has already started or another
+    // window requested the catalog. Never return a transient setup-required state.
+    super::agents::restore_assigned(&api).await;
     let store = api.shared.settings.lock().await.clone();
-    // Warm the previously selected agent on startup without prompting the model.
-    if let Some(id) = store
-        .document
-        .ai
-        .assignments
-        .clone()
-        .reply
-        .and_then(|id| id.strip_prefix("acp:").map(str::to_owned))
-    {
-        if !api.shared.live.lock().await.running && !api.shared.agents.pool.status(&id).await.ready
-        {
-            if let Ok(_guard) = api.shared.agents.maintenance.try_lock() {
-                let _ = api.shared.agents.connect(&id, None).await;
-            }
-        }
-    }
     Ok(crate::ai::routes::catalog(store, &api.shared.agents).await?)
 }
 pub(super) async fn ai_assignments(api: Api, body: crate::ai::routes::Assignments) -> Reply {

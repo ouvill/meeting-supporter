@@ -43,6 +43,7 @@ pub struct Server {
     stop: watch::Sender<bool>,
     task: tokio::task::JoinHandle<std::io::Result<()>>,
     alive: Arc<AtomicBool>,
+    agent_restore: tokio::task::JoinHandle<()>,
     agent_updates: Option<tokio::task::JoinHandle<()>>,
 }
 impl Server {
@@ -72,6 +73,10 @@ impl Server {
         let router = router(api.clone());
         let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
         let port = listener.local_addr()?.port();
+        let restore_api = api.clone();
+        let agent_restore = tokio::spawn(async move {
+            agents::restore_assigned(&restore_api).await;
+        });
         let agent_updates = api
             .shared
             .config
@@ -100,6 +105,7 @@ impl Server {
             stop,
             task,
             alive,
+            agent_restore,
             agent_updates,
         })
     }
@@ -108,6 +114,7 @@ impl Server {
     }
     pub async fn shutdown(self) -> Result<(), Error> {
         let _ = self.stop.send(true);
+        let _ = self.agent_restore.await;
         if let Some(task) = self.agent_updates {
             let _ = task.await;
         }
