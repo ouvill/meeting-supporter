@@ -12,7 +12,6 @@ import {
   installAgent,
   removeAgent,
   selectAgentModel,
-  updateAllAgents,
   type RegistryAgent,
 } from "../../api/agentRegistry";
 import { AgentRegistryPanel } from "./AgentRegistryPanel";
@@ -54,76 +53,65 @@ beforeEach(() => {
 });
 
 describe("AgentRegistryPanel", () => {
-  it("does not offer Registry controls when the catalog is unavailable", async () => {
-    vi.mocked(getAgentCatalog).mockResolvedValue(null);
-    const { container } = render(
-      <AgentRegistryPanel locked={false} onChanged={vi.fn()} />,
-    );
-    await act(async () => {});
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("installs explicitly, keeps the installation visible after connection failure, and retries authentication", async () => {
-    let installed = false;
-    let browsed = false;
-    let ready = false;
-    vi.mocked(getAgentCatalog).mockImplementation(async (refresh) => {
-      browsed ||= refresh ?? false;
-      return catalog(
-        installed
-          ? [
-              {
-                ...agent,
-                installed_version: agent.version,
-                status: {
-                  ready,
-                  message: "",
-                  auth_methods: [{ id: "login", name: "テスト認証" }],
-                },
-              },
-            ]
-          : browsed
-            ? [agent]
-            : [],
-      );
-    });
-    vi.mocked(installAgent).mockImplementation(async () => {
-      installed = true;
-    });
-    vi.mocked(connectAgent)
-      .mockRejectedValueOnce(new Error("接続できませんでした。"))
-      .mockImplementation(async () => {
-        ready = true;
-        return { ready: true, message: "接続済みです。", auth_methods: [] };
-      });
-    const onChanged = vi.fn();
-    render(<AgentRegistryPanel locked={false} onChanged={onChanged} />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "エージェントを追加" }),
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "追加" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "接続できませんでした。",
-    );
-    expect(
-      await screen.findByRole("button", { name: "接続を確認" }),
-    ).toBeEnabled();
-    expect(installAgent).toHaveBeenCalledExactlyOnceWith("synthetic");
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "テスト認証" })).toBeEnabled(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "テスト認証" }));
-    expect(await screen.findByText("接続済み")).toBeInTheDocument();
-    expect(connectAgent).toHaveBeenLastCalledWith("synthetic", "login");
-    expect(onChanged).toHaveBeenCalled();
-  });
-
-  it("locks installation, authentication and removal during a meeting", async () => {
+  it("opens the catalog directly, searches it, and offers installation only for supported agents", async () => {
     vi.mocked(getAgentCatalog).mockResolvedValue(
+      catalog([
+        agent,
+        {
+          ...agent,
+          id: "unsupported",
+          name: "Unavailable Agent",
+          supported: false,
+          distribution: "unsupported",
+        },
+      ]),
+    );
+    render(
+      <AgentRegistryPanel
+        locked={false}
+        onChanged={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText("Synthetic Agent")).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "追加" })).toBeEnabled(),
+    );
+    expect(getAgentCatalog).toHaveBeenCalledWith(true, expect.any(AbortSignal));
+    expect(screen.getAllByRole("button", { name: "追加" })).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", { name: "接続を確認" }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "エージェントを検索" }),
+      { target: { value: "Unavailable" } },
+    );
+    expect(screen.queryByText("Synthetic Agent")).not.toBeInTheDocument();
+    expect(screen.getByText("この環境では導入できません。")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "追加" }),
+    ).not.toBeInTheDocument();
+    expect(installAgent).not.toHaveBeenCalled();
+  });
+
+  it("explains an unavailable catalog", async () => {
+    vi.mocked(getAgentCatalog).mockResolvedValue(null);
+    render(<AgentRegistryPanel locked={false} onChanged={vi.fn()} />);
+    expect(
+      await screen.findByText("この環境ではAIエージェントを利用できません。"),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "追加" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a successful installation after connection failure and hands off to the selected AI's connection settings", async () => {
+    let installed = false;
+    vi.mocked(getAgentCatalog).mockImplementation(async () =>
       catalog([
         {
           ...agent,
-          installed_version: "0.9.0",
+          installed_version: installed ? agent.version : null,
           status: {
             ready: false,
             message: "",
@@ -132,8 +120,113 @@ describe("AgentRegistryPanel", () => {
         },
       ]),
     );
-    render(<AgentRegistryPanel locked onChanged={vi.fn()} />);
+    vi.mocked(installAgent).mockImplementation(async () => {
+      installed = true;
+    });
+    vi.mocked(connectAgent).mockRejectedValueOnce(
+      new Error("接続できませんでした。"),
+    );
+    const onSelect = vi.fn();
+    const onChanged = vi.fn();
+    const view = render(
+      <AgentRegistryPanel
+        locked={false}
+        onChanged={onChanged}
+        onSelect={onSelect}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "追加" })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "追加" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "接続できませんでした。",
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "このAIを設定" }),
+    );
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith("synthetic");
+    view.rerender(
+      <AgentRegistryPanel
+        agentId="synthetic"
+        locked={false}
+        onChanged={onChanged}
+      />,
+    );
+    vi.mocked(connectAgent).mockResolvedValue({
+      ready: true,
+      message: "接続済みです。",
+      auth_methods: [],
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "テスト認証" }));
+    expect(await screen.findByText("接続済みです。")).toBeVisible();
+    expect(connectAgent).toHaveBeenLastCalledWith("synthetic", "login");
+    expect(installAgent).toHaveBeenCalledExactlyOnceWith("synthetic");
+    expect(onChanged).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows only the chosen AI, without duplicating model selection, and places updates and removal in details", async () => {
+    vi.mocked(getAgentCatalog).mockResolvedValue(
+      catalog([
+        {
+          ...agent,
+          installed_version: "0.9.0",
+          update_version: "1.0.0",
+          status: {
+            ready: true,
+            message: "",
+            auth_methods: [],
+            model: { current: "fast", options: [{ id: "fast", name: "Fast" }] },
+          },
+        },
+        {
+          ...agent,
+          id: "other",
+          name: "Other Agent",
+          installed_version: "1.0.0",
+        },
+      ]),
+    );
+    render(
+      <AgentRegistryPanel
+        agentId="synthetic"
+        locked={false}
+        onChanged={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText("Synthetic Agent")).toBeVisible();
+    expect(screen.queryByText("Other Agent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "削除" })).not.toBeVisible();
+    fireEvent.click(screen.getByText("更新・削除"));
+    expect(screen.getByRole("button", { name: "1.0.0に更新" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "削除" }));
+    await waitFor(() =>
+      expect(removeAgent).toHaveBeenCalledExactlyOnceWith("synthetic"),
+    );
+    expect(selectAgentModel).not.toHaveBeenCalled();
+  });
+
+  it("locks installation, connection, authentication, updates and removal during a meeting", async () => {
+    vi.mocked(getAgentCatalog).mockResolvedValue(
+      catalog([
+        {
+          ...agent,
+          installed_version: "0.9.0",
+          update_version: "1.0.0",
+          status: {
+            ready: false,
+            message: "",
+            auth_methods: [{ id: "login", name: "テスト認証" }],
+          },
+        },
+      ]),
+    );
+    render(
+      <AgentRegistryPanel agentId="synthetic" locked onChanged={vi.fn()} />,
+    );
     await screen.findByText("Synthetic Agent");
+    fireEvent.click(screen.getByText("更新・削除"));
     for (const button of screen.getAllByRole("button"))
       expect(button).toBeDisabled();
     expect(installAgent).not.toHaveBeenCalled();
@@ -141,248 +234,80 @@ describe("AgentRegistryPanel", () => {
     expect(removeAgent).not.toHaveBeenCalled();
   });
 
-  it("selects an ACP-advertised model and refreshes the persisted selection", async () => {
-    let current = "fast";
-    const configured = () => ({
-      ...agent,
-      installed_version: agent.version,
-      status: {
-        ready: true,
-        message: "",
-        auth_methods: [],
-        model: {
-          current,
-          options: [
-            { id: "fast", name: "Fast" },
-            { id: "accurate", name: "Accurate" },
-          ],
-        },
-      },
-    });
-    vi.mocked(getAgentCatalog).mockImplementation(async () =>
-      catalog([configured()]),
-    );
-    vi.mocked(selectAgentModel).mockImplementation(async (_id, model) => {
-      current = model;
-      return {
-        ready: true,
-        message: "モデルを変更しました。",
-        auth_methods: [],
-        model: configured().status.model,
-      };
-    });
-
-    render(<AgentRegistryPanel locked={false} onChanged={vi.fn()} />);
-    const select = await screen.findByRole("combobox", {
-      name: "Synthetic Agentのモデル",
-    });
-    fireEvent.change(select, { target: { value: "accurate" } });
-
-    await waitFor(() =>
-      expect(selectAgentModel).toHaveBeenCalledWith("synthetic", "accurate"),
-    );
-    await waitFor(() => expect(select).toHaveValue("accurate"));
-    expect(
-      await screen.findByText("モデルを変更しました。"),
-    ).toBeInTheDocument();
-  });
-
-  it("shows the resolved version and allows retrying an update that still resolves to an older version", async () => {
-    vi.mocked(getAgentCatalog).mockResolvedValue(
-      catalog([
-        { ...agent, installed_version: "0.9.0", update_version: "1.0.0" },
-      ]),
-    );
-    vi.mocked(connectAgent).mockResolvedValue({
-      ready: true,
-      message: "接続済みです。",
-      auth_methods: [],
-    });
-    render(<AgentRegistryPanel locked={false} onChanged={vi.fn()} />);
-    expect(await screen.findByText(/導入済み 0\.9\.0/)).toBeInTheDocument();
-    expect(screen.getByText("更新版: 1.0.0")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "1.0.0に更新" }));
-    await waitFor(() =>
-      expect(installAgent).toHaveBeenCalledExactlyOnceWith("synthetic"),
-    );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "1.0.0に更新" })).toBeEnabled(),
-    );
-    expect(screen.getByText(/導入済み 0\.9\.0/)).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  });
-
-  it("allows choosing another login method after connecting and retrying a failed change", async () => {
-    const auth_methods = [
-      { id: "login", name: "テスト認証" },
-      { id: "alternate", name: "別のテスト認証" },
-    ];
+  it("allows changing the login method and retrying rejected authentication", async () => {
     let ready = true;
-    vi.mocked(getAgentCatalog).mockImplementation(async () =>
-      catalog([
-        {
-          ...agent,
-          installed_version: agent.version,
-          status: { ready, message: "", auth_methods },
-        },
-      ]),
-    );
-    vi.mocked(connectAgent)
-      .mockImplementationOnce(async () => {
-        ready = false;
-        return { ready, message: "ログインが必要です。", auth_methods };
-      })
-      .mockImplementationOnce(async () => {
-        ready = true;
-        return { ready, message: "接続済みです。", auth_methods };
-      });
-    const { rerender } = render(
-      <AgentRegistryPanel locked={false} onChanged={vi.fn()} />,
-    );
-    const change = await screen.findByRole("button", {
-      name: "ログイン方法を変更",
+    const status = () => ({
+      ready,
+      message: ready ? "接続済みです。" : "ログインが必要です。",
+      auth_methods: [{ id: "alternate", name: "別のテスト認証" }],
     });
-    expect(
-      screen.queryByRole("button", { name: "別のテスト認証" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(change);
-    expect(connectAgent).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
-    expect(
-      screen.queryByRole("button", { name: "別のテスト認証" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(change);
+    vi.mocked(getAgentCatalog).mockImplementation(async () =>
+      catalog([{ ...agent, installed_version: "1.0.0", status: status() }]),
+    );
+    vi.mocked(connectAgent).mockImplementation(async () => {
+      ready = !ready;
+      return status();
+    });
+    render(
+      <AgentRegistryPanel
+        agentId="synthetic"
+        locked={false}
+        onChanged={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "ログイン方法を変更" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "別のテスト認証" }));
-    expect(await screen.findByText("ログインが必要です。")).toBeInTheDocument();
+    expect(await screen.findByText("ログインが必要です。")).toBeVisible();
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: "別のテスト認証" }),
       ).toBeEnabled(),
     );
-    expect(connectAgent).toHaveBeenLastCalledWith("synthetic", "alternate");
     fireEvent.click(screen.getByRole("button", { name: "別のテスト認証" }));
     expect(
       await screen.findByRole("button", { name: "ログイン方法を変更" }),
     ).toHaveAttribute("aria-expanded", "false");
-    expect(
-      screen.queryByRole("button", { name: "別のテスト認証" }),
-    ).not.toBeInTheDocument();
-    expect(installAgent).not.toHaveBeenCalled();
-    await act(async () =>
-      rerender(<AgentRegistryPanel locked onChanged={vi.fn()} />),
-    );
-    expect(
-      screen.getByRole("button", { name: "ログイン方法を変更" }),
-    ).toBeDisabled();
+    expect(connectAgent).toHaveBeenLastCalledWith("synthetic", "alternate");
   });
 
-  it("keeps unsupported distributions visible without offering installation", async () => {
+  it("checks updates for the selected AI and does not offer unavailable releases", async () => {
     vi.mocked(getAgentCatalog).mockResolvedValue(
-      catalog([{ ...agent, supported: false, distribution: "unsupported" }]),
+      catalog([{ ...agent, installed_version: "1.0.0" }]),
     );
-    render(<AgentRegistryPanel locked={false} onChanged={vi.fn()} />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "エージェントを追加" }),
+    render(
+      <AgentRegistryPanel
+        agentId="synthetic"
+        locked={false}
+        onChanged={vi.fn()}
+      />,
     );
-    expect(
-      await screen.findByText("この環境では導入できません。"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "追加" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows only installable updates and reports partial batch failure while preserving the old version", async () => {
-    let updated = false;
-    vi.mocked(getAgentCatalog).mockImplementation(async () =>
-      catalog([
-        {
-          ...agent,
-          id: "first",
-          name: "First Agent",
-          installed_version: "0.9.0",
-          update_version: "1.0.0",
-        },
-        {
-          ...agent,
-          id: "second",
-          name: "Second Agent",
-          installed_version: updated ? "1.0.0" : "0.9.0",
-          update_version: updated ? null : "1.0.0",
-        },
-        {
-          ...agent,
-          id: "waiting",
-          name: "Waiting Agent",
-          installed_version: "0.9.0",
-          update_version: null,
-        },
-      ]),
-    );
-    vi.mocked(updateAllAgents).mockImplementation(async () => {
-      updated = true;
-      return {
-        results: [
-          {
-            id: "first",
-            name: "First Agent",
-            updated: false,
-            error: "接続できませんでした。",
-          },
-          { id: "second", name: "Second Agent", updated: true, error: null },
-        ],
-      };
-    });
-    const { rerender } = render(
-      <AgentRegistryPanel locked={false} onChanged={vi.fn()} />,
-    );
-    expect(await screen.findByText("更新 2件")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "1.0.0に更新" })).toHaveLength(
-      2,
-    );
-    expect(updateAllAgents).not.toHaveBeenCalled();
-    rerender(<AgentRegistryPanel locked onChanged={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "まとめて更新" })).toBeDisabled();
-    rerender(<AgentRegistryPanel locked={false} onChanged={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "まとめて更新" }));
-    expect(await screen.findByText("1件更新しました。")).toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "First Agent: 接続できませんでした。 以前の版を保持しています。",
-    );
-    expect(await screen.findByText("更新 1件")).toBeInTheDocument();
-    expect(updateAllAgents).toHaveBeenCalledOnce();
-  });
-
-  it("does not offer updates while the only newer release is unavailable", async () => {
-    vi.mocked(getAgentCatalog).mockResolvedValue(
-      catalog([{ ...agent, installed_version: "0.9.0" }]),
-    );
-    render(<AgentRegistryPanel locked={false} onChanged={vi.fn()} />);
     await screen.findByText("Synthetic Agent");
+    fireEvent.click(screen.getByText("更新・削除"));
+    fireEvent.click(screen.getByRole("button", { name: "更新を確認" }));
     expect(
-      screen.queryByRole("button", { name: "まとめて更新" }),
-    ).not.toBeInTheDocument();
+      await screen.findByText("このエージェントは最新版です。"),
+    ).toBeVisible();
+    expect(getAgentCatalog).toHaveBeenCalledWith(true);
     expect(
       screen.queryByRole("button", { name: "1.0.0に更新" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "更新を確認" }));
-    expect(
-      await screen.findByText("更新できるエージェントはありません。"),
-    ).toBeInTheDocument();
-    expect(getAgentCatalog).toHaveBeenCalledWith(true);
     expect(installAgent).not.toHaveBeenCalled();
   });
-  it("continues installation and connection after closing, restores pending state, and blocks duplicate updates", async () => {
-    let finishInstall!: () => void;
-    const installation = new Promise<void>((resolve) => {
-      finishInstall = resolve;
-    });
+
+  it("continues an update after closing and prevents duplicate updates on reopening", async () => {
+    let finish!: () => void;
     vi.mocked(getAgentCatalog).mockResolvedValue(
       catalog([
         { ...agent, installed_version: "0.9.0", update_version: "1.0.0" },
       ]),
     );
-    vi.mocked(installAgent).mockReturnValue(installation);
+    vi.mocked(installAgent).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
     vi.mocked(connectAgent).mockResolvedValue({
       ready: true,
       message: "接続済みです。",
@@ -390,23 +315,29 @@ describe("AgentRegistryPanel", () => {
     });
     const onChanged = vi.fn();
     const first = render(
-      <AgentRegistryPanel locked={false} onChanged={onChanged} />,
+      <AgentRegistryPanel
+        agentId="synthetic"
+        locked={false}
+        onChanged={onChanged}
+      />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "1.0.0に更新" }));
+    await screen.findByText("Synthetic Agent");
+    fireEvent.click(screen.getByText("更新・削除"));
+    fireEvent.click(screen.getByRole("button", { name: "1.0.0に更新" }));
     first.unmount();
-    const reopened = render(
-      <AgentRegistryPanel locked={false} onChanged={vi.fn()} />,
+    const next = render(
+      <AgentRegistryPanel
+        agentId="synthetic"
+        locked={false}
+        onChanged={vi.fn()}
+      />,
     );
-    expect(
-      screen.getByText(/Synthetic Agentを導入しています/),
-    ).toBeInTheDocument();
-    const update = screen.getByRole("button", { name: "1.0.0に更新" });
-    expect(update).toBeDisabled();
-    fireEvent.click(update);
+    fireEvent.click(screen.getByText("更新・削除"));
+    expect(screen.getByRole("button", { name: "1.0.0に更新" })).toBeDisabled();
     expect(installAgent).toHaveBeenCalledOnce();
-    reopened.unmount();
+    next.unmount();
     await act(async () => {
-      finishInstall();
+      finish();
     });
     expect(connectAgent).toHaveBeenCalledExactlyOnceWith(
       "synthetic",
@@ -415,44 +346,43 @@ describe("AgentRegistryPanel", () => {
     expect(onChanged).toHaveBeenCalledOnce();
     expect(useSettingsTaskStore.getState().tasks.agents).toMatchObject({
       state: "completed",
-      message: "接続済みです。",
     });
-    render(<AgentRegistryPanel locked={false} onChanged={vi.fn()} />);
-    expect(await screen.findByText("接続済みです。")).toBeInTheDocument();
-    await act(async () => {});
   });
 
-  it("retains a failed background update for the next visit and permits retrying", async () => {
-    let rejectUpdate!: (error: Error) => void;
+  it("preserves the installed version after update failure and permits retry", async () => {
     vi.mocked(getAgentCatalog).mockResolvedValue(
       catalog([
         { ...agent, installed_version: "0.9.0", update_version: "1.0.0" },
       ]),
     );
-    vi.mocked(updateAllAgents).mockReturnValue(
-      new Promise((_resolve, reject) => {
-        rejectUpdate = reject;
-      }),
+    vi.mocked(installAgent).mockRejectedValue(
+      new Error("更新に失敗しました。"),
     );
     const first = render(
-      <AgentRegistryPanel locked={false} onChanged={vi.fn()} />,
+      <AgentRegistryPanel
+        agentId="synthetic"
+        locked={false}
+        onChanged={vi.fn()}
+      />,
     );
-    fireEvent.click(
-      await screen.findByRole("button", { name: "まとめて更新" }),
-    );
-    first.unmount();
-    await act(async () => {
-      rejectUpdate(new Error("更新に失敗しました。"));
-    });
-    expect(useSettingsTaskStore.getState().tasks.agents).toMatchObject({
-      state: "failed",
-      message: "更新に失敗しました。",
-    });
-    render(<AgentRegistryPanel locked={false} onChanged={vi.fn()} />);
+    await screen.findByText("Synthetic Agent");
+    fireEvent.click(screen.getByText("更新・削除"));
+    fireEvent.click(screen.getByRole("button", { name: "1.0.0に更新" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "更新に失敗しました。",
     );
-    expect(screen.getByRole("button", { name: "まとめて更新" })).toBeEnabled();
-    await act(async () => {});
+    first.unmount();
+    render(
+      <AgentRegistryPanel
+        agentId="synthetic"
+        locked={false}
+        onChanged={vi.fn()}
+      />,
+    );
+    await screen.findByText("Synthetic Agent");
+    expect(screen.getByRole("alert")).toHaveTextContent("更新に失敗しました。");
+    expect(screen.getByText(/導入済み 0\.9\.0/)).toBeVisible();
+    fireEvent.click(screen.getByText("更新・削除"));
+    expect(screen.getByRole("button", { name: "1.0.0に更新" })).toBeEnabled();
   });
 });

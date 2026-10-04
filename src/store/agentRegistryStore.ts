@@ -4,11 +4,12 @@ import { useSettingsTaskStore } from "./settingsTaskStore";
 
 interface AgentRegistryState {
   catalog: AgentCatalog | null;
+  catalogError: string | null;
   pending: string | null;
   error: string | null;
   message: string | null;
   revision: number;
-  refresh: (signal: AbortSignal) => Promise<void>;
+  refresh: (signal: AbortSignal, force?: boolean) => Promise<void>;
   perform: (
     label: string,
     action: () => Promise<void>,
@@ -18,19 +19,21 @@ interface AgentRegistryState {
 
 export const useAgentRegistryStore = create<AgentRegistryState>((set, get) => ({
   catalog: null,
+  catalogError: null,
   pending: null,
   error: null,
   message: null,
   revision: 0,
-  refresh: async (signal) => {
+  refresh: async (signal, force = false) => {
     if (get().pending) return;
     const revision = get().revision;
     try {
-      const catalog = await getAgentCatalog(false, signal);
-      if (!signal.aborted && revision === get().revision) set({ catalog });
+      const catalog = await getAgentCatalog(force, signal);
+      if (!signal.aborted && revision === get().revision)
+        set({ catalog, catalogError: null });
     } catch {
       if (!signal.aborted && revision === get().revision)
-        set({ error: "エージェントの一覧を取得できませんでした。" });
+        set({ catalogError: "エージェントの一覧を取得できませんでした。" });
     }
   },
   perform: async (label, action, onChanged) => {

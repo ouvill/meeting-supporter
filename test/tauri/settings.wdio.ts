@@ -48,6 +48,11 @@ let settingsSnapshot: SettingsSnapshot | null = null;
 let sttSettingsMutated = false;
 
 async function geminiCredentialInput() {
+  const selector = await $('select[aria-label="返答案に使うAI"]');
+  await selector.selectByAttribute("value", "gemini");
+  const connection = await $('button[aria-controls="selected-ai-connection"]');
+  if ((await connection.getAttribute("aria-expanded")) !== "true")
+    await connection.click();
   const geminiCard = await $('[data-route-id="gemini"]');
   await geminiCard.waitForDisplayed(waitOptions);
   let input = await $('input[aria-label="Google Gemini APIキー"]');
@@ -139,34 +144,25 @@ describe("Contextual settings credentials", () => {
     }
   });
 
-  it("does not allow selecting an unavailable hosted route", async () => {
+  it("omits the unavailable hosted route", async () => {
     await openSettings(waitOptions);
-    const card = await $('[data-route-id="managed"]');
-    await card.waitForDisplayed(waitOptions);
-    const reply = await card.$('.//button[normalize-space()="返答案"]');
-    expect(!(await reply.isExisting()) || !(await reply.isEnabled())).toBe(
-      true,
-    );
+    expect(
+      await $(
+        'select[aria-label="返答案に使うAI"] option[value="managed"]',
+      ).isExisting(),
+    ).toBe(false);
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 
-  it("toggles the reply route without offering retired minutes generation", async () => {
+  it("selects a reply AI and preserves it when switching settings tabs", async () => {
     await openSettings(waitOptions);
-
-    const geminiCard = await $('[data-route-id="gemini"]');
-    const reply = await geminiCard.$('.//button[normalize-space()="返答案"]');
-    const minutes = await geminiCard.$(
-      './/button[normalize-space()="要約・議事録"]',
-    );
-    await reply.waitForClickable(waitOptions);
-    const initialReply = await reply.getAttribute("aria-pressed");
-    expect(await minutes.isExisting()).toBe(false);
-
-    await reply.click();
-
-    expect(await reply.getAttribute("aria-pressed")).toBe(
-      initialReply === "true" ? "false" : "true",
-    );
+    const selector = await $('select[aria-label="返答案に使うAI"]');
+    await selector.selectByAttribute("value", "gemini");
+    await $("#ai-settings-tab-speech").click();
+    await expect($("#ai-settings-panel-speech")).toBeDisplayed();
+    await expect($("#ai-settings-panel-reply")).not.toBeDisplayed();
+    await $("#ai-settings-tab-reply").click();
+    expect(await selector.getValue()).toBe("gemini");
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 
@@ -178,14 +174,8 @@ describe("Contextual settings credentials", () => {
     await closeSettingsIfOpen({ discard: true, waitOptions });
 
     await openSettings(waitOptions);
-    const reopenedInput = await $('input[aria-label="Google Gemini APIキー"]');
-    if (await reopenedInput.isExisting()) {
-      expect(await reopenedInput.getValue()).toBe("");
-    } else {
-      await expect(
-        $('button[aria-label="Google Gemini APIキーを変更"]'),
-      ).toBeDisplayed();
-    }
+    const reopenedInput = await geminiCredentialInput();
+    expect(await reopenedInput.getValue()).toBe("");
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 
@@ -242,15 +232,11 @@ describe("Contextual settings credentials", () => {
     await waitForBackendReady();
     await expectDisplayedSurface('[data-testid="setup-screen"]', waitOptions);
     await openSettings(waitOptions);
-    const audioCategory = await $(
-      '//button[.//span[normalize-space()="音声"]]',
-    );
+    const audioCategory = await $("#ai-settings-tab-speech");
     await audioCategory.waitForClickable(waitOptions);
     await audioCategory.click();
 
-    await $('//p[normalize-space()="Silero VAD"]').waitForDisplayed(
-      waitOptions,
-    );
+    await $('//summary[normalize-space()="音声認識の詳細な調整"]').click();
     expect(await $('option[value="webrtc"]').isExisting()).toBe(false);
     await expect(
       $('input[aria-label="Silero音声判定しきい値"]'),
@@ -266,9 +252,7 @@ describe("Contextual settings credentials", () => {
     await expectDisplayedSurface('[data-testid="setup-screen"]', waitOptions);
     await startMeeting(waitOptions);
     await openSettings(waitOptions);
-    const audioCategory = await $(
-      '//button[.//span[normalize-space()="音声"]]',
-    );
+    const audioCategory = await $("#ai-settings-tab-speech");
     await audioCategory.waitForClickable(waitOptions);
     await audioCategory.click();
 
@@ -279,6 +263,7 @@ describe("Contextual settings credentials", () => {
     expect(await $('select[aria-label="音声認識方式"]').isEnabled()).toBe(
       false,
     );
+    await $('//summary[normalize-space()="音声認識の詳細な調整"]').click();
     expect(
       await $('input[aria-label="Silero音声判定しきい値"]').isEnabled(),
     ).toBe(false);

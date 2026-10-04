@@ -1,22 +1,20 @@
 import { useEffect } from "react";
-import {
-  selectAgentModel,
-  selectAgentThoughtLevel,
-} from "../../api/agentRegistry";
 import { useAgentRegistryStore } from "../../store/agentRegistryStore";
+import type { AgentModelDraftsController } from "./useAgentModelDrafts";
 import { FieldRow } from "./SettingsPrimitives";
 import { InlineNotice } from "../ui";
+import { Button } from "../ui/Button";
 
 export function AgentModelControl({
   routeId,
   locked,
-  onChanged,
+  settings,
 }: {
   routeId: string;
   locked: boolean;
-  onChanged: () => void;
+  settings: AgentModelDraftsController;
 }) {
-  const { catalog, refresh, pending, perform, error } = useAgentRegistryStore();
+  const { catalog, refresh, pending, catalogError } = useAgentRegistryStore();
   useEffect(() => {
     const controller = new AbortController();
     void refresh(controller.signal);
@@ -25,24 +23,19 @@ export function AgentModelControl({
   const agent = catalog?.agents.find((item) => `acp:${item.id}` === routeId);
   const model = agent?.status.model;
   const thoughtLevel = agent?.status.thought_level;
+  const draft = agent ? settings.drafts[agent.id] : undefined;
   return (
     <>
       {model && agent ? (
-        <FieldRow label="モデル" hint="変更はすぐに反映されます">
+        <FieldRow label="モデル">
           <select
             className="field"
             aria-label={`${agent.name}のモデル`}
-            value={model.current}
+            value={draft?.model ?? model.current}
             disabled={locked || pending !== null || !agent.status.ready}
             onChange={(event) => {
               const value = event.target.value;
-              void perform(
-                "モデルを変更しています",
-                async () => {
-                  await selectAgentModel(agent.id, value);
-                },
-                onChanged,
-              );
+              settings.change(agent.id, "model", value);
             }}
           >
             {model.options.map((option) => (
@@ -62,22 +55,20 @@ export function AgentModelControl({
       {thoughtLevel && agent?.status.ready && (
         <FieldRow
           label="推論量"
-          hint="少ない推論量は応答速度、多い推論量は検討の深さを重視します。変更はすぐに反映され、次の返答案から使われます。"
+          hint={
+            draft?.model
+              ? "モデルを保存すると、対応する推論量を選べます。"
+              : "少ない推論量は応答速度、多い推論量は検討の深さを重視します。"
+          }
         >
           <select
             className="field"
             aria-label={`${agent.name}の推論量`}
-            value={thoughtLevel.current}
-            disabled={locked || pending !== null}
+            value={draft?.thoughtLevel ?? thoughtLevel.current}
+            disabled={locked || pending !== null || draft?.model !== undefined}
             onChange={(event) => {
               const value = event.target.value;
-              void perform(
-                "推論量を変更しています",
-                async () => {
-                  await selectAgentThoughtLevel(agent.id, value);
-                },
-                onChanged,
-              );
+              settings.change(agent.id, "thoughtLevel", value);
             }}
           >
             {thoughtLevel.options.map((option) => (
@@ -88,7 +79,23 @@ export function AgentModelControl({
           </select>
         </FieldRow>
       )}
-      {error && <InlineNotice tone="danger">{error}</InlineNotice>}
+      {settings.error && (
+        <InlineNotice tone="danger">{settings.error}</InlineNotice>
+      )}
+      {catalogError && (
+        <InlineNotice tone="danger">
+          <p>{catalogError}</p>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="mt-3"
+            disabled={pending !== null}
+            onClick={() => void refresh(new AbortController().signal)}
+          >
+            再試行
+          </Button>
+        </InlineNotice>
+      )}
     </>
   );
 }

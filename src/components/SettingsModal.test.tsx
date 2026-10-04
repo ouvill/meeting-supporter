@@ -19,6 +19,13 @@ import type {
 import { SettingsModal } from "./SettingsModal";
 import { SettingsTaskNotice } from "./SettingsTaskNotice";
 import { resetSpeechModelTasks } from "../store/speechModelStore";
+import { useAgentRegistryStore } from "../store/agentRegistryStore";
+import {
+  getAgentCatalog,
+  selectAgentModel,
+  selectAgentThoughtLevel,
+  type AgentCatalog,
+} from "../api/agentRegistry";
 import { useSettingsTaskStore } from "../store/settingsTaskStore";
 
 const sdkMocks = vi.hoisted(() => ({
@@ -44,6 +51,11 @@ vi.mock("../api/generated/sdk.gen", () => ({
   cancelSpeechModelDownloadApiSttModelCancelPost: sdkMocks.cancelSpeechDownload,
   getOllamaModelsApiSettingsOllamaModelsGet: sdkMocks.getOllamaModels,
   getAiModels: sdkMocks.getAiModels,
+}));
+vi.mock("../api/agentRegistry", () => ({
+  getAgentCatalog: vi.fn(),
+  selectAgentModel: vi.fn(),
+  selectAgentThoughtLevel: vi.fn(),
 }));
 vi.mock("../api/recordingRetention", () => ({
   previewRecordingCleanup: vi.fn(),
@@ -156,7 +168,9 @@ async function renderModal(
     />,
   );
   await screen.findByRole("heading", { name: "AIと音声認識" });
-  fireEvent.click(screen.getByText("返答案の動作"));
+  const connection = screen.queryByRole("button", { name: "接続設定" });
+  if (connection) fireEvent.click(connection);
+  await act(async () => {});
   return { ...rendered, onClose };
 }
 afterEach(() => {
@@ -169,6 +183,11 @@ describe("SettingsModal connection UX", () => {
     vi.clearAllMocks();
     resetSpeechModelTasks();
     useSettingsTaskStore.setState({ tasks: {} });
+    useAgentRegistryStore.setState(
+      useAgentRegistryStore.getInitialState(),
+      true,
+    );
+    vi.mocked(getAgentCatalog).mockResolvedValue(null);
     sdkMocks.getSpeechStatus.mockResolvedValue({
       data: speechStatus(),
       error: undefined,
@@ -225,6 +244,132 @@ describe("SettingsModal connection UX", () => {
     });
   });
 
+  it("keeps agent model drafts through tab changes and discard confirmation, then applies them only on Save", async () => {
+    const status = {
+      ready: true,
+      message: "",
+      auth_methods: [],
+      model: {
+        current: "fast",
+        options: [
+          { id: "fast", name: "Fast" },
+          { id: "accurate", name: "Accurate" },
+        ],
+      },
+    };
+    const catalog: AgentCatalog = {
+      supported: true,
+      update_count: 0,
+      update_message: null,
+      checked_at: null,
+      agents: [
+        {
+          id: "synthetic",
+          name: "Synthetic Agent",
+          authors: [],
+          description: "",
+          version: "1.0.0",
+          installed_version: "1.0.0",
+          update_version: null,
+          supported: true,
+          distribution: "binary",
+          status,
+        },
+      ],
+    };
+    vi.mocked(getAgentCatalog).mockResolvedValue(catalog);
+    vi.mocked(selectAgentModel).mockImplementation(async (_id, model) => {
+      status.model.current = model;
+      return status;
+    });
+    const onClose = vi.fn();
+    await renderModal(
+      settings(),
+      routeCatalog({
+        routes: [route({ id: "acp:synthetic", kind: "subscription_app" })],
+        draftAssignments: { reply: "acp:synthetic" },
+      }),
+      onClose,
+    );
+    const model = await screen.findByRole("combobox", {
+      name: "Synthetic Agentのモデル",
+    });
+    fireEvent.change(model, { target: { value: "accurate" } });
+    expect(selectAgentModel).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("tab", { name: "文字起こし" }));
+    fireEvent.click(screen.getByRole("tab", { name: "返答案" }));
+    expect(model).toHaveValue("accurate");
+    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+    expect(
+      screen.getByRole("dialog", { name: "変更を破棄しますか？" }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "設定に戻る" }));
+    expect(
+      await screen.findByRole("combobox", { name: "Synthetic Agentのモデル" }),
+    ).toHaveValue("accurate");
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(await screen.findByText("設定を保存しました。")).toBeVisible();
+    expect(selectAgentModel).toHaveBeenCalledExactlyOnceWith(
+      "synthetic",
+      "accurate",
+    );
+    expect(selectAgentThoughtLevel).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("switches tabs with the keyboard and preserves unsaved input across them", async () => {
+    await renderModal();
+    const reply = screen.getByRole("tab", { name: "返答案" });
+    expect(reply).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.queryByRole("heading", { name: "文字起こし" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
+    );
+    fireEvent.keyDown(reply, { key: "ArrowRight" });
+    expect(screen.getByRole("tab", { name: "文字起こし" })).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "文字起こし" })).toBeVisible();
+    expect(
+      screen.queryByRole("combobox", { name: "返答案に使うAI" }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("会議の言語"), {
+      target: { value: "en" },
+    });
+    fireEvent.keyDown(screen.getByRole("tab", { name: "文字起こし" }), {
+      key: "Home",
+    });
+    expect(reply).toHaveFocus();
+    expect(
+      screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
+    ).toBeChecked();
+    fireEvent.keyDown(reply, { key: "End" });
+    expect(screen.getByLabelText("会議の言語")).toHaveValue("en");
+    expect(sdkMocks.saveSettings).not.toHaveBeenCalled();
+    await act(async () => {});
+  });
+
+  it("opens the speech tab for a validation error in hidden speech settings", async () => {
+    await renderModal(
+      settings({ stt: { backend: "unsupported", language: "ja" } }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(screen.getByRole("tab", { name: "文字起こし" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      screen.getByRole("combobox", { name: "音声認識方式" }),
+    ).toBeVisible();
+    expect(sdkMocks.saveSettings).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("tab", { name: "返答案" }));
+    expect(screen.getByRole("tab", { name: "返答案" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
   it("shows the Rust backend's audio-settings conflict instead of a generic save failure", async () => {
     sdkMocks.saveSettings.mockResolvedValueOnce({
       data: undefined,
@@ -242,7 +387,7 @@ describe("SettingsModal connection UX", () => {
       routeCatalog(),
     );
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "発話ごとに自動で作る" }),
+      screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     expect(
@@ -280,7 +425,11 @@ describe("SettingsModal connection UX", () => {
     function Harness() {
       const [open, setOpen] = useState(true);
       return open ? (
-        <SettingsModal onClose={() => setOpen(false)} routes={routes} />
+        <SettingsModal
+          onClose={() => setOpen(false)}
+          routes={routes}
+          initialSection="speech"
+        />
       ) : (
         <SettingsTaskNotice onOpenSettings={() => setOpen(true)} />
       );
@@ -355,7 +504,8 @@ describe("SettingsModal connection UX", () => {
     fireEvent.click(trigger);
 
     await screen.findByRole("heading", { name: "AIと音声認識" });
-    fireEvent.click(screen.getByText("返答案の動作"));
+    const connection = screen.queryByRole("button", { name: "接続設定" });
+    if (connection) fireEvent.click(connection);
     expect(screen.getByRole("heading", { name: "設定" })).toHaveFocus();
     fireEvent.click(screen.getByLabelText("設定を閉じる"));
     await waitFor(() => expect(trigger).toHaveFocus());
@@ -590,7 +740,7 @@ describe("SettingsModal connection UX", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "発話ごとに自動で作る" }),
+      screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
     );
     fireEvent.change(screen.getByLabelText("Google Gemini APIキー"), {
       target: { value: "gemini-unsaved-draft" },
@@ -607,7 +757,7 @@ describe("SettingsModal connection UX", () => {
       "gemini-unsaved-draft",
     );
     expect(
-      screen.getByRole("checkbox", { name: "発話ごとに自動で作る" }),
+      screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
     ).toBeChecked();
 
     fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
@@ -619,7 +769,7 @@ describe("SettingsModal connection UX", () => {
     expect(resetDraftAssignments).toHaveBeenCalledOnce();
     expect(screen.getByLabelText("Google Gemini APIキー")).toHaveValue("");
     expect(
-      screen.getByRole("checkbox", { name: "発話ごとに自動で作る" }),
+      screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
     ).not.toBeChecked();
   });
 
@@ -737,7 +887,7 @@ describe("SettingsModal connection UX", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "発話ごとに自動で作る" }),
+      screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
@@ -769,7 +919,7 @@ describe("SettingsModal connection UX", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     expect(
       await screen.findByText(
-        "その他の設定は保存済み。AI機能の割り当てのみ保存できませんでした",
+        "基本設定は保存済みです。AIの選択を保存できませんでした。",
       ),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("設定を閉じる"));
@@ -905,6 +1055,7 @@ describe("SettingsModal connection UX", () => {
     async (backend) => {
       await renderModal(settings({ stt: { backend, language: "ja" } }));
 
+      fireEvent.click(screen.getByRole("tab", { name: "文字起こし" }));
       expect(screen.getByLabelText("音声認識方式")).toHaveValue("");
       expect(
         screen.getByText("音声認識方式を選択してください。"),
@@ -926,6 +1077,7 @@ describe("SettingsModal connection UX", () => {
   it("offers only local speech choices", async () => {
     await renderModal();
     await act(async () => {});
+    fireEvent.click(screen.getByRole("tab", { name: "文字起こし" }));
     const select = screen.getByLabelText("音声認識方式");
     expect(
       Array.from(select.querySelectorAll("option"), (option) => option.value),

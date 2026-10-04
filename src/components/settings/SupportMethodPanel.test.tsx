@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -50,37 +51,45 @@ function renderPanel(
     reply: null,
     ...assignmentOverrides,
   };
-  render(
-    <SupportMethodPanel
-      routes={routes}
-      assignments={assignments}
-      loading={options.loading ?? false}
-      manualReloadStatus={options.manualReloadStatus ?? "idle"}
-      error={options.error}
-      replyEnabled={options.replyEnabled ?? true}
-      replyAutoGenerate={options.replyAutoGenerate ?? false}
-      connectionStates={{
-        openai: "unconfigured",
-        gemini: "unconfigured",
-        anthropic: "unconfigured",
-      }}
-      secretsStatus={{}}
-      secretInputs={{}}
-      connectionEditingProvider={null}
-      connectionTestingProvider={null}
-      connectionTestMessages={{}}
-      onBeginConnectionEdit={vi.fn()}
-      onCancelConnectionEdit={vi.fn()}
-      onSecretChange={vi.fn()}
-      onTestConnection={vi.fn()}
-      onRequestSecretDelete={vi.fn()}
-      onCancelSecretDelete={vi.fn()}
-      onAssignmentChange={onAssignmentChange}
-      onReplyEnabledChange={vi.fn()}
-      onReplyAutoGenerateChange={vi.fn()}
-      onReload={onReload}
-    />,
-  );
+  function Harness() {
+    const [connectionRouteId, setConnectionRouteId] = useState<string | null>(
+      null,
+    );
+    return (
+      <SupportMethodPanel
+        connectionRouteId={connectionRouteId}
+        onConnectionRouteChange={setConnectionRouteId}
+        routes={routes}
+        assignments={assignments}
+        loading={options.loading ?? false}
+        manualReloadStatus={options.manualReloadStatus ?? "idle"}
+        error={options.error}
+        replyEnabled={options.replyEnabled ?? true}
+        replyAutoGenerate={options.replyAutoGenerate ?? false}
+        connectionStates={{
+          openai: "unconfigured",
+          gemini: "unconfigured",
+          anthropic: "unconfigured",
+        }}
+        secretsStatus={{}}
+        secretInputs={{}}
+        connectionEditingProvider={null}
+        connectionTestingProvider={null}
+        connectionTestMessages={{}}
+        onBeginConnectionEdit={vi.fn()}
+        onCancelConnectionEdit={vi.fn()}
+        onSecretChange={vi.fn()}
+        onTestConnection={vi.fn()}
+        onRequestSecretDelete={vi.fn()}
+        onCancelSecretDelete={vi.fn()}
+        onAssignmentChange={onAssignmentChange}
+        onReplyEnabledChange={vi.fn()}
+        onReplyAutoGenerateChange={vi.fn()}
+        onReload={onReload}
+      />
+    );
+  }
+  render(<Harness />);
   return { onReload, onAssignmentChange };
 }
 
@@ -114,6 +123,8 @@ describe("SupportMethodPanel", () => {
       ],
       { reply: "openai" },
     );
+    expect(screen.queryByLabelText("OpenAI APIキー")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "接続設定" }));
     expect(screen.getByLabelText("OpenAI APIキー")).toBeVisible();
     expect(
       screen.queryByLabelText("Google Gemini APIキー"),
@@ -169,26 +180,41 @@ describe("SupportMethodPanel", () => {
     renderPanel([route({ data_location: "local", billing_owner: "none" })], {
       reply: "ollama",
     });
+    fireEvent.click(screen.getByText("データの送信先と費用"));
     expect(screen.getByText("このPC")).toBeVisible();
     expect(screen.getByText("外部サービス料金なし")).toBeVisible();
     expect(screen.getByText("試験提供")).toBeVisible();
   });
-  it.each([
-    ["loading", "確認中…"],
-    ["error", "更新できませんでした"],
-    ["success", "状態を更新しました"],
-  ] as const)(
-    "retains the current selection during refresh %s",
-    (status, label) => {
-      renderPanel(
-        [route({})],
-        { reply: "ollama" },
-        { manualReloadStatus: status },
-      );
-      expect(
-        screen.getByRole("combobox", { name: "返答案に使うAI" }),
-      ).toHaveValue("ollama");
-      expect(screen.getByText(label)).toBeVisible();
-    },
-  );
+  it("offers a retry at the failed status without discarding the selected AI", () => {
+    const { onReload } = renderPanel(
+      [route({})],
+      { reply: "ollama" },
+      {
+        manualReloadStatus: "error",
+        error: "状態を取得できませんでした。",
+      },
+    );
+    expect(
+      screen.getByRole("combobox", { name: "返答案に使うAI" }),
+    ).toHaveValue("ollama");
+    fireEvent.click(screen.getByRole("button", { name: "再試行" }));
+    expect(onReload).toHaveBeenCalledOnce();
+  });
+  it("does not show a routine reload action or success notification", () => {
+    renderPanel(
+      [route({})],
+      { reply: "ollama" },
+      { manualReloadStatus: "success" },
+    );
+    expect(
+      screen.queryByRole("button", { name: /再確認|再試行/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("状態を更新しました")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "AIエージェントを追加" }),
+    ).toBeVisible();
+  });
 });

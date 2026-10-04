@@ -41,6 +41,7 @@ interface SaveSettingsContext {
   connectionStates: Record<ConnectionProvider, ConnectionUiState>;
   pendingDeleteSecrets: ConnectionSecretKey[];
   resetConnectionsAfterSave: () => void;
+  saveAgentSettings: () => Promise<boolean>;
 }
 
 function settingsErrorMessage(error: unknown): string {
@@ -175,6 +176,7 @@ export function useSettingsPersistence({
     connectionStates,
     pendingDeleteSecrets,
     resetConnectionsAfterSave,
+    saveAgentSettings,
   }: SaveSettingsContext) => {
     if (blocksSettingsSave && !audioSettingsLocked) return;
     const settingsPayload = mapSettingsFormToPayload(
@@ -222,8 +224,17 @@ export function useSettingsPersistence({
       const routeSaved = await routes.saveAssignments();
       if (!routeSaved) {
         setSaveMessage(
-          "その他の設定は保存済み。AI機能の割り当てのみ保存できませんでした",
+          "基本設定は保存済みです。AIの選択を保存できませんでした。",
         );
+        setActiveCategory("support");
+        return;
+      }
+      if (!(await saveAgentSettings())) {
+        setSectionError({
+          category: "support",
+          message:
+            "その他の設定は保存済みです。AIのモデル・推論量を保存できませんでした。",
+        });
         setActiveCategory("support");
         return;
       }

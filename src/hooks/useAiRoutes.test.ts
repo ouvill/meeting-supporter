@@ -297,7 +297,7 @@ describe("useAiRoutes", () => {
       window.dispatchEvent(new Event("focus"));
     });
 
-    expect(sdkMocks.getAiRoutes).toHaveBeenCalledTimes(1);
+    expect(sdkMocks.getAiRoutes).toHaveBeenCalledTimes(2);
     expect(result.current.draftAssignments).toEqual({
       reply: "draft",
     });

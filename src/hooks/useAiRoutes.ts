@@ -162,15 +162,11 @@ export function useAiRoutes() {
         draftAssignmentsRef.current,
         catalogRef.current?.assignments,
       );
-      if (
-        (reason === "automatic" &&
-          (assignmentIsDirty || manualReloadInFlightRef.current)) ||
-        (reason === "manual" && manualReloadInFlightRef.current)
-      ) {
+      if (reason !== "initial" && manualReloadInFlightRef.current) {
         return;
       }
 
-      const preserveDraft = reason === "manual" && assignmentIsDirty;
+      const preserveDraft = reason !== "initial" && assignmentIsDirty;
       const requestId = ++latestLoadRequestRef.current;
       if (reason === "manual") {
         manualReloadInFlightRef.current = true;
@@ -195,14 +191,10 @@ export function useAiRoutes() {
           draftAssignmentsRef.current,
           catalogRef.current?.assignments,
         );
-        if (reason === "automatic" && assignmentBecameDirty) {
-          return;
-        }
-
         catalogRef.current = result.data;
         setCatalog(result.data);
         if (
-          !(reason === "manual" && (preserveDraft || assignmentBecameDirty))
+          !(reason !== "initial" && (preserveDraft || assignmentBecameDirty))
         ) {
           applyDraftAssignments(result.data.assignments);
         }
@@ -235,13 +227,9 @@ export function useAiRoutes() {
   }, [fetchCatalog]);
 
   useEffect(() => {
-    const refreshIfAssignmentClean = () => {
+    const refreshWhenVisible = () => {
       if (
         document.visibilityState === "hidden" ||
-        !assignmentsAreEqual(
-          draftAssignmentsRef.current,
-          catalogRef.current?.assignments,
-        ) ||
         automaticRefreshInFlightRef.current ||
         manualReloadInFlightRef.current
       ) {
@@ -256,14 +244,14 @@ export function useAiRoutes() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        refreshIfAssignmentClean();
+        refreshWhenVisible();
       }
     };
 
-    window.addEventListener("focus", refreshIfAssignmentClean);
+    window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
-      window.removeEventListener("focus", refreshIfAssignmentClean);
+      window.removeEventListener("focus", refreshWhenVisible);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchCatalog]);

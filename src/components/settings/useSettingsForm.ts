@@ -7,6 +7,7 @@ import {
 } from "../../hooks/useSpeechModel";
 import { useConnectionSettings } from "./useConnectionSettings";
 import { useSettingsPersistence } from "./useSettingsPersistence";
+import { useAgentModelDrafts } from "./useAgentModelDrafts";
 import type { SettingsForm } from "./types";
 
 export function useSettingsForm({
@@ -17,6 +18,7 @@ export function useSettingsForm({
   audioSettingsLocked: boolean;
 }) {
   const persistence = useSettingsPersistence({ routes, audioSettingsLocked });
+  const agentModels = useAgentModelDrafts(audioSettingsLocked);
   const { form, setForm, setFieldErrors, setSectionError, setSaveMessage } =
     persistence;
   const connections = useConnectionSettings({
@@ -62,7 +64,8 @@ export function useSettingsForm({
     persistence.formDirty ||
     hasSecretDraft ||
     connections.pendingDeleteSecrets.length > 0 ||
-    routes.assignmentDirty;
+    routes.assignmentDirty ||
+    agentModels.dirty;
   const updateForm = <K extends keyof SettingsForm>(
     key: K,
     value: SettingsForm[K],
@@ -108,14 +111,24 @@ export function useSettingsForm({
       connectionStates: connections.connectionStates,
       pendingDeleteSecrets: connections.pendingDeleteSecrets,
       resetConnectionsAfterSave: connections.resetAfterSave,
+      saveAgentSettings: agentModels.save,
     });
 
   const discardChanges = () => {
     persistence.discardChanges(connections.resetAfterDiscard);
+    agentModels.discard();
   };
 
   return {
     form,
+    agentModels: {
+      ...agentModels,
+      change: (...args: Parameters<typeof agentModels.change>) => {
+        agentModels.change(...args);
+        setSectionError(null);
+        setSaveMessage(null);
+      },
+    },
     activeCategory: persistence.activeCategory,
     setActiveCategory: persistence.setActiveCategory,
     loaded: persistence.loaded,

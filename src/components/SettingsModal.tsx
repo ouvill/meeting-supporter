@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import type { AiRoutesController } from "../hooks/useAiRoutes";
 import type { SendFn, SocketState } from "../types";
 import { AudioInputs } from "./setup/AudioInputs";
 import { AgentModelControl } from "./settings/AgentModelControl";
+import { AiSettingsTabs, type AiSettingsTab } from "./settings/AiSettingsTabs";
 import { Dialog, DialogContent } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { AiModelSettings } from "./settings/AiModelSettings";
@@ -48,6 +49,7 @@ export function SettingsModal({
   const controller = useSettingsForm({ routes, audioSettingsLocked });
   const {
     form,
+    agentModels,
     activeCategory,
     setActiveCategory,
     loaded,
@@ -81,12 +83,22 @@ export function SettingsModal({
   const speechModelBlocksSave =
     speechModel.blocksSettingsSave && !audioSettingsLocked;
 
-  const speechSectionRef = useRef<HTMLDivElement>(null);
-  const replySectionRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<AiSettingsTab>(initialSection);
+  const [connectionRouteId, setConnectionRouteId] = useState<string | null>(
+    null,
+  );
   useEffect(() => {
-    if (loaded && initialSection === "speech")
-      speechSectionRef.current?.scrollIntoView?.({ block: "start" });
-  }, [loaded, initialSection]);
+    setActiveTab(initialSection);
+  }, [initialSection]);
+  const errorTab: AiSettingsTab =
+    fieldErrors.support || fieldErrors.advanced || agentModels.error
+      ? "reply"
+      : fieldErrors.audio
+        ? "speech"
+        : "reply";
+  useEffect(() => {
+    if (sectionError?.category === "support") setActiveTab(errorTab);
+  }, [sectionError, errorTab]);
 
   const requestClose = () => {
     if (!loaded || loadingError || !dirty) {
@@ -160,33 +172,18 @@ export function SettingsModal({
                   title="AIと音声認識"
                   description="返答案と文字起こしに使うモデルを、ここでまとめて設定できます。"
                 >
-                  <nav aria-label="AI設定内の移動" className="flex gap-2">
-                    <Button
-                      variant="quiet"
-                      size="sm"
-                      onClick={() =>
-                        replySectionRef.current?.scrollIntoView?.({
-                          block: "start",
-                        })
-                      }
-                    >
-                      返答案の設定
-                    </Button>
-                    <Button
-                      variant="quiet"
-                      size="sm"
-                      onClick={() =>
-                        speechSectionRef.current?.scrollIntoView?.({
-                          block: "start",
-                        })
-                      }
-                    >
-                      文字起こしの設定
-                    </Button>
-                  </nav>
-                  <div ref={replySectionRef}>
+                  <AiSettingsTabs active={activeTab} onChange={setActiveTab} />
+                  <div
+                    className="[&>.settings-section]:border-0 [&>.settings-section]:pt-0"
+                    role="tabpanel"
+                    id="ai-settings-panel-reply"
+                    aria-labelledby="ai-settings-tab-reply"
+                    hidden={activeTab !== "reply"}
+                  >
                     <SupportMethodPanel
-                      agentsLocked={audioSettingsLocked}
+                      connectionRouteId={connectionRouteId}
+                      onConnectionRouteChange={setConnectionRouteId}
+                      agentsLocked={audioSettingsLocked || busy}
                       routes={routes.routes}
                       lockedConnectionProviders={lockedConnectionProviders}
                       assignments={routes.draftAssignments}
@@ -224,10 +221,8 @@ export function SettingsModal({
                         selectedRoute?.id.startsWith("acp:") ? (
                           <AgentModelControl
                             routeId={selectedRoute.id}
-                            locked={audioSettingsLocked}
-                            onChanged={() => {
-                              void routes.reload();
-                            }}
+                            locked={audioSettingsLocked || busy}
+                            settings={agentModels}
                           />
                         ) : selectedRoute &&
                           ["openai", "gemini", "anthropic", "ollama"].includes(
@@ -243,7 +238,13 @@ export function SettingsModal({
                       }
                     />
                   </div>
-                  <div ref={speechSectionRef}>
+                  <div
+                    className="[&>.settings-section]:border-0 [&>.settings-section]:pt-0"
+                    role="tabpanel"
+                    id="ai-settings-panel-speech"
+                    aria-labelledby="ai-settings-tab-speech"
+                    hidden={activeTab !== "speech"}
+                  >
                     <AudioSettingsPanel
                       form={form}
                       errors={fieldErrors}
@@ -297,9 +298,10 @@ export function SettingsModal({
               {summaryMessage ? (
                 <button
                   type="button"
-                  onClick={() =>
-                    sectionError && setActiveCategory(sectionError.category)
-                  }
+                  onClick={() => {
+                    if (sectionError) setActiveCategory(sectionError.category);
+                    setActiveTab(errorTab);
+                  }}
                   className="flex max-w-full items-start gap-1.5 text-left text-xs font-medium text-danger hover:text-danger/80"
                 >
                   <CircleAlert

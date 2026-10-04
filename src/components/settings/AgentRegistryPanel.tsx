@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { LoaderCircle, Plus, RefreshCw } from "lucide-react";
+import { LoaderCircle, RefreshCw } from "lucide-react";
 import {
   connectAgent,
   getAgentCatalog,
   installAgent,
   removeAgent,
-  selectAgentModel,
-  updateAllAgents,
   type RegistryAgent,
 } from "../../api/agentRegistry";
 import { useAgentRegistryStore } from "../../store/agentRegistryStore";
@@ -16,10 +14,18 @@ import { SettingsSection } from "./SettingsPrimitives";
 interface Props {
   locked: boolean;
   onChanged: () => void;
+  agentId?: string;
+  onSelect?: (id: string) => void;
 }
-export function AgentRegistryPanel({ locked, onChanged }: Props) {
+export function AgentRegistryPanel({
+  locked,
+  onChanged,
+  agentId,
+  onSelect,
+}: Props) {
   const {
     catalog,
+    catalogError,
     pending,
     error,
     message,
@@ -30,9 +36,7 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
     useAgentRegistryStore.setState({ catalog });
   const setMessage = (message: string | null) =>
     useAgentRegistryStore.setState({ message });
-  const setError = (error: string | null) =>
-    useAgentRegistryStore.setState({ error });
-  const [browse, setBrowse] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [editingAuth, setEditingAuth] = useState<string | null>(null);
   const mounted = useRef(true);
@@ -40,14 +44,18 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
     mounted.current = true;
     const controller = new AbortController();
     const poll = () => void refresh(controller.signal);
-    poll();
+    setLoading(true);
+    const initial = refresh(controller.signal, !agentId && !locked);
+    void initial.finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
+    });
     const timer = locked ? undefined : window.setInterval(poll, 15_000);
     return () => {
       mounted.current = false;
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [locked, refresh]);
+  }, [locked, refresh, agentId]);
 
   const perform = (label: string, action: () => Promise<void>) => {
     if (locked) return;
@@ -58,120 +66,59 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
     setMessage(status.message);
     if (mounted.current && method && status.ready) setEditingAuth(null);
   };
-  const openCatalog = () =>
-    void perform("一覧を取得しています", async () => {
-      const next = await getAgentCatalog(true);
-      setCatalog(next);
-      if (mounted.current) setBrowse(true);
-    });
-  if (!catalog && !error) return null;
+  const openCatalog = async () => {
+    setLoading(true);
+    await refresh(new AbortController().signal, true);
+    if (mounted.current) setLoading(false);
+  };
   const agents = (catalog?.agents ?? []).filter(
     (agent) =>
-      (browse || agent.installed_version !== null) &&
+      (!agentId || agent.id === agentId) &&
       `${agent.name} ${agent.authors.join(" ")}`
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
-  const disabled = locked || pending !== null;
-  const installed = catalog?.agents.some(
-    (agent) => agent.installed_version !== null,
-  );
+  const disabled = locked || pending !== null || loading;
   return (
     <SettingsSection
-      title="エージェント"
-      description="追加・接続したあと、「利用するAI」で選択できます。"
+      title={agentId ? undefined : "追加するAIエージェントを選ぶ"}
+      description={
+        agentId
+          ? "接続・更新・削除は、その場で実行します。"
+          : "追加したAIは「このAIを設定」から選択して、ログインできます。"
+      }
     >
       <div className="space-y-3">
-        <p className="text-xs text-ink-muted">
-          追加すると配布元のプログラムを取得して起動します。認証と料金は各サービスで管理されます。
-        </p>
-        {catalog && catalog.update_count > 0 && (
-          <p className="text-xs text-ink-muted">
-            更新 {catalog.update_count}件
-          </p>
+        {!agentId && (
+          <>
+            <p className="text-xs text-ink-muted">
+              追加すると配布元のプログラムを取得して起動します。認証と料金は各サービスで管理されます。
+            </p>
+            <input
+              aria-label="エージェントを検索"
+              placeholder="名前で検索"
+              className="field w-full"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <Button
+              size="sm"
+              variant="quiet"
+              disabled={disabled}
+              onClick={openCatalog}
+            >
+              <RefreshCw className="h-3 w-3" aria-hidden="true" />
+              一覧を更新
+            </Button>
+          </>
         )}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={disabled}
-            onClick={openCatalog}
-          >
-            {browse ? (
-              <RefreshCw className="h-3 w-3" />
-            ) : (
-              <Plus className="h-3 w-3" />
-            )}
-            {browse ? "一覧を更新" : "エージェントを追加"}
-          </Button>
-          {installed && (
-            <Button
-              size="sm"
-              variant="quiet"
-              disabled={disabled}
-              onClick={() =>
-                void perform("更新を確認しています", async () => {
-                  const next = await getAgentCatalog(true);
-                  setCatalog(next);
-                  if (next && next.update_count === 0 && !next.update_message)
-                    setMessage("更新できるエージェントはありません。");
-                })
-              }
-            >
-              更新を確認
-            </Button>
-          )}
-          {catalog && catalog.update_count > 0 && (
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={disabled}
-              onClick={() =>
-                void perform("エージェントを更新しています", async () => {
-                  const result = await updateAllAgents();
-                  const updated = result.results.filter(
-                    (item) => item.updated,
-                  ).length;
-                  setMessage(`${updated}件更新しました。`);
-                  const failures = result.results.filter(
-                    (item) => item.error !== null,
-                  );
-                  if (failures.length)
-                    setError(
-                      failures
-                        .map(
-                          (item) =>
-                            `${item.name}: ${item.error} 以前の版を保持しています。`,
-                        )
-                        .join("\n"),
-                    );
-                })
-              }
-            >
-              まとめて更新
-            </Button>
-          )}
-          {browse && (
-            <Button
-              size="sm"
-              variant="quiet"
-              onClick={() => {
-                setBrowse(false);
-                setQuery("");
-              }}
-            >
-              導入済みだけ表示
-            </Button>
-          )}
-        </div>
-        {browse && (
-          <input
-            aria-label="エージェントを検索"
-            placeholder="名前で検索"
-            className="field w-full"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+        {loading && !catalog && !pending && (
+          <p role="status">読み込んでいます…</p>
+        )}
+        {!loading && !catalog && !catalogError && (
+          <p className="text-sm text-ink-muted">
+            この環境ではAIエージェントを利用できません。
+          </p>
         )}
         {locked && (
           <p className="text-xs text-ink-muted">
@@ -200,6 +147,19 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
             {error}
           </p>
         )}
+        {catalogError && (
+          <div className="space-y-2" role="alert">
+            <p className="text-xs text-danger">{catalogError}</p>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={disabled}
+              onClick={openCatalog}
+            >
+              再試行
+            </Button>
+          </div>
+        )}
         <div className="divide-y divide-line">
           {agents.map((agent) => (
             <div key={agent.id} className="py-5">
@@ -227,36 +187,6 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
                 </span>
               </div>
               <p className="mt-2 text-xs text-ink-muted">{agent.description}</p>
-              {agent.status.ready && agent.status.model && (
-                <label className="mt-3 block text-xs font-medium text-ink">
-                  モデル
-                  <select
-                    className="field mt-1 w-full"
-                    aria-label={`${agent.name}のモデル`}
-                    value={agent.status.model.current}
-                    disabled={disabled}
-                    onChange={(event) => {
-                      const model = event.target.value;
-                      void perform(
-                        `${agent.name}のモデルを変更しています`,
-                        async () => {
-                          const status = await selectAgentModel(
-                            agent.id,
-                            model,
-                          );
-                          setMessage(status.message);
-                        },
-                      );
-                    }}
-                  >
-                    {agent.status.model.options.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
               {!agent.installed_version && agent.distribution === "npm" && (
                 <p className="mt-2 text-xs text-ink-muted">
                   導入にはNode.jsとnpmが必要です。
@@ -268,29 +198,35 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
                 </p>
               )}
               <div className="mt-2 flex flex-wrap gap-2">
-                {agent.supported &&
-                  (!agent.installed_version ||
-                    agent.update_version !== null) && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={disabled}
-                      onClick={() =>
-                        void perform(
-                          `${agent.name}を導入しています`,
-                          async () => {
-                            await installAgent(agent.id);
-                            await connect(agent);
-                          },
-                        )
-                      }
-                    >
-                      {agent.installed_version
-                        ? `${agent.update_version}に更新`
-                        : "追加"}
-                    </Button>
-                  )}
-                {agent.installed_version && (
+                {!agentId && !agent.installed_version && agent.supported && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={disabled}
+                    onClick={() =>
+                      void perform(
+                        `${agent.name}を導入しています`,
+                        async () => {
+                          await installAgent(agent.id);
+                          await connect(agent);
+                        },
+                      )
+                    }
+                  >
+                    追加
+                  </Button>
+                )}
+                {!agentId && agent.installed_version && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={disabled}
+                    onClick={() => onSelect?.(agent.id)}
+                  >
+                    このAIを設定
+                  </Button>
+                )}
+                {agentId && agent.installed_version && (
                   <>
                     <Button
                       size="sm"
@@ -339,6 +275,53 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
                           {method.name}
                         </Button>
                       ))}
+                  </>
+                )}
+              </div>
+              {agentId && agent.installed_version && (
+                <details className="mt-4 border-t border-line pt-4">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    更新・削除
+                  </summary>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="quiet"
+                      disabled={disabled}
+                      onClick={() =>
+                        void perform("更新を確認しています", async () => {
+                          const next = await getAgentCatalog(true);
+                          setCatalog(next);
+                          if (
+                            next &&
+                            !next.agents.find((item) => item.id === agentId)
+                              ?.update_version &&
+                            !next.update_message
+                          )
+                            setMessage("このエージェントは最新版です。");
+                        })
+                      }
+                    >
+                      更新を確認
+                    </Button>
+                    {agent.supported && agent.update_version && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={disabled}
+                        onClick={() =>
+                          void perform(
+                            `${agent.name}を更新しています`,
+                            async () => {
+                              await installAgent(agent.id);
+                              await connect(agent);
+                            },
+                          )
+                        }
+                      >
+                        {agent.update_version}に更新
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="quiet"
@@ -351,13 +334,13 @@ export function AgentRegistryPanel({ locked, onChanged }: Props) {
                     >
                       削除
                     </Button>
-                  </>
-                )}
-              </div>
+                  </div>
+                </details>
+              )}
             </div>
           ))}
         </div>
-        {browse && agents.length === 0 && (
+        {catalog && !loading && agents.length === 0 && (
           <p className="text-xs text-ink-muted">
             該当するエージェントはありません。
           </p>

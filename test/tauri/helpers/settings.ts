@@ -11,7 +11,7 @@ export async function openSettings(waitOptions: WaitOptions): Promise<void> {
   }
   await expectDisplayedSurface('[data-testid="settings-modal"]', waitOptions);
   await expectDisplayedSurface(
-    'section[data-settings-page="支援方法"]',
+    'section[data-settings-page="AIと音声認識"]',
     waitOptions,
   );
 }
