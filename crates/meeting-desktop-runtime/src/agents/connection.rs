@@ -24,6 +24,7 @@ pub struct Status {
     pub auth_methods: Vec<AuthMethod>,
     pub message: String,
     pub model: Option<ModelSelector>,
+    pub thought_level: Option<ModelSelector>,
 }
 #[derive(Clone, Serialize)]
 pub struct AuthMethod {
@@ -41,9 +42,9 @@ pub struct ModelSelector {
     pub options: Vec<ModelOption>,
 }
 
-/// Model support is discovered per ACP session. Keeping unsupported and
-/// selectable sessions distinct prevents sending an invented config id.
-enum ModelCapability {
+/// Select support is discovered per ACP session; config IDs and values belong
+/// to the agent, never to a provider-specific client mapping.
+enum SelectCapability {
     Unsupported,
     Selectable {
         config_id: acp::SessionConfigId,
@@ -52,7 +53,8 @@ enum ModelCapability {
 }
 struct Session {
     id: acp::SessionId,
-    model: ModelCapability,
+    model: SelectCapability,
+    thought_level: SelectCapability,
 }
 pub enum Chunk {
     Text(String),
@@ -217,6 +219,7 @@ impl Connection {
         &mut self,
         cwd: PathBuf,
         requested_model: Option<&str>,
+        requested_thought_level: Option<&str>,
     ) -> Result<Session, AgentError> {
         let mut session = if let Some(session) = self.idle_session.take() {
             session
@@ -230,13 +233,35 @@ impl Connection {
             .await
             .map_err(|_| AgentError::Timeout)?
             .map_err(map_error)?;
-            Session {
+            let mut session = Session {
                 id: response.session_id,
-                model: model_capability(response.config_options.unwrap_or_default()),
-            }
+                model: SelectCapability::Unsupported,
+                thought_level: SelectCapability::Unsupported,
+            };
+            session.update(response.config_options.unwrap_or_default());
+            session
         };
-        if let Some(requested) = requested_model {
-            session.select_model(&self.peer, requested).await?;
+        let result = async {
+            if let Some(requested) = requested_model {
+                session
+                    .select(&self.peer, Setting::Model, requested)
+                    .await?;
+            }
+            // Model changes can remove values. Keep the agent's advertised default
+            // instead of sending a stale preference that would prevent generation.
+            if let Some(requested) = requested_thought_level {
+                if session.thought_level.supports(requested) {
+                    session
+                        .select(&self.peer, Setting::ThoughtLevel, requested)
+                        .await?;
+                }
+            }
+            Ok::<_, AgentError>(())
+        }
+        .await;
+        if let Err(error) = result {
+            self.idle_session = Some(session);
+            return Err(error);
         }
         Ok(session)
     }
@@ -253,28 +278,65 @@ impl Connection {
     }
 }
 
-impl Session {
-    fn selector(&self) -> Option<ModelSelector> {
-        match &self.model {
-            ModelCapability::Unsupported => None,
-            ModelCapability::Selectable { selector, .. } => Some(selector.clone()),
+#[derive(Clone, Copy)]
+enum Setting {
+    Model,
+    ThoughtLevel,
+}
+impl Setting {
+    fn unsupported(self) -> AgentError {
+        match self {
+            Self::Model => AgentError::ModelUnsupported,
+            Self::ThoughtLevel => AgentError::ThoughtLevelUnsupported,
         }
     }
-
-    async fn select_model(
+    fn unavailable(self) -> AgentError {
+        match self {
+            Self::Model => AgentError::ModelUnavailable,
+            Self::ThoughtLevel => AgentError::ThoughtLevelUnavailable,
+        }
+    }
+}
+impl SelectCapability {
+    fn selector(&self) -> Option<ModelSelector> {
+        match self {
+            Self::Unsupported => None,
+            Self::Selectable { selector, .. } => Some(selector.clone()),
+        }
+    }
+    fn supports(&self, value: &str) -> bool {
+        matches!(self, Self::Selectable { selector, .. } if selector.options.iter().any(|option| option.id == value))
+    }
+}
+impl Session {
+    fn selector(&self) -> Option<ModelSelector> {
+        self.model.selector()
+    }
+    fn capability(&self, setting: Setting) -> &SelectCapability {
+        match setting {
+            Setting::Model => &self.model,
+            Setting::ThoughtLevel => &self.thought_level,
+        }
+    }
+    fn update(&mut self, options: Vec<acp::SessionConfigOption>) {
+        self.model = select_capability(&options, Setting::Model);
+        self.thought_level = select_capability(&options, Setting::ThoughtLevel);
+    }
+    async fn select(
         &mut self,
         peer: &ConnectionTo<Agent>,
+        setting: Setting,
         requested: &str,
     ) -> Result<(), AgentError> {
-        let ModelCapability::Selectable {
+        let SelectCapability::Selectable {
             config_id,
             selector,
-        } = &mut self.model
+        } = self.capability(setting)
         else {
-            return Err(AgentError::ModelUnsupported);
+            return Err(setting.unsupported());
         };
         if !selector.options.iter().any(|option| option.id == requested) {
-            return Err(AgentError::ModelUnavailable);
+            return Err(setting.unavailable());
         }
         if selector.current == requested {
             return Ok(());
@@ -291,38 +353,46 @@ impl Session {
         .await
         .map_err(|_| AgentError::Timeout)?
         .map_err(map_error)?;
-        let updated = model_capability(response.config_options);
-        match updated {
-            ModelCapability::Selectable {
-                selector: ref updated_selector,
-                ..
-            } if updated_selector.current == requested => {
-                self.model = updated;
-                Ok(())
-            }
-            _ => Err(AgentError::ModelUnavailable),
+        // ACP returns the full configuration, including options that depend on
+        // the changed model or reasoning level.
+        self.update(response.config_options);
+        if self
+            .capability(setting)
+            .selector()
+            .is_some_and(|selector| selector.current == requested)
+        {
+            Ok(())
+        } else {
+            Err(setting.unavailable())
         }
     }
 }
 
-fn model_capability(options: Vec<acp::SessionConfigOption>) -> ModelCapability {
-    let Some(option) = options.into_iter().find(|option| {
-        matches!(
-            option.category,
-            Some(acp::SessionConfigOptionCategory::Model)
-        ) || (option.category.is_none() && option.id.to_string() == "model")
-    }) else {
-        return ModelCapability::Unsupported;
-    };
-    let acp::SessionConfigKind::Select(select) = option.kind else {
-        return ModelCapability::Unsupported;
-    };
-    let options = match select.options {
-        acp::SessionConfigSelectOptions::Ungrouped(options) => options,
-        acp::SessionConfigSelectOptions::Grouped(groups) => {
-            groups.into_iter().flat_map(|group| group.options).collect()
+fn select_capability(options: &[acp::SessionConfigOption], setting: Setting) -> SelectCapability {
+    let Some(option) = options.iter().find(|option| match setting {
+        Setting::Model => {
+            matches!(
+                option.category,
+                Some(acp::SessionConfigOptionCategory::Model)
+            ) || (option.category.is_none() && option.id.to_string() == "model")
         }
-        _ => return ModelCapability::Unsupported,
+        Setting::ThoughtLevel => matches!(
+            option.category,
+            Some(acp::SessionConfigOptionCategory::ThoughtLevel)
+        ),
+    }) else {
+        return SelectCapability::Unsupported;
+    };
+    let acp::SessionConfigKind::Select(select) = &option.kind else {
+        return SelectCapability::Unsupported;
+    };
+    let options: Vec<_> = match &select.options {
+        acp::SessionConfigSelectOptions::Ungrouped(options) => options.iter().collect(),
+        acp::SessionConfigSelectOptions::Grouped(groups) => groups
+            .iter()
+            .flat_map(|group| group.options.iter())
+            .collect(),
+        _ => return SelectCapability::Unsupported,
     };
     let selector = ModelSelector {
         current: select.current_value.to_string(),
@@ -336,12 +406,12 @@ fn model_capability(options: Vec<acp::SessionConfigOption>) -> ModelCapability {
             .collect(),
     };
     if selector.options.iter().any(|o| o.id == selector.current) {
-        ModelCapability::Selectable {
-            config_id: option.id,
+        SelectCapability::Selectable {
+            config_id: option.id.clone(),
             selector,
         }
     } else {
-        ModelCapability::Unsupported
+        SelectCapability::Unsupported
     }
 }
 fn map_error(error: acp::Error) -> AgentError {
@@ -388,6 +458,7 @@ impl Pool {
     ) -> Result<Status, AgentError> {
         let slot = self.slot(&launch.id).await;
         let requested_model = launch.model.clone();
+        let requested_thought_level = launch.thought_level.clone();
         let mut guard = slot.connection.try_lock().map_err(|_| AgentError::Busy)?;
         if guard.as_ref().is_none_or(|c| c.task.is_finished()) {
             let opened = tokio::select! { result = Connection::open(launch) => result, _ = slot.cancel.notified() => Err(AgentError::Cancelled) };
@@ -423,7 +494,13 @@ impl Pool {
                 .map_err(|_| AgentError::Timeout)?
                 .map_err(map_error)?;
             }
-            let session = connection.session(cwd, requested_model.as_deref()).await?;
+            let session = connection
+                .session(
+                    cwd,
+                    requested_model.as_deref(),
+                    requested_thought_level.as_deref(),
+                )
+                .await?;
             connection.idle_session = Some(session);
             Ok::<_, AgentError>(())
         };
@@ -436,6 +513,10 @@ impl Pool {
                 .map(|_| "接続済みです。".into())
                 .unwrap_or_else(|e| e.to_string()),
             model: connection.idle_session.as_ref().and_then(Session::selector),
+            thought_level: connection
+                .idle_session
+                .as_ref()
+                .and_then(|s| s.thought_level.selector()),
         };
         *slot.status.lock().unwrap() = status.clone();
         if matches!(
@@ -461,6 +542,7 @@ impl Pool {
         tokio::spawn(async move {
             let slot = pool.slot(&launch.id).await;
             let requested_model = launch.model.clone();
+            let requested_thought_level = launch.thought_level.clone();
             let mut guard = tokio::select! { guard = slot.connection.lock() => guard, _ = tx.closed() => return };
             let result = async {
                 if guard
@@ -470,7 +552,13 @@ impl Pool {
                     *guard = Some(Connection::open(launch).await?);
                 }
                 let connection = guard.as_mut().ok_or(AgentError::Connect)?;
-                let session = connection.session(cwd, requested_model.as_deref()).await?;
+                let session = connection
+                    .session(
+                        cwd,
+                        requested_model.as_deref(),
+                        requested_thought_level.as_deref(),
+                    )
+                    .await?;
                 connection.overflow.store(false, Ordering::Release);
                 *connection.sink.lock().unwrap() = Some((session.id.clone(), tx.clone()));
                 let request = connection
@@ -504,6 +592,7 @@ impl Pool {
                     auth_methods: connection.auth_methods.clone(),
                     message: "接続済みです。".into(),
                     model: session.selector(),
+                    thought_level: session.thought_level.selector(),
                 };
                 connection.completed += 1;
                 connection.close_session(session.id).await;
@@ -535,8 +624,31 @@ impl Pool {
         cwd: PathBuf,
         model: &str,
     ) -> Result<Status, AgentError> {
+        self.select(launch, cwd, Setting::Model, model).await
+    }
+    pub async fn select_thought_level(
+        &self,
+        launch: Launch,
+        cwd: PathBuf,
+        value: &str,
+    ) -> Result<Status, AgentError> {
+        self.select(launch, cwd, Setting::ThoughtLevel, value).await
+    }
+    async fn select(
+        &self,
+        launch: Launch,
+        cwd: PathBuf,
+        setting: Setting,
+        value: &str,
+    ) -> Result<Status, AgentError> {
         let slot = self.slot(&launch.id).await;
         let mut guard = slot.connection.try_lock().map_err(|_| AgentError::Busy)?;
+        let model = match setting {
+            Setting::Model => Some(value),
+            _ => launch.model.as_deref(),
+        }
+        .map(str::to_owned);
+        let thought_level = launch.thought_level.clone();
         if guard
             .as_ref()
             .is_none_or(|connection| connection.task.is_finished())
@@ -544,15 +656,43 @@ impl Pool {
             *guard = Some(Connection::open(launch).await?);
         }
         let connection = guard.as_mut().ok_or(AgentError::Connect)?;
-        let session = connection.session(cwd, Some(model)).await?;
-        let status = Status {
-            ready: true,
+        let result = async {
+            let mut session = connection
+                .session(cwd, model.as_deref(), thought_level.as_deref())
+                .await?;
+            let result = session.select(&connection.peer, setting, value).await;
+            connection.idle_session = Some(session);
+            result
+        }
+        .await;
+        let mut status = Status {
+            ready: connection.idle_session.is_some(),
             auth_methods: connection.auth_methods.clone(),
-            message: "モデルを変更しました。".into(),
-            model: session.selector(),
+            message: match &result {
+                Ok(()) => "設定を変更しました。".into(),
+                Err(error) => error.to_string(),
+            },
+            model: connection.idle_session.as_ref().and_then(Session::selector),
+            thought_level: connection
+                .idle_session
+                .as_ref()
+                .and_then(|s| s.thought_level.selector()),
         };
-        connection.idle_session = Some(session);
+        if matches!(
+            result,
+            Err(AgentError::Timeout
+                | AgentError::Connect
+                | AgentError::Auth
+                | AgentError::Cancelled)
+        ) {
+            // An uncertain remote outcome must not be reused as confirmed settings.
+            *guard = None;
+            status.ready = false;
+            status.model = None;
+            status.thought_level = None;
+        }
         *slot.status.lock().unwrap() = status.clone();
+        result?;
         Ok(status)
     }
     pub async fn disconnect(&self, id: &str) -> Result<(), AgentError> {

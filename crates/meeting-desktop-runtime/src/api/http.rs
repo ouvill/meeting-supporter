@@ -367,6 +367,20 @@ impl HttpApi {
         response(agents::select_model(api.clone(), id.0, body.0.model).await?)
     }
     #[oai(
+        path = "/api/ai/agents/:id/thought-level",
+        method = "put",
+        operation_id = "select_agent_thought_level"
+    )]
+    async fn select_agent_thought_level(
+        &self,
+        Data(api): Data<&Api>,
+        _auth: DesktopAuth,
+        id: Path<String>,
+        body: Json<AgentThoughtLevelRequest>,
+    ) -> Reply<AgentStatus> {
+        response(agents::select_thought_level(api.clone(), id.0, body.0.thought_level).await?)
+    }
+    #[oai(
         path = "/api/ai/agents/:id",
         method = "delete",
         operation_id = "remove_agent"

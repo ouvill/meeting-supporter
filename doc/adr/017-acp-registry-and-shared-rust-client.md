@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-30
-- **Updated**: 2026-10-01
+- **Updated**: 2026-10-04
 - **Builds on**: ADR-009、ADR-010、ADR-011
 - **Partially supersedes**: ADR-010 の Codex 専用 runtime・外部検出限定方針、ADR-011・ADR-013 の外部エージェント構成方法を置き換える
 
@@ -26,6 +26,7 @@ ACP Registry にはこれらの配布情報があり、共通 client と明示�
 - 導入と更新の適用は利用者が明示する。個別更新と「まとめて更新」を提供し、新版の導入・接続確認が成功してから manifest と接続を切り替える。失敗したエージェントは旧版を保持し、他の更新を継続する。自動適用は行わない。
 - 更新件数と失敗理由は設定画面にだけ表示し、会話画面へ通知しない。アプリにはエージェント本体を同梱しない。
 - 接続済み process を再利用し、返答ごとに session を分離する。上限で process を再作成し、中断・異常終了時はその接続を破棄する。
+- モデルと推論量は ACP の `configOptions` の `model` / `thought_level` カテゴリから検出し、接続先が公開する設定 ID と値で `session/set_config_option` を呼ぶ。推論量にエージェント固有の設定名・値を仮定しない。選択をエージェントごとに保存し、新規セッションではモデルを適用してから利用可能な推論量を復元する。設定変更の応答は設定全体として読み直し、モデル変更で無効になった推論量の保存値は解除する。
 - 初期化、認証、session 作成、生成には期限を設ける。会議中は導入・更新・認証・削除を禁止する。
 - ACP client は file / terminal capability を提供せず、permission request を拒否する。外部操作を求める返答は完了として保存しない。
 - 認証情報はエージェント側が管理する。認証状態は実際の session 作成で確認し、Registry 掲載だけで利用可能とはしない。
@@ -63,4 +64,5 @@ npm の公開日制限で旧版が選ばれた場合、Registry の起動引数�
 - [Product Surfaces](../ui/product-surfaces.md)
 - [ACP Registry と配布形式](https://github.com/agentclientprotocol/registry/blob/main/FORMAT.md)
 - [ACP Rust SDK](https://agentclientprotocol.com/libraries/rust)
+- [ACP セッション設定](https://agentclientprotocol.com/protocol/v1/session-config-options)
 - [Zed の ACP 接続実装](https://github.com/zed-industries/zed/blob/main/crates/acp_thread/src/connection.rs)

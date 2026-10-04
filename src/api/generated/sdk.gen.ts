@@ -72,6 +72,9 @@ import type {
   SelectAgentModelData,
   SelectAgentModelErrors,
   SelectAgentModelResponses,
+  SelectAgentThoughtLevelData,
+  SelectAgentThoughtLevelErrors,
+  SelectAgentThoughtLevelResponses,
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetData,
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetErrors,
   ServeRecordingMeetingsMeetingIdRecordingsRoleGetResponses,
@@ -565,6 +568,27 @@ export const selectAgentModel = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/ai/agents/{id}/model",
+    ...options,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...options.headers,
+    },
+  });
+
+export const selectAgentThoughtLevel = <ThrowOnError extends boolean = false>(
+  options: Options<SelectAgentThoughtLevelData, ThrowOnError>,
+): RequestResult<
+  SelectAgentThoughtLevelResponses,
+  SelectAgentThoughtLevelErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).put<
+    SelectAgentThoughtLevelResponses,
+    SelectAgentThoughtLevelErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/ai/agents/{id}/thought-level",
     ...options,
     headers: {
       "Content-Type": "application/json; charset=utf-8",

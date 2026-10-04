@@ -71,6 +71,14 @@ export type AgentStatus = {
   message: string;
   auth_methods: Array<AgentAuthMethod>;
   model?: (AgentModelSelector & unknown) | null;
+  thought_level?: (AgentModelSelector & unknown) | null;
+};
+
+/**
+ * AgentThoughtLevelRequest
+ */
+export type AgentThoughtLevelRequest = {
+  thought_level: string;
 };
 
 /**
@@ -2045,6 +2053,64 @@ export type SelectAgentModelResponses = {
 
 export type SelectAgentModelResponse =
   SelectAgentModelResponses[keyof SelectAgentModelResponses];
+
+export type SelectAgentThoughtLevelData = {
+  body: AgentThoughtLevelRequest;
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/api/ai/agents/{id}/thought-level";
+};
+
+export type SelectAgentThoughtLevelErrors = {
+  /**
+   * Request or runtime error
+   */
+  400: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  401: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  403: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  404: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  409: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  413: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  422: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  500: ErrorResponse;
+  /**
+   * Request or runtime error
+   */
+  503: ErrorResponse;
+};
+
+export type SelectAgentThoughtLevelError =
+  SelectAgentThoughtLevelErrors[keyof SelectAgentThoughtLevelErrors];
+
+export type SelectAgentThoughtLevelResponses = {
+  200: AgentStatus;
+};
+
+export type SelectAgentThoughtLevelResponse =
+  SelectAgentThoughtLevelResponses[keyof SelectAgentThoughtLevelResponses];
 
 export type RemoveAgentData = {
   body?: never;

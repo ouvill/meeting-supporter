@@ -2104,7 +2104,8 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
     assert_eq!(status, 200);
     assert_eq!(body["ready"], true);
     assert_eq!(body["model"]["current"], "synthetic-fast");
-    assert_eq!(body["model"]["options"].as_array().unwrap().len(), 2);
+    assert_eq!(body["model"]["options"].as_array().unwrap().len(), 3);
+    assert_eq!(body["thought_level"]["current"], "deliberate");
     let (status, body) = agent_request(
         &server,
         "PUT",
@@ -2119,6 +2120,21 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
     )
     .unwrap();
     assert_eq!(manifest["synthetic"]["model"], "synthetic-accurate");
+    let (status, body) = agent_request(
+        &server,
+        "PUT",
+        "/api/ai/agents/synthetic/thought-level",
+        json!({"thought_level":"brief"}),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["thought_level"]["current"], "brief");
+    let saved: Value = serde_json::from_slice(
+        &std::fs::read(temp.path().join("data/agents/installed.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(saved["synthetic"]["thought_level"], "brief");
+
     assert_eq!(
         agent_request(
             &server,
@@ -2132,6 +2148,17 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
     );
     let mut ws = connect(&server).await;
     start(&mut ws).await;
+    assert_eq!(
+        agent_request(
+            &server,
+            "PUT",
+            "/api/ai/agents/synthetic/thought-level",
+            json!({"thought_level":"deliberate"})
+        )
+        .await
+        .0,
+        409
+    );
     assert_eq!(
         agent_request(&server, "POST", "/api/ai/agents/update-all", json!({}))
             .await
@@ -2197,6 +2224,15 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
         "the persisted selection is applied to each new ACP session"
     );
     assert_eq!(
+        events
+            .lines()
+            .filter(|line| *line == "thought:brief")
+            .count(),
+        2,
+        "the reasoning preference is applied through the advertised config ID on each session"
+    );
+
+    assert_eq!(
         http(&server, "DELETE", "/api/ai/agents/synthetic", "")
             .await
             .0,
@@ -2220,6 +2256,110 @@ async fn acp_authentication_streaming_process_reuse_and_meeting_lock() {
         200
     );
     drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn acp_thought_level_survives_restart_and_follows_model_capabilities() {
+    let temp = tempfile::tempdir().unwrap();
+    let (config, marker) = acp_config(&temp);
+    let server = Server::start(config.clone()).await.unwrap();
+    let manifest_path = temp.path().join("data/agents/installed.json");
+    let saved =
+        || serde_json::from_slice::<Value>(&std::fs::read(&manifest_path).unwrap()).unwrap();
+    assert_eq!(
+        agent_request(
+            &server,
+            "POST",
+            "/api/ai/agents/synthetic/connect",
+            json!({"method":"synthetic-login"})
+        )
+        .await
+        .0,
+        200
+    );
+    let (status, body) = agent_request(
+        &server,
+        "PUT",
+        "/api/ai/agents/synthetic/thought-level",
+        json!({"thought_level":"instant"}),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["thought_level"]["current"], "instant");
+    assert_eq!(saved()["synthetic"]["thought_level"], "instant");
+    // The client accepts opaque agent values, not a hard-coded list of Codex levels.
+    assert_eq!(
+        agent_request(
+            &server,
+            "PUT",
+            "/api/ai/agents/synthetic/thought-level",
+            json!({"thought_level":"low"})
+        )
+        .await
+        .0,
+        422
+    );
+    assert_eq!(saved()["synthetic"]["thought_level"], "instant");
+    let (status, body) = agent_request(
+        &server,
+        "PUT",
+        "/api/ai/agents/synthetic/model",
+        json!({"model":"synthetic-accurate"}),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["thought_level"]["current"], "deliberate");
+    assert_eq!(body["thought_level"]["options"][0]["id"], "brief");
+    assert!(saved()["synthetic"]["thought_level"].is_null());
+    assert_eq!(
+        agent_request(
+            &server,
+            "PUT",
+            "/api/ai/agents/synthetic/thought-level",
+            json!({"thought_level":"brief"})
+        )
+        .await
+        .0,
+        200
+    );
+    server.shutdown().await.unwrap();
+
+    let server = Server::start(config).await.unwrap();
+    let (status, body) = agent_request(
+        &server,
+        "POST",
+        "/api/ai/agents/synthetic/connect",
+        json!({"method":"synthetic-login"}),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["model"]["current"], "synthetic-accurate");
+    assert_eq!(body["thought_level"]["current"], "brief");
+    let (status, body) = agent_request(
+        &server,
+        "PUT",
+        "/api/ai/agents/synthetic/model",
+        json!({"model":"synthetic-fixed"}),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert!(body["thought_level"].is_null());
+    assert!(saved()["synthetic"]["thought_level"].is_null());
+    assert_eq!(
+        agent_request(
+            &server,
+            "PUT",
+            "/api/ai/agents/synthetic/thought-level",
+            json!({"thought_level":"brief"})
+        )
+        .await
+        .0,
+        422
+    );
+    assert!(!std::fs::read_to_string(marker)
+        .unwrap()
+        .contains("invalid-config"));
     server.shutdown().await.unwrap();
 }
 

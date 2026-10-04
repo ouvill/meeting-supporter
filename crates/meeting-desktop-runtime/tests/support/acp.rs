@@ -1,6 +1,7 @@
 //! Synthetic ACP peer. Never contacts a service or reads user configuration.
 use serde_json::{json, Value};
 use std::{
+    collections::HashMap,
     io::{BufRead, Write},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -11,6 +12,30 @@ fn emit(output: &Mutex<std::io::Stdout>, value: Value) {
     let mut output = output.lock().unwrap();
     writeln!(output, "{value}").unwrap();
     output.flush().unwrap();
+}
+fn config_options(model: &str, thought: &str) -> Value {
+    let mut options = vec![json!({
+        "id":"model","name":"Model","category":"model","type":"select",
+        "currentValue":model,"options":[
+            {"value":"synthetic-fast","name":"Synthetic Fast"},
+            {"value":"synthetic-accurate","name":"Synthetic Accurate"},
+            {"value":"synthetic-fixed","name":"Synthetic Fixed"}
+        ]
+    })];
+    if model != "synthetic-fixed" {
+        let small = if model == "synthetic-accurate" {
+            "brief"
+        } else {
+            "instant"
+        };
+        options.push(json!({
+            "id":"synthetic-budget","name":"Thinking Budget","category":"thought_level","type":"select",
+            "currentValue":thought,"options":[{"group":"levels","name":"Levels","options":[
+                {"value":small,"name":"Quick"},{"value":"deliberate","name":"Thorough"}
+            ]}]
+        }));
+    }
+    Value::Array(options)
 }
 fn main() {
     let marker = std::env::args().nth(1).unwrap();
@@ -24,6 +49,7 @@ fn main() {
     let authenticated = AtomicBool::new(false);
     let cancelled = Arc::new(AtomicBool::new(false));
     let mut sessions = 0;
+    let mut settings = HashMap::<String, (String, String)>::new();
     for line in std::io::stdin().lock().lines() {
         let value: Value = serde_json::from_str(&line.unwrap()).unwrap();
         if value["method"].is_null() {
@@ -68,31 +94,55 @@ fn main() {
             "session/new" => {
                 sessions += 1;
                 writeln!(log, "session").unwrap();
-                json!({"sessionId":format!("session-{sessions}"),"configOptions":[{
-                    "id":"model","name":"Model","category":"model","type":"select",
-                    "currentValue":"synthetic-fast","options":[
-                        {"value":"synthetic-fast","name":"Synthetic Fast"},
-                        {"value":"synthetic-accurate","name":"Synthetic Accurate"}
-                    ]
-                }]})
+                let session = format!("session-{sessions}");
+                settings.insert(
+                    session.clone(),
+                    ("synthetic-fast".into(), "deliberate".into()),
+                );
+                json!({"sessionId":session,"configOptions":config_options("synthetic-fast", "deliberate")})
             }
             "session/set_config_option" => {
                 let requested = params["value"].as_str().unwrap_or("");
-                if !matches!(requested, "synthetic-fast" | "synthetic-accurate") {
+                let (model, thought) = settings
+                    .get_mut(params["sessionId"].as_str().unwrap())
+                    .unwrap();
+                let valid = match params["configId"].as_str().unwrap_or("") {
+                    "model"
+                        if matches!(
+                            requested,
+                            "synthetic-fast" | "synthetic-accurate" | "synthetic-fixed"
+                        ) =>
+                    {
+                        *model = requested.into();
+                        *thought = "deliberate".into();
+                        writeln!(log, "model:{requested}").unwrap();
+                        true
+                    }
+                    "synthetic-budget" if model != "synthetic-fixed" => {
+                        let small = if model == "synthetic-accurate" {
+                            "brief"
+                        } else {
+                            "instant"
+                        };
+                        if requested == small || requested == "deliberate" {
+                            *thought = requested.into();
+                            writeln!(log, "thought:{requested}").unwrap();
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false,
+                };
+                if !valid {
+                    writeln!(log, "invalid-config").unwrap();
                     emit(
                         &output,
-                        json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"unknown model"}}),
+                        json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"unknown setting"}}),
                     );
                     continue;
                 }
-                writeln!(log, "model:{requested}").unwrap();
-                json!({"configOptions":[{
-                    "id":"model","name":"Model","category":"model","type":"select",
-                    "currentValue":requested,"options":[
-                        {"value":"synthetic-fast","name":"Synthetic Fast"},
-                        {"value":"synthetic-accurate","name":"Synthetic Accurate"}
-                    ]
-                }]})
+                json!({"configOptions":config_options(model, thought)})
             }
             "session/close" => {
                 writeln!(log, "close").unwrap();

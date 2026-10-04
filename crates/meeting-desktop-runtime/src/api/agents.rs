@@ -77,6 +77,15 @@ pub(super) async fn select_model(api: Api, id: String, model: String) -> Reply {
     };
     Ok(serde_json::to_value(status).map_err(Error::from)?)
 }
+pub(super) async fn select_thought_level(api: Api, id: String, thought_level: String) -> Reply {
+    let _guard = maintenance(&api).await?;
+    let mut stopping = api.stopping.clone();
+    let status = tokio::select! {
+        result = api.shared.agents.select_thought_level(&id, thought_level) => result.map_err(Error::from)?,
+        _ = stopping.changed() => return Err(Error::Closed.into()),
+    };
+    Ok(serde_json::to_value(status).map_err(Error::from)?)
+}
 pub(super) async fn remove(api: Api, id: String) -> Reply {
     let _guard = maintenance(&api).await?;
     let store = api.shared.settings.lock().await;

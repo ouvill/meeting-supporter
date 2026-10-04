@@ -66,6 +66,8 @@ pub struct Installed {
     /// ACP session model selected by the user. Older manifests omit it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thought_level: Option<String>,
 }
 #[derive(Clone)]
 pub struct Launch {
@@ -74,6 +76,7 @@ pub struct Launch {
     pub args: Vec<String>,
     pub env: BTreeMap<String, String>,
     pub model: Option<String>,
+    pub thought_level: Option<String>,
 }
 
 pub fn identifier(value: &str) -> bool {
@@ -260,6 +263,7 @@ impl Installed {
             args,
             env: self.env.clone(),
             model: self.model.clone(),
+            thought_level: self.thought_level.clone(),
         })
     }
 }
@@ -371,6 +375,7 @@ pub async fn install(root: &Path, entry: Entry) -> Result<Installed, AgentError>
         env,
         node,
         model: None,
+        thought_level: None,
     })
 }
 enum BinaryFormat {
@@ -625,6 +630,7 @@ mod tests {
                 env: BTreeMap::new(),
                 node: false,
                 model: None,
+                thought_level: None,
             },
         )]);
         save(temp.path(), &records).unwrap();

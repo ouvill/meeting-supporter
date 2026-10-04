@@ -27,6 +27,8 @@ pub struct AgentStatus {
     pub auth_methods: Vec<AgentAuthMethod>,
     #[oai(nullable)]
     pub model: Option<AgentModelSelector>,
+    #[oai(nullable)]
+    pub thought_level: Option<AgentModelSelector>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Object)]
@@ -81,6 +83,13 @@ pub struct AgentConnectRequest {
 #[oai(deny_unknown_fields)]
 pub struct AgentModelRequest {
     pub model: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, Object)]
+#[serde(deny_unknown_fields)]
+#[oai(deny_unknown_fields)]
+pub struct AgentThoughtLevelRequest {
+    pub thought_level: String,
 }
 
 #[derive(Clone, Serialize, Deserialize, Object)]

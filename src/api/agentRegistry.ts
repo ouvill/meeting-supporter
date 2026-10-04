@@ -1,17 +1,16 @@
 import { z } from "zod";
 import { client } from "./generated/client.gen";
 
+const selectorSchema = z.object({
+  current: z.string(),
+  options: z.array(z.object({ id: z.string(), name: z.string() })),
+});
 const statusSchema = z.object({
   ready: z.boolean(),
   message: z.string(),
   auth_methods: z.array(z.object({ id: z.string(), name: z.string() })),
-  model: z
-    .object({
-      current: z.string(),
-      options: z.array(z.object({ id: z.string(), name: z.string() })),
-    })
-    .nullable()
-    .optional(),
+  model: selectorSchema.nullable().optional(),
+  thought_level: selectorSchema.nullable().optional(),
 });
 const agentSchema = z.object({
   id: z.string(),
@@ -105,6 +104,18 @@ export async function selectAgentModel(id: string, model: string) {
     url: `/api/ai/agents/${encodeURIComponent(id)}/model`,
     headers: { "Content-Type": "application/json" },
     body: { model },
+  });
+  if (error) throw failure(error);
+  return parse(statusSchema, data);
+}
+export async function selectAgentThoughtLevel(
+  id: string,
+  thoughtLevel: string,
+) {
+  const { data, error } = await client.put({
+    url: `/api/ai/agents/${encodeURIComponent(id)}/thought-level`,
+    headers: { "Content-Type": "application/json" },
+    body: { thought_level: thoughtLevel },
   });
   if (error) throw failure(error);
   return parse(statusSchema, data);
