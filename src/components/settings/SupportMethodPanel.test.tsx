@@ -123,9 +123,11 @@ describe("SupportMethodPanel", () => {
       ],
       { reply: "openai" },
     );
-    expect(screen.queryByLabelText("OpenAI APIキー")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "接続設定" }));
+    // An unconfigured key is asked for directly, without a toggle to find.
     expect(screen.getByLabelText("OpenAI APIキー")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "接続設定" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByLabelText("Google Gemini APIキー"),
     ).not.toBeInTheDocument();

@@ -13,7 +13,7 @@ import { Check, X } from "lucide-react";
 import { client } from "./api/generated/client.gen";
 import { BootstrapScreen } from "./components/BootstrapScreen";
 import { AppFrame } from "./components/product/AppFrame";
-import type { ProductDestination } from "./components/product/ProductBar";
+import type { ProductDestination } from "./components/product/AppSidebar";
 import { SetupScreen } from "./components/SetupScreen";
 import { SettingsTaskNotice } from "./components/SettingsTaskNotice";
 import { Button } from "./components/ui/Button";
@@ -25,8 +25,10 @@ import { useAiRoutes } from "./hooks/useAiRoutes";
 import { useSavedSpeechReadiness } from "./hooks/useSavedSpeechReadiness";
 import {
   isAssistantPanelPreviewEnabled,
-  isConversationSupportPreviewEnabled,
+  isHistoryPreviewEnabled,
   isMeetingWorkspacePreviewEnabled,
+  isNewMeetingPreviewEnabled,
+  isSettingsPreviewEnabled,
 } from "./platform/previewMode";
 import {
   getCurrentAppWindowLabel,
@@ -63,10 +65,20 @@ const MeetingWorkspacePreview = lazy(() =>
     default: module.MainMeetingControlScreenPreview,
   })),
 );
-const ConversationSupportPreview = lazy(() =>
-  import("./components/conversation/ConversationSupportPreview").then(
-    (module) => ({ default: module.ConversationSupportPreview }),
-  ),
+const NewMeetingPreview = lazy(() =>
+  import("./components/SetupScreenPreview").then((module) => ({
+    default: module.SetupScreenPreview,
+  })),
+);
+const SettingsPreview = lazy(() =>
+  import("./components/SettingsPreview").then((module) => ({
+    default: module.SettingsPreview,
+  })),
+);
+const HistoryPreview = lazy(() =>
+  import("./components/history/MeetingHistoryPreview").then((module) => ({
+    default: module.MeetingHistoryPreview,
+  })),
 );
 const LiveReplySidePanel = lazy(() =>
   import("./components/assistant/LiveReplySidePanel").then((module) => ({
@@ -197,20 +209,6 @@ export default function App() {
 function DesktopApp() {
   if (
     import.meta.env.DEV &&
-    isConversationSupportPreviewEnabled(
-      window.location.search,
-      import.meta.env.DEV,
-    )
-  ) {
-    return (
-      <Suspense fallback={<div className="min-h-screen bg-paper text-ink" />}>
-        <ConversationSupportPreview />
-      </Suspense>
-    );
-  }
-
-  if (
-    import.meta.env.DEV &&
     isAssistantPanelPreviewEnabled(window.location.search, import.meta.env.DEV)
   ) {
     return (
@@ -230,6 +228,39 @@ function DesktopApp() {
     return (
       <Suspense fallback={<div className="min-h-screen bg-paper text-ink" />}>
         <MeetingWorkspacePreview />
+      </Suspense>
+    );
+  }
+
+  if (
+    import.meta.env.DEV &&
+    isNewMeetingPreviewEnabled(window.location.search, import.meta.env.DEV)
+  ) {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-paper text-ink" />}>
+        <NewMeetingPreview />
+      </Suspense>
+    );
+  }
+
+  if (
+    import.meta.env.DEV &&
+    isSettingsPreviewEnabled(window.location.search, import.meta.env.DEV)
+  ) {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-paper text-ink" />}>
+        <SettingsPreview />
+      </Suspense>
+    );
+  }
+
+  if (
+    import.meta.env.DEV &&
+    isHistoryPreviewEnabled(window.location.search, import.meta.env.DEV)
+  ) {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-paper text-ink" />}>
+        <HistoryPreview />
       </Suspense>
     );
   }
@@ -305,74 +336,25 @@ function MainWindowContent({
     setSettingsSection(section);
     onOpenSettings();
   };
+  // Leaving settings from the sidebar goes through its unsaved-changes check.
+  const [closeRequestToken, setCloseRequestToken] = useState(0);
+  const pendingDestinationRef = useRef<ProductDestination | null>(null);
+  const navigate = (destination: ProductDestination) => {
+    if (!settingsOpen) {
+      onNavigate(destination);
+      return;
+    }
+    pendingDestinationRef.current = destination;
+    setCloseRequestToken((token) => token + 1);
+  };
 
   return (
-    <>
-      <AppFrame
-        active={screen}
-        meetingActive={state.isRunning}
-        onNavigate={onNavigate}
-        onSettings={() => openSettings()}
-        status={
-          !state.connected
-            ? "接続確認中"
-            : state.isRunning
-              ? "会議中"
-              : "待機中"
-        }
-        connectionNotice={
-          <>
-            {!settingsOpen && (
-              <SettingsTaskNotice
-                onOpenSettings={() => openSettings("speech")}
-              />
-            )}
-            {!state.connected && (
-              <div className="shrink-0 px-4 pt-3">
-                <InlineNotice tone="warning" title="接続を戻しています">
-                  画面はそのままにしてお待ちください。操作は接続後に再開できます。
-                </InlineNotice>
-              </div>
-            )}
-          </>
-        }
-      >
-        <Suspense fallback={<ScreenLoadingState />}>
-          {state.isRunning ? (
-            <MainMeetingControlScreen
-              key="meeting-control"
-              state={state}
-              send={send}
-              onSettings={() => openSettings()}
-              replyReadiness={routes.replyStatus.readiness}
-            />
-          ) : screen === "reflection" ? (
-            <MeetingHistoryScreen
-              key="history"
-              onBack={() => onNavigate("home")}
-            />
-          ) : (
-            <SetupScreen
-              key="setup"
-              state={state}
-              send={send}
-              showFirstRunGuidance={showFirstRunGuidance}
-              onSettings={() => openSettings()}
-              onSpeechSettings={() => openSettings("speech")}
-              speechReadiness={speechReadiness}
-              onHistory={() => onNavigate("reflection")}
-              replyStatus={routes.replyStatus}
-              replyReloadStatus={routes.manualReloadStatus}
-              onReloadReplyStatus={() => {
-                void routes.reload();
-              }}
-            />
-          )}
-        </Suspense>
-      </AppFrame>
-
-      {settingsOpen && (
-        <div className="absolute inset-0 z-30">
+    <AppFrame
+      active={screen}
+      meetingActive={state.isRunning}
+      onNavigate={navigate}
+      settings={
+        settingsOpen && (
           <Suspense
             fallback={<ScreenLoadingState message="設定を準備しています…" />}
           >
@@ -380,7 +362,14 @@ function MainWindowContent({
               onClose={() => {
                 routes.resetDraftAssignments();
                 onCloseSettings();
+                const destination = pendingDestinationRef.current;
+                pendingDestinationRef.current = null;
+                if (destination) onNavigate(destination);
               }}
+              onCloseCancelled={() => {
+                pendingDestinationRef.current = null;
+              }}
+              closeRequestToken={closeRequestToken}
               routes={routes}
               audioSettingsLocked={
                 state.isRunning ||
@@ -393,9 +382,58 @@ function MainWindowContent({
               restoreFocusTo={settingsReturnFocusTo}
             />
           </Suspense>
-        </div>
-      )}
-    </>
+        )
+      }
+      onSettings={() => openSettings()}
+      connected={state.connected}
+      connectionNotice={
+        <>
+          {!settingsOpen && (
+            <SettingsTaskNotice onOpenSettings={() => openSettings("speech")} />
+          )}
+          {!state.connected && (
+            <div className="shrink-0 px-4 pt-3">
+              <InlineNotice tone="warning" title="接続を戻しています">
+                画面はそのままにしてお待ちください。操作は接続後に再開できます。
+              </InlineNotice>
+            </div>
+          )}
+        </>
+      }
+    >
+      <Suspense fallback={<ScreenLoadingState />}>
+        {state.isRunning ? (
+          <MainMeetingControlScreen
+            key="meeting-control"
+            state={state}
+            send={send}
+            onSettings={() => openSettings()}
+            replyReadiness={routes.replyStatus.readiness}
+          />
+        ) : screen === "reflection" ? (
+          <MeetingHistoryScreen
+            key="history"
+            onBack={() => onNavigate("home")}
+          />
+        ) : (
+          <SetupScreen
+            key="setup"
+            state={state}
+            send={send}
+            showFirstRunGuidance={showFirstRunGuidance}
+            onSettings={() => openSettings()}
+            onSpeechSettings={() => openSettings("speech")}
+            speechReadiness={speechReadiness}
+            onHistory={() => onNavigate("reflection")}
+            replyStatus={routes.replyStatus}
+            replyReloadStatus={routes.manualReloadStatus}
+            onReloadReplyStatus={() => {
+              void routes.reload();
+            }}
+          />
+        )}
+      </Suspense>
+    </AppFrame>
   );
 }
 

@@ -1,4 +1,12 @@
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
+import {
+  ChevronRight,
+  CircleAlert,
+  CircleCheck,
+  CircleMinus,
+  LoaderCircle,
+  Play,
+} from "lucide-react";
 import type {
   MeetingContextInput,
   ReferenceDocumentInput,
@@ -97,15 +105,32 @@ export function SetupScreen({
       references: references.filter((document) => document.status !== "failed"),
     });
   }
+  const speechBusy =
+    start.phase === "preparing" ||
+    start.phase === "cancelling" ||
+    (!state.sttInitialized &&
+      (speechReadiness === "checking" || speechReadiness === "downloading"));
+  const speechTone: ReadinessTone = speechBusy
+    ? "busy"
+    : audioReady
+      ? "ready"
+      : "attention";
+  const replyTone: ReadinessTone = !state.agentSettings.replyEnabled
+    ? "off"
+    : replyReady
+      ? "ready"
+      : replyStatus.message === null
+        ? "busy"
+        : "attention";
   return (
     <div
       data-testid="setup-screen"
       className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-surface text-ink"
     >
-      <main className="mx-auto w-full max-w-3xl flex-1 px-6 pb-6 pt-6 sm:px-10 sm:pt-7">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-6 pb-8 pt-8 sm:px-10">
         {state.meetingEndStatus && state.meetingEndStatus !== "completed" && (
           <InlineNotice
-            className="mb-5"
+            className="mb-6"
             tone={
               state.meetingEndStatus === "interrupted" ? "warning" : "danger"
             }
@@ -132,30 +157,40 @@ export function SetupScreen({
           </InlineNotice>
         )}
 
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">新しい会議</h1>
-          <p className="mt-2 text-sm leading-6 text-ink-muted">
+        <header className="mb-7">
+          <h1 className="text-[22px] font-bold tracking-tight">新しい会議</h1>
+          <p className="mt-1.5 text-sm leading-6 text-ink-muted">
             {showFirstRunGuidance
               ? "音声を確認して、会議を始めましょう。会議の情報はあとからでも大丈夫です。"
               : "音声を確認したら、そのまま開始できます。"}
           </p>
         </header>
-        <section aria-labelledby="audio-check-heading">
-          <h2 id="audio-check-heading" className="text-base font-semibold">
-            音声チェック
-          </h2>
-          <p className="mt-1 text-sm text-ink-muted">
-            話すか音を流して、音量バーが動くことを確認してください。
-          </p>
-          <AudioInputs state={state} send={send} locked={busy} />
-        </section>
-        <section
-          aria-label="利用する機能"
-          className="my-4 border-y border-line"
-        >
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3 text-sm">
-            <span className="w-20 font-medium">文字起こし</span>
-            <span role="status" className="min-w-0 flex-1 text-ink-muted">
+
+        <section aria-labelledby="readiness-heading">
+          <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 id="readiness-heading" className="text-sm font-bold">
+              開始前の確認
+            </h2>
+            <p className="text-xs text-ink-muted">
+              話すか音を流して、音量バーが動くことを確認してください。
+            </p>
+          </div>
+          <div className="divide-y divide-line rounded-xl border border-line px-4">
+            <AudioInputs state={state} send={send} locked={busy} />
+            <ReadinessRow
+              label="文字起こし"
+              tone={speechTone}
+              actions={
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  onClick={onSpeechSettings}
+                  disabled={busy}
+                >
+                  {speechReadiness === "missing" ? "モデルを準備" : "設定"}
+                </Button>
+              }
+            >
               {start.phase === "cancelling"
                 ? "準備を取り消しています…"
                 : start.phase === "preparing"
@@ -163,53 +198,54 @@ export function SetupScreen({
                   : state.sttInitialized
                     ? SPEECH_LABELS.ready
                     : SPEECH_LABELS[speechReadiness ?? "ready"]}
-            </span>
-            <Button
-              variant="quiet"
-              size="sm"
-              onClick={onSpeechSettings}
-              disabled={busy}
+            </ReadinessRow>
+            <ReadinessRow
+              label="返答案"
+              tone={replyTone}
+              note={
+                !replyReady &&
+                "返答案を利用できない場合も、録音と文字起こしは開始できます。"
+              }
+              actions={
+                <>
+                  {state.agentSettings.replyEnabled &&
+                    ["error", "unavailable"].includes(
+                      replyStatus.readiness,
+                    ) && (
+                      <Button
+                        variant="quiet"
+                        size="sm"
+                        onClick={onReloadReplyStatus}
+                        disabled={replyReloadStatus === "loading"}
+                      >
+                        {replyReloadStatus === "loading" ? "確認中…" : "再確認"}
+                      </Button>
+                    )}
+                  <Button
+                    variant="quiet"
+                    size="sm"
+                    onClick={onSettings}
+                    disabled={busy}
+                  >
+                    AIを設定
+                  </Button>
+                </>
+              }
             >
-              {speechReadiness === "missing" ? "モデルを準備" : "設定"}
-            </Button>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3 text-sm">
-            <span className="w-20 font-medium">返答案</span>
-            <span role="status" className="min-w-0 flex-1 text-ink-muted">
               {replyMessage}
-            </span>
-            <Button
-              variant="quiet"
-              size="sm"
-              onClick={onSettings}
-              disabled={busy}
-            >
-              AIを設定
-            </Button>
-            {state.agentSettings.replyEnabled &&
-              ["error", "unavailable"].includes(replyStatus.readiness) && (
-                <Button
-                  variant="quiet"
-                  size="sm"
-                  onClick={onReloadReplyStatus}
-                  disabled={replyReloadStatus === "loading"}
-                >
-                  {replyReloadStatus === "loading" ? "確認中…" : "再確認"}
-                </Button>
-              )}
+            </ReadinessRow>
           </div>
-          {!replyReady && (
-            <p className="pb-3 text-xs text-ink-muted">
-              返答案を利用できない場合も、録音と文字起こしは開始できます。
-            </p>
-          )}
         </section>
-        <fieldset disabled={busy} className="min-w-0 space-y-5 border-0 p-0">
+
+        <fieldset
+          disabled={busy}
+          className="mt-8 min-w-0 space-y-3 border-0 p-0"
+        >
           <label className="block">
-            <span className="mb-2 block text-sm font-medium">
-              会議の目的{" "}
-              <span className="ml-1 text-xs font-normal text-ink-muted">
-                任意
+            <span className="mb-2 flex items-baseline gap-2 text-sm font-bold">
+              会議の目的
+              <span className="text-xs font-normal text-ink-muted">
+                任意・返答案の方向づけに使います
               </span>
             </span>
             <textarea
@@ -223,14 +259,18 @@ export function SetupScreen({
               className="field resize-y text-sm"
             />
           </label>
-          <details className="border-b border-line pb-5">
-            <summary className="cursor-pointer py-2 text-sm font-medium">
+          <details className="group">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md py-1.5 pr-2 text-sm font-medium text-primary hover:text-primary-hover [&::-webkit-details-marker]:hidden">
+              <ChevronRight
+                aria-hidden="true"
+                className="size-4 transition-transform group-open:rotate-90 motion-reduce:transition-none"
+              />
               会議の詳細・資料を追加
             </summary>
-            <p className="my-3 text-xs text-ink-muted">
+            <p className="mb-4 mt-2 text-xs text-ink-muted">
               すべて任意です。わかる範囲で入力してください。
             </p>
-            <div className="space-y-5 pt-1">
+            <div className="space-y-5">
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field
                   label="会議の種類"
@@ -297,8 +337,8 @@ export function SetupScreen({
           </InlineNotice>
         )}
       </main>
-      <StickyActionBar className="px-6 py-4 sm:px-10">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4">
+      <StickyActionBar className="px-0 py-3.5">
+        <div className="mx-auto flex w-full max-w-3xl flex-wrap px-6 sm:px-10 items-center justify-between gap-x-4 gap-y-2">
           <p className="text-sm text-ink-muted" aria-live="polite">
             {stopFailed
               ? "アプリの再起動が必要です"
@@ -314,7 +354,7 @@ export function SetupScreen({
                     ? "音声認識の準備を完了してください"
                     : "開始すると録音と文字起こしを行います"}
           </p>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             {start.phase === "preparing" && (
               <Button variant="quiet" onClick={start.cancel}>
                 キャンセル
@@ -326,7 +366,15 @@ export function SetupScreen({
               onClick={startMeeting}
               disabled={!canStart}
               loading={busy}
+              className="min-w-40"
             >
+              {!busy && (
+                <Play
+                  aria-hidden="true"
+                  className="size-4"
+                  fill="currentColor"
+                />
+              )}
               {busy
                 ? start.phase === "preparing"
                   ? "準備中…"
@@ -338,6 +386,51 @@ export function SetupScreen({
           </div>
         </div>
       </StickyActionBar>
+    </div>
+  );
+}
+
+type ReadinessTone = "ready" | "busy" | "attention" | "off";
+
+const READINESS_ICONS = {
+  ready: { icon: CircleCheck, className: "text-positive" },
+  busy: {
+    icon: LoaderCircle,
+    className: "animate-spin text-primary motion-reduce:animate-none",
+  },
+  attention: { icon: CircleAlert, className: "text-warning" },
+  off: { icon: CircleMinus, className: "text-ink-faint" },
+} as const;
+
+interface ReadinessRowProps {
+  label: string;
+  tone: ReadinessTone;
+  actions: ReactNode;
+  note?: ReactNode;
+  children: ReactNode;
+}
+
+function ReadinessRow({
+  label,
+  tone,
+  actions,
+  note,
+  children,
+}: ReadinessRowProps) {
+  const { icon: Icon, className } = READINESS_ICONS[tone];
+  return (
+    <div className="grid items-center gap-x-4 gap-y-1 py-2.5 sm:grid-cols-[9rem_minmax(0,1fr)_auto]">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <Icon aria-hidden="true" className={`size-4 shrink-0 ${className}`} />
+        {label}
+      </div>
+      <div className="min-w-0 text-sm">
+        <span role="status" className="text-ink-muted">
+          {children}
+        </span>
+        {note && <p className="mt-0.5 text-xs text-ink-faint">{note}</p>}
+      </div>
+      <div className="-mr-2 flex items-center justify-self-end">{actions}</div>
     </div>
   );
 }

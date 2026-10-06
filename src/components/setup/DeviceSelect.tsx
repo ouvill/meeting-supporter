@@ -52,17 +52,15 @@ export function DeviceSelect({
   }
 
   return (
-    <div className="grid items-center gap-3 py-4 sm:grid-cols-[11rem_minmax(0,1fr)]">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="grid items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[9rem_minmax(0,1fr)_5.5rem]">
+      <div className="flex items-center gap-2">
         <Icon
           aria-hidden="true"
-          size={15}
-          className={primary === "monitors" ? "text-cue" : "text-positive"}
+          className={`size-4 shrink-0 ${primary === "monitors" ? "text-cue" : "text-positive"}`}
         />
         <label htmlFor={selectId} className="text-sm font-semibold text-ink">
           {label}
         </label>
-        <AudioLevelMeter level={level} color={color} label={label} />
       </div>
       <select
         id={selectId}
@@ -91,6 +89,7 @@ export function DeviceSelect({
           </optgroup>
         )}
       </select>
+      <AudioLevelMeter level={level} color={color} label={label} />
     </div>
   );
 }
@@ -106,7 +105,7 @@ function AudioLevelMeter({
 }) {
   return (
     <div
-      className="h-1 w-16 overflow-hidden rounded-full bg-line"
+      className="h-1.5 w-full overflow-hidden rounded-full bg-line"
       aria-label={`${label}の入力レベル`}
       role="meter"
       aria-valuemin={0}

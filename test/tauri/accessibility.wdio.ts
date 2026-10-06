@@ -109,13 +109,13 @@ describe("Native shell accessibility", () => {
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 
-  it("has no WCAG A or AA violations on advanced settings", async () => {
+  it("has no WCAG A or AA violations on speech settings", async () => {
     await openSettings(waitOptions);
-    const advanced = await $('//button[.//span[normalize-space()="詳細設定"]]');
-    await advanced.waitForClickable(waitOptions);
-    await advanced.click();
+    const speech = await $("#settings-nav-speech");
+    await speech.waitForClickable(waitOptions);
+    await speech.click();
     await expectDisplayedSurface(
-      'section[data-settings-page="詳細設定"]',
+      'section[data-settings-page="文字起こし"]',
       waitOptions,
     );
     await expectNoAccessibilityViolations();

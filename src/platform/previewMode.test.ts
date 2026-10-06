@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   getPreviewModeFromSearch,
   isAssistantPanelPreviewEnabled,
-  isConversationSupportPreviewEnabled,
   isMeetingWorkspacePreviewEnabled,
+  isNewMeetingPreviewEnabled,
 } from "./previewMode";
 
 describe("previewMode", () => {
@@ -25,27 +25,24 @@ describe("previewMode", () => {
     ).toBe(false);
   });
 
+  it("new meeting preview query を判定する", () => {
+    expect(getPreviewModeFromSearch("?preview=new-meeting")).toBe(
+      "new-meeting",
+    );
+    expect(isNewMeetingPreviewEnabled("?preview=new-meeting", true)).toBe(true);
+    expect(isNewMeetingPreviewEnabled("?preview=new-meeting", false)).toBe(
+      false,
+    );
+  });
+
+  it("settings と history の preview query を判定する", () => {
+    expect(getPreviewModeFromSearch("?preview=settings")).toBe("settings");
+    expect(getPreviewModeFromSearch("?preview=history")).toBe("history");
+  });
+
   it("未知の preview query は null を返す", () => {
     expect(getPreviewModeFromSearch("?preview=unknown")).toBeNull();
     expect(getPreviewModeFromSearch("")).toBeNull();
-  });
-
-  it("dev のときだけ conversation support preview を有効化する", () => {
-    expect(getPreviewModeFromSearch("?preview=conversation-support")).toBe(
-      "conversation-support",
-    );
-    expect(
-      isConversationSupportPreviewEnabled(
-        "?preview=conversation-support",
-        true,
-      ),
-    ).toBe(true);
-    expect(
-      isConversationSupportPreviewEnabled(
-        "?preview=conversation-support",
-        false,
-      ),
-    ).toBe(false);
   });
 
   it("dev のときだけ assistant panel preview を有効化する", () => {

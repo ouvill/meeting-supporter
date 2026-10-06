@@ -167,7 +167,7 @@ async function renderModal(
       audioSettingsLocked={audioSettingsLocked}
     />,
   );
-  await screen.findByRole("heading", { name: "AIと音声認識" });
+  await screen.findByRole("heading", { name: "返答案" });
   const connection = screen.queryByRole("button", { name: "接続設定" });
   if (connection) fireEvent.click(connection);
   await act(async () => {});
@@ -296,8 +296,8 @@ describe("SettingsModal connection UX", () => {
     });
     fireEvent.change(model, { target: { value: "accurate" } });
     expect(selectAgentModel).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("tab", { name: "文字起こし" }));
-    fireEvent.click(screen.getByRole("tab", { name: "返答案" }));
+    fireEvent.click(screen.getByRole("button", { name: /^文字起こし/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^返答案/ }));
     expect(model).toHaveValue("accurate");
     fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
     expect(
@@ -318,18 +318,42 @@ describe("SettingsModal connection UX", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("switches tabs with the keyboard and preserves unsaved input across them", async () => {
+  it("shows the save bar only while there are unsaved changes", async () => {
     await renderModal();
-    const reply = screen.getByRole("tab", { name: "返答案" });
-    expect(reply).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.queryByRole("contentinfo", { name: "設定の保存" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "保存" }),
+    ).not.toBeInTheDocument();
+    const autoGenerate = screen.getByRole("checkbox", {
+      name: "自動で返答案を作る",
+    });
+
+    fireEvent.click(autoGenerate);
+    expect(screen.getByText("保存していない変更があります")).toBeVisible();
+    expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
+
+    fireEvent.click(autoGenerate);
+    expect(
+      screen.queryByRole("button", { name: "保存" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("switches between reply and speech pages and preserves unsaved input across them", async () => {
+    await renderModal();
+    const reply = screen.getByRole("button", { name: /^返答案/ });
+    const speech = screen.getByRole("button", { name: /^文字起こし/ });
+    expect(reply).toHaveAttribute("aria-current", "page");
     expect(
       screen.queryByRole("heading", { name: "文字起こし" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
     );
-    fireEvent.keyDown(reply, { key: "ArrowRight" });
-    expect(screen.getByRole("tab", { name: "文字起こし" })).toHaveFocus();
+    fireEvent.click(speech);
+    expect(speech).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { name: "文字起こし" })).toBeVisible();
     expect(
       screen.queryByRole("combobox", { name: "返答案に使うAI" }),
@@ -337,14 +361,11 @@ describe("SettingsModal connection UX", () => {
     fireEvent.change(screen.getByLabelText("会議の言語"), {
       target: { value: "en" },
     });
-    fireEvent.keyDown(screen.getByRole("tab", { name: "文字起こし" }), {
-      key: "Home",
-    });
-    expect(reply).toHaveFocus();
+    fireEvent.click(reply);
     expect(
       screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
     ).toBeChecked();
-    fireEvent.keyDown(reply, { key: "End" });
+    fireEvent.click(speech);
     expect(screen.getByLabelText("会議の言語")).toHaveValue("en");
     expect(sdkMocks.saveSettings).not.toHaveBeenCalled();
     await act(async () => {});
@@ -354,19 +375,23 @@ describe("SettingsModal connection UX", () => {
     await renderModal(
       settings({ stt: { backend: "unsupported", language: "ja" } }),
     );
+    // The save bar appears with the first unsaved change.
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    expect(screen.getByRole("tab", { name: "文字起こし" })).toHaveAttribute(
-      "aria-selected",
-      "true",
+    expect(screen.getByRole("button", { name: /^文字起こし/ })).toHaveAttribute(
+      "aria-current",
+      "page",
     );
     expect(
       screen.getByRole("combobox", { name: "音声認識方式" }),
     ).toBeVisible();
     expect(sdkMocks.saveSettings).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("tab", { name: "返答案" }));
-    expect(screen.getByRole("tab", { name: "返答案" })).toHaveAttribute(
-      "aria-selected",
-      "true",
+    fireEvent.click(screen.getByRole("button", { name: /^返答案/ }));
+    expect(screen.getByRole("button", { name: /^返答案/ })).toHaveAttribute(
+      "aria-current",
+      "page",
     );
   });
 
@@ -471,7 +496,7 @@ describe("SettingsModal connection UX", () => {
     expect(screen.queryByText(/取得が完了しました/)).not.toBeInTheDocument();
   });
 
-  it("focuses the native dialog title and restores the opening control after close", async () => {
+  it("focuses the settings title and restores the opening control after close", async () => {
     sdkMocks.getSettings.mockResolvedValueOnce({
       data: settings(),
       error: undefined,
@@ -503,7 +528,7 @@ describe("SettingsModal connection UX", () => {
     const trigger = screen.getByRole("button", { name: "設定を開く" });
     fireEvent.click(trigger);
 
-    await screen.findByRole("heading", { name: "AIと音声認識" });
+    await screen.findByRole("heading", { name: "返答案" });
     const connection = screen.queryByRole("button", { name: "接続設定" });
     if (connection) fireEvent.click(connection);
     expect(screen.getByRole("heading", { name: "設定" })).toHaveFocus();
@@ -790,6 +815,10 @@ describe("SettingsModal connection UX", () => {
       }),
     );
 
+    // The save bar appears with the first unsaved change.
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
     expect(sdkMocks.saveSettings).not.toHaveBeenCalled();
@@ -800,7 +829,7 @@ describe("SettingsModal connection UX", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      document.querySelector('[data-settings-page="AIと音声認識"]'),
+      document.querySelector('[data-settings-page="返答案"]'),
     ).toHaveTextContent(
       "この支援方法を利用するには、利用可能なAPIキーが必要です。",
     );
@@ -842,6 +871,10 @@ describe("SettingsModal connection UX", () => {
       }),
     );
 
+    // The save bar appears with the first unsaved change.
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "自動で返答案を作る" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
     expect(sdkMocks.saveSettings).not.toHaveBeenCalled();
@@ -956,7 +989,7 @@ describe("SettingsModal connection UX", () => {
   it("keeps legacy agent commands out of Advanced settings", async () => {
     await renderModal();
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /AIと音声認識/ }));
+      fireEvent.click(screen.getByRole("button", { name: /^返答案/ }));
     });
     expect(
       screen.queryByRole("textbox", { name: "起動command" }),
@@ -1055,7 +1088,7 @@ describe("SettingsModal connection UX", () => {
     async (backend) => {
       await renderModal(settings({ stt: { backend, language: "ja" } }));
 
-      fireEvent.click(screen.getByRole("tab", { name: "文字起こし" }));
+      fireEvent.click(screen.getByRole("button", { name: /^文字起こし/ }));
       expect(screen.getByLabelText("音声認識方式")).toHaveValue("");
       expect(
         screen.getByText("音声認識方式を選択してください。"),
@@ -1077,7 +1110,7 @@ describe("SettingsModal connection UX", () => {
   it("offers only local speech choices", async () => {
     await renderModal();
     await act(async () => {});
-    fireEvent.click(screen.getByRole("tab", { name: "文字起こし" }));
+    fireEvent.click(screen.getByRole("button", { name: /^文字起こし/ }));
     const select = screen.getByLabelText("音声認識方式");
     expect(
       Array.from(select.querySelectorAll("option"), (option) => option.value),

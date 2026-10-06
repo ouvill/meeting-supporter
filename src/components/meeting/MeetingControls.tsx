@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Clock3,
   Headphones,
+  MessagesSquare,
   Mic2,
   PanelRightOpen,
   Radio,
@@ -18,9 +19,16 @@ import { Button, InlineNotice } from "../ui";
 interface Props {
   state: SocketState;
   send: SendFn;
+  historyOpen: boolean;
+  onToggleHistory: () => void;
 }
 
-export function MeetingControls({ state, send }: Props) {
+export function MeetingControls({
+  state,
+  send,
+  historyOpen,
+  onToggleHistory,
+}: Props) {
   const [seconds, setSeconds] = useState<number | null>(() =>
     elapsedSeconds(state.session?.startedAt),
   );
@@ -64,17 +72,9 @@ export function MeetingControls({ state, send }: Props) {
             />
             <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-positive" />
           </span>
-          <div className="min-w-0">
-            <h1
-              id="meeting-control-heading"
-              className="font-display text-sm font-bold text-ink"
-            >
-              会話ワークスペース
-            </h1>
-            <p className="truncate text-xs text-ink-muted max-[800px]:hidden">
-              {state.session?.title || "進行中の会議"}
-            </p>
-          </div>
+          <h1 className="min-w-0 truncate font-display text-base font-bold text-ink">
+            {state.session?.title || "進行中の会議"}
+          </h1>
         </div>
 
         <div className="ml-auto flex items-center gap-2 rounded-xl bg-paper px-3 py-1.5">
@@ -108,6 +108,22 @@ export function MeetingControls({ state, send }: Props) {
               audioExpanded || !audioHealthy ? "rotate-180" : ""
             }`}
           />
+        </Button>
+
+        <Button
+          variant="quiet"
+          size="sm"
+          aria-expanded={historyOpen}
+          aria-controls="meeting-history-pane"
+          onClick={onToggleHistory}
+          className={
+            historyOpen
+              ? "bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary"
+              : undefined
+          }
+        >
+          <MessagesSquare aria-hidden="true" size={15} />
+          会話履歴
         </Button>
 
         <Button

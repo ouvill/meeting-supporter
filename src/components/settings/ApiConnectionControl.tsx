@@ -1,4 +1,4 @@
-import { Eye, EyeOff, KeyRound, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Trash2 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { Button } from "../ui/Button";
 import { InlineNotice } from "../ui/InlineNotice";
@@ -9,17 +9,14 @@ export const CONNECTIONS = {
   openai: {
     secretKey: "OPENAI_API_KEY",
     label: "OpenAI",
-    usage: "返答案の生成",
   },
   gemini: {
     secretKey: "GEMINI_API_KEY",
     label: "Google Gemini",
-    usage: "AI機能",
   },
   anthropic: {
     secretKey: "ANTHROPIC_API_KEY",
     label: "Anthropic",
-    usage: "AI機能",
   },
 } as const;
 
@@ -100,25 +97,7 @@ export function ApiConnectionControl({
         : "接続を確認";
 
   return (
-    <section
-      aria-label={`${connection.label} API接続`}
-      className="space-y-3 border-t border-line pt-4"
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
-          <KeyRound className="size-4" aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-ink">
-            {connection.label} API接続
-          </p>
-          <p className="text-xs text-ink-muted">{connection.usage}</p>
-        </div>
-        <Status tone={status.tone} aria-live="polite">
-          {status.label}
-        </Status>
-      </div>
-
+    <section aria-label={`${connection.label} API接続`} className="space-y-3">
       {state === "pending-delete" ? (
         <InlineNotice tone="warning" title="APIキーは削除予定です">
           <p>
@@ -137,12 +116,6 @@ export function ApiConnectionControl({
         </InlineNotice>
       ) : expanded ? (
         <div className="space-y-2">
-          <label
-            htmlFor={inputId}
-            className="block text-sm font-semibold text-ink"
-          >
-            APIキー
-          </label>
           <div className="flex gap-2">
             <input
               id={inputId}
@@ -173,7 +146,7 @@ export function ApiConnectionControl({
             </Button>
           </div>
           <p id={helpId} className="text-xs leading-relaxed text-ink-muted">
-            入力値は、接続確認または設定保存のときだけ送信します。保存済みのキーは再表示しません。
+            「接続を確認」はすぐに実行します。キーは下の「保存」を押すと保存されます。保存済みのキーは再表示しません。
           </p>
           {hasSavedKey && editing && (
             <Button
@@ -244,7 +217,7 @@ export function ApiConnectionControl({
       )}
 
       {!confirmingDelete && state !== "pending-delete" && (
-        <div className="flex flex-col gap-2 border-t border-line pt-3 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Button
             size="md"
             variant={state === "verified" ? "secondary" : "primary"}
@@ -258,6 +231,9 @@ export function ApiConnectionControl({
           >
             {testing ? "確認中…" : testLabel}
           </Button>
+          <Status tone={status.tone} aria-live="polite">
+            {status.label}
+          </Status>
           {hasSavedKey && (
             <Button
               size="md"

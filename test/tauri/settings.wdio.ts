@@ -50,8 +50,12 @@ let sttSettingsMutated = false;
 async function geminiCredentialInput() {
   const selector = await $('select[aria-label="返答案に使うAI"]');
   await selector.selectByAttribute("value", "gemini");
+  // A key that still needs input is shown without the toggle.
   const connection = await $('button[aria-controls="selected-ai-connection"]');
-  if ((await connection.getAttribute("aria-expanded")) !== "true")
+  if (
+    (await connection.isExisting()) &&
+    (await connection.getAttribute("aria-expanded")) !== "true"
+  )
     await connection.click();
   const geminiCard = await $('[data-route-id="gemini"]');
   await geminiCard.waitForDisplayed(waitOptions);
@@ -158,10 +162,10 @@ describe("Contextual settings credentials", () => {
     await openSettings(waitOptions);
     const selector = await $('select[aria-label="返答案に使うAI"]');
     await selector.selectByAttribute("value", "gemini");
-    await $("#ai-settings-tab-speech").click();
+    await $("#settings-nav-speech").click();
     await expect($("#ai-settings-panel-speech")).toBeDisplayed();
     await expect($("#ai-settings-panel-reply")).not.toBeDisplayed();
-    await $("#ai-settings-tab-reply").click();
+    await $("#settings-nav-reply").click();
     expect(await selector.getValue()).toBe("gemini");
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
@@ -232,7 +236,7 @@ describe("Contextual settings credentials", () => {
     await waitForBackendReady();
     await expectDisplayedSurface('[data-testid="setup-screen"]', waitOptions);
     await openSettings(waitOptions);
-    const audioCategory = await $("#ai-settings-tab-speech");
+    const audioCategory = await $("#settings-nav-speech");
     await audioCategory.waitForClickable(waitOptions);
     await audioCategory.click();
 
@@ -252,7 +256,7 @@ describe("Contextual settings credentials", () => {
     await expectDisplayedSurface('[data-testid="setup-screen"]', waitOptions);
     await startMeeting(waitOptions);
     await openSettings(waitOptions);
-    const audioCategory = await $("#ai-settings-tab-speech");
+    const audioCategory = await $("#settings-nav-speech");
     await audioCategory.waitForClickable(waitOptions);
     await audioCategory.click();
 
