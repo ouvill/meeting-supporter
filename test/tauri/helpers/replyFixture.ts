@@ -85,10 +85,11 @@ export async function createReplyFixture({
       response.flushHeaders();
       // The first request stays pending until the UI cancels it.
       if (current === 0) return;
-      const reply =
-        text.includes("短く、1文で言える形") || text.includes("短い1文")
-          ? "承知しました。"
-          : "準備できました。進めてください。";
+      // Normal generation also asks for a short first sentence. Only the
+      // dedicated SuggestionMode::Short instruction selects the rephrased reply.
+      const reply = text.split("\n").includes("返答を短い1文にしてください。")
+        ? "承知しました。"
+        : "準備できました。進めてください。";
       const chunk = (delta: object, finishReason: string | null) => ({
         id: "synthetic-reply",
         object: "chat.completion.chunk",

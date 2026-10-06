@@ -10,7 +10,11 @@ import {
   hideAssistantWindow,
   startMeeting,
 } from "./helpers/meetingLifecycle";
-import { closeSettingsIfOpen, openSettings } from "./helpers/settings";
+import {
+  closeSettingsIfOpen,
+  openSettings,
+  selectReplyAi,
+} from "./helpers/settings";
 
 type SttSnapshot = Record<string, unknown> & {
   backend: string;
@@ -48,8 +52,7 @@ let settingsSnapshot: SettingsSnapshot | null = null;
 let sttSettingsMutated = false;
 
 async function geminiCredentialInput() {
-  const selector = await $('select[aria-label="返答案に使うAI"]');
-  await selector.selectByAttribute("value", "gemini");
+  await selectReplyAi("gemini", waitOptions);
   // A key that still needs input is shown without the toggle.
   const connection = await $('button[aria-controls="selected-ai-connection"]');
   if (
@@ -160,13 +163,14 @@ describe("Contextual settings credentials", () => {
 
   it("selects a reply AI and preserves it when switching settings tabs", async () => {
     await openSettings(waitOptions);
-    const selector = await $('select[aria-label="返答案に使うAI"]');
-    await selector.selectByAttribute("value", "gemini");
+    await selectReplyAi("gemini", waitOptions);
     await $("#settings-nav-speech").click();
     await expect($("#ai-settings-panel-speech")).toBeDisplayed();
     await expect($("#ai-settings-panel-reply")).not.toBeDisplayed();
     await $("#settings-nav-reply").click();
-    expect(await selector.getValue()).toBe("gemini");
+    await expect($('select[aria-label="返答案に使うAI"]')).toHaveValue(
+      "gemini",
+    );
     await closeSettingsIfOpen({ discard: true, waitOptions });
   });
 
