@@ -75,7 +75,7 @@ export function SettingsNavigation({
                 {label}
               </span>
               <span
-                className={`mt-0.5 hidden text-xs leading-snug md:block ${selected ? "text-primary/80" : "text-ink-muted"}`}
+                className={`mt-0.5 hidden text-xs leading-snug md:block ${selected ? "text-primary" : "text-ink-muted"}`}
               >
                 {description}
               </span>
