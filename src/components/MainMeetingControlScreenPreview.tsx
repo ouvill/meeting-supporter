@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { SendFn, SocketState, SuggestionCard } from "../types";
 import { MainMeetingControlScreen } from "./MainMeetingControlScreen";
+import { AppFrame } from "./product/AppFrame";
+import { TooltipProvider } from "./ui/Tooltip";
 
 const SUGGESTIONS: SuggestionCard[] = [
   {
@@ -118,13 +120,23 @@ export function MainMeetingControlScreenPreview() {
   const send: SendFn = () => undefined;
 
   return (
-    <div className="flex h-screen min-w-[720px] flex-col overflow-hidden bg-paper">
-      <MainMeetingControlScreen
-        state={state}
-        send={send}
-        onSettings={() => undefined}
-        replyReadiness="ready"
-      />
-    </div>
+    <TooltipProvider>
+      <div className="flex h-screen min-w-[720px] flex-col overflow-hidden bg-paper">
+        <AppFrame
+          active="home"
+          connected
+          meetingActive
+          onNavigate={() => undefined}
+          onSettings={() => undefined}
+        >
+          <MainMeetingControlScreen
+            state={state}
+            send={send}
+            onSettings={() => undefined}
+            replyReadiness="ready"
+          />
+        </AppFrame>
+      </div>
+    </TooltipProvider>
   );
 }

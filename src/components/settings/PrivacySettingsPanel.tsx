@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dialog, DialogClose, DialogContent } from "../ui/Dialog";
 import { Cloud, FolderOpen, HardDrive, Trash2 } from "lucide-react";
 import {
@@ -8,6 +8,7 @@ import {
   type RecordingCleanupRequest,
 } from "../../api/recordingRetention";
 import type { AiRouteReadModel } from "../../hooks/useAiRoutes";
+import { Button } from "../ui/Button";
 import { FieldRow, SettingsSection, SettingsPage } from "./SettingsPrimitives";
 import type { SettingsFieldErrors, SettingsForm } from "./types";
 
@@ -22,33 +23,54 @@ interface Props {
   onChooseContextDirectory: () => void;
 }
 
-function destinationCopy(route: AiRouteReadModel | null): {
-  title: string;
-  description: string;
+function replyDestination(route: AiRouteReadModel | null): {
+  text: string;
   local: boolean;
 } {
-  if (!route) {
+  if (!route)
     return {
-      title: "支援方法が未選択です",
-      description:
-        "「支援方法」で利用する方法を選ぶと、会議テキストの送信先を確認できます。",
+      text: "返答案に使うAIが未選択です。「返答案」で選ぶと送信先を確認できます。",
       local: true,
     };
-  }
-  if (route.data_location === "local") {
+  if (route.data_location === "local")
     return {
-      title: "この端末内で処理します",
-      description:
-        "返答支援のための会議テキストは、選択中の方法では外部へ送信されません。",
+      text: `この端末内で処理します。${route.label}へ渡す会議のテキストは外部へ送りません。`,
       local: true,
     };
-  }
   return {
-    title: "会議テキストを外部へ送ります",
-    description:
-      "返答支援に必要な範囲の会議テキストが、選択したサービスへ送信されます。音声の送信範囲は「音声」の処理方法で決まります。",
+    text: `返答案を作るときに、必要な範囲の会議のテキストを${route.label}へ送ります。`,
     local: false,
   };
+}
+
+function DataFlowRow({
+  label,
+  local,
+  children,
+}: {
+  label: string;
+  local: boolean;
+  children: ReactNode;
+}) {
+  const Icon = local ? HardDrive : Cloud;
+  return (
+    <div className="grid gap-1.5 md:grid-cols-[10rem_minmax(0,1fr)] md:gap-4">
+      <p className="text-sm font-medium text-ink">{label}</p>
+      <p className="flex items-start gap-2 text-sm leading-relaxed text-ink-muted">
+        <Icon
+          aria-hidden="true"
+          className={`mt-0.5 size-4 shrink-0 ${local ? "text-positive" : "text-warning"}`}
+        />
+        <span>
+          <span className="font-semibold text-ink">
+            {local ? "この端末内" : "外部サービス"}
+          </span>
+          <span className="mx-1.5 text-ink-faint">—</span>
+          {children}
+        </span>
+      </p>
+    </div>
+  );
 }
 
 function formatBytes(bytes: number): string {
@@ -121,7 +143,9 @@ export function PrivacySettingsPanel({
   update,
   onChooseContextDirectory,
 }: Props) {
-  const destination = destinationCopy(selectedRoute);
+  const destination = replyDestination(selectedRoute);
+  const speechIsLocal =
+    form.sttBackend === "whisper" || form.sttBackend === "reazonspeech";
   const [cleanupPreview, setCleanupPreview] =
     useState<RecordingCleanupPreview | null>(null);
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
@@ -198,39 +222,37 @@ export function PrivacySettingsPanel({
   return (
     <SettingsPage
       title="データと保存"
-      description="会議データを保存する場所と、支援を利用するときの送信範囲を確認できます。"
+      description="会議のデータがどこで処理され、どこに保存されるかを確認できます。"
     >
-      <SettingsSection title="返答支援で送られるデータ">
-        <div
-          className={`flex items-start gap-3 rounded-xl p-3.5 ${destination.local ? "bg-positive-soft text-positive" : "bg-warning-soft text-warning"}`}
-        >
-          {destination.local ? (
-            <HardDrive className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-          ) : (
-            <Cloud className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+      <SettingsSection
+        title="データが処理される場所"
+        description="現在の設定での扱いです。「返答案」で使うAIを変えると、テキストの送信先も変わります。"
+      >
+        <div className="space-y-3">
+          {speechIsLocal && (
+            <DataFlowRow label="会議の音声" local>
+              文字起こしはこの端末で行い、音声を外部へ送りません。
+            </DataFlowRow>
           )}
-          <div>
-            <p className="text-xs font-bold">{destination.title}</p>
-            <p className="mt-1 text-xs leading-relaxed opacity-80">
-              {destination.description}
-            </p>
-          </div>
+          <DataFlowRow label="会議のテキスト" local={destination.local}>
+            {destination.text}
+          </DataFlowRow>
         </div>
       </SettingsSection>
 
       <SettingsSection
-        title="端末内の保存先"
-        description="会議履歴や録音は、このアプリのデータフォルダに保存されます。"
+        title="保存先"
+        description="会議の履歴と録音は、この端末のフォルダに保存します。"
       >
         <div className="space-y-4">
-          <FieldRow label="アプリのデータ">
+          <FieldRow label="履歴と録音">
             <div className="break-all rounded-lg border border-line bg-paper px-3 py-2 text-xs leading-relaxed text-ink-muted">
               {form.dataDir || "保存先を確認しています"}
             </div>
           </FieldRow>
           <FieldRow
-            label="会議の前提資料"
-            hint="このフォルダ内の .md ファイルを会議の前提情報として利用します"
+            label="共通の参考資料"
+            hint="このフォルダの .md ファイルを、すべての会議で前提情報として使います"
             error={errors.contextDir}
           >
             <div className="flex items-center gap-2">
@@ -245,17 +267,17 @@ export function PrivacySettingsPanel({
                 aria-label="会議の前提資料フォルダ"
                 aria-invalid={Boolean(errors.contextDir)}
               />
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="md"
                 onClick={onChooseContextDirectory}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink hover:border-primary/45 hover:text-primary"
               >
-                <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                <FolderOpen className="size-4" aria-hidden="true" />
                 選ぶ
-              </button>
+              </Button>
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-ink-muted">
-              空欄にすると標準のフォルダへ戻ります。資料そのものは自動で外部へ公開されません。
+              空欄にすると標準のフォルダへ戻ります。
             </p>
           </FieldRow>
         </div>
@@ -263,10 +285,13 @@ export function PrivacySettingsPanel({
 
       <SettingsSection
         title="録音の整理"
-        description="自動では削除されません。条件を保存しても、下の確認と削除を実行するまで録音と会議履歴は保持されます。"
+        description="古い録音を、条件を決めてまとめて削除できます。自動では削除しません。条件を入力し、対象を確認してから削除します。"
       >
         <div className="space-y-4">
-          <FieldRow label="この日より前に終了した会議">
+          <FieldRow
+            label="終了日で選ぶ"
+            hint="この日より前に終了した会議が対象です"
+          >
             <input
               type="date"
               value={form.recordingCleanupCutoffDate}
@@ -278,8 +303,8 @@ export function PrivacySettingsPanel({
             />
           </FieldRow>
           <FieldRow
-            label="録音の最大合計容量"
-            hint="超えた分は、終了済み会議を古い順に削除します。0 は無効です。"
+            label="合計容量で選ぶ"
+            hint="録音の合計がこの容量を超えた分を、古い会議から対象にします。空欄は無効です"
           >
             <div className="flex items-center gap-2">
               <input
@@ -300,12 +325,9 @@ export function PrivacySettingsPanel({
               <span className="text-xs font-medium text-ink-faint">MB</span>
             </div>
           </FieldRow>
-          <div className="rounded-xl border border-warning/20 bg-warning-soft p-3 text-xs text-warning">
-            <p className="font-semibold">終了済みの会議だけが対象です</p>
-            <p className="mt-1 leading-relaxed">
-              進行中の会議は削除しません。削除すると録音ファイルと会議履歴が一緒に完全に削除されます。
-            </p>
-          </div>
+          <p className="text-xs leading-relaxed text-ink-muted">
+            対象は終了済みの会議だけです。削除すると、録音と会議の履歴がまとめて完全に削除され、元に戻せません。
+          </p>
           {cleanupPreview && (
             <div
               className="rounded-xl border border-line bg-surface-muted p-3 text-xs text-ink-muted"
@@ -334,26 +356,26 @@ export function PrivacySettingsPanel({
             </p>
           )}
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => {
                 void previewCleanup();
               }}
               disabled={cleanupPending}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink-muted hover:border-primary/45 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
               削除対象を確認
-            </button>
+            </Button>
             {cleanupPreview && cleanupPreview.delete_count > 0 && (
-              <button
-                type="button"
+              <Button
+                variant="danger"
+                size="sm"
                 onClick={() => setCleanupConfirmationOpen(true)}
                 disabled={cleanupPending}
-                className="rounded-lg border border-danger bg-danger px-3 py-2 text-xs font-semibold text-white hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
+                <Trash2 className="size-4" aria-hidden="true" />
                 {cleanupPreview.delete_count}件を削除する
-              </button>
+              </Button>
             )}
           </div>
         </div>

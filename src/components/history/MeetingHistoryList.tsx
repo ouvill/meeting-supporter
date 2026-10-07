@@ -1,12 +1,6 @@
 import type { MeetingListItem } from "../../api/generated/types.gen";
-import {
-  ArrowRight,
-  CalendarDays,
-  Clock3,
-  History,
-  Mic2,
-  RefreshCw,
-} from "lucide-react";
+import { History, Mic2, Plus, RefreshCw } from "lucide-react";
+import { Button } from "../ui/Button";
 
 interface Props {
   meetings: MeetingListItem[];
@@ -23,14 +17,29 @@ interface Props {
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-function formatDate(iso: string): string {
+const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function formatDay(iso: string, now: Date): string {
   const d = new Date(iso);
-  const y = d.getFullYear();
-  const mo = d.getMonth() + 1;
-  const da = d.getDate();
-  const h = d.getHours().toString().padStart(2, "0");
-  const mi = d.getMinutes().toString().padStart(2, "0");
-  return `${y}年${mo}月${da}日 ${h}:${mi}`;
+  if (Number.isNaN(d.getTime())) return "日付不明";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (dayKey(d) === dayKey(now)) return "今日";
+  if (dayKey(d) === dayKey(yesterday)) return "昨日";
+  const day = `${d.getMonth() + 1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
+  return d.getFullYear() === now.getFullYear()
+    ? day
+    : `${d.getFullYear()}年${day}`;
+}
+
+function formatClock(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "--:--";
+  return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -40,26 +49,19 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${m}分`;
 }
 
-function statusLabel(status: string): string {
-  switch (status) {
-    case "completed":
-      return "完了";
-    case "aborted":
-      return "中断";
-    default:
-      return "記録済み";
+/** Keeps the API order and starts a new group whenever the day changes. */
+function groupByDay(
+  meetings: MeetingListItem[],
+  now: Date,
+): Array<{ label: string; meetings: MeetingListItem[] }> {
+  const groups: Array<{ label: string; meetings: MeetingListItem[] }> = [];
+  for (const meeting of meetings) {
+    const label = formatDay(meeting.started_at, now);
+    const last = groups[groups.length - 1];
+    if (last?.label === label) last.meetings.push(meeting);
+    else groups.push({ label, meetings: [meeting] });
   }
-}
-
-function statusColor(status: string): string {
-  switch (status) {
-    case "completed":
-      return "bg-positive-soft text-positive";
-    case "aborted":
-      return "bg-warning-soft text-warning";
-    default:
-      return "bg-surface-muted text-ink-muted";
-  }
+  return groups;
 }
 
 // ── Component ────────────────────────────────────────────────────
@@ -81,15 +83,12 @@ export function MeetingHistoryList({
       <section
         aria-label="会議履歴を読み込み中"
         aria-busy="true"
-        className="space-y-3 p-4"
+        className="space-y-1 p-3"
       >
         <span className="sr-only">会議履歴を読み込んでいます</span>
         {Array.from({ length: 5 }).map((_, index) => (
-          <div
-            key={index}
-            className="rounded-xl border border-line bg-surface p-4"
-          >
-            <div className="skeleton mb-3 h-4 w-3/4" />
+          <div key={index} className="px-3 py-2.5">
+            <div className="skeleton mb-2.5 h-4 w-3/4" />
             <div className="skeleton h-3 w-1/2" />
           </div>
         ))}
@@ -113,14 +112,10 @@ export function MeetingHistoryList({
           {error}
         </p>
         {onRetry && (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover"
-          >
+          <Button variant="secondary" onClick={onRetry} className="mt-5">
             <RefreshCw aria-hidden="true" className="size-4" />
             もう一度読み込む
-          </button>
+          </Button>
         )}
       </section>
     );
@@ -129,9 +124,7 @@ export function MeetingHistoryList({
   if (meetings.length === 0) {
     return (
       <section className="flex min-h-72 flex-col items-center justify-center px-8 py-12 text-center">
-        <div className="mb-4 flex size-12 items-center justify-center rounded-full border border-line bg-surface text-primary">
-          <History aria-hidden="true" className="size-5" />
-        </div>
+        <History aria-hidden="true" className="mb-3 size-6 text-ink-faint" />
         <h2 className="text-base font-semibold text-ink">
           会議履歴がありません
         </h2>
@@ -139,18 +132,16 @@ export function MeetingHistoryList({
           会議を終えると、会話と返答案をここでふりかえれます。
         </p>
         {onEmptyAction && (
-          <button
-            type="button"
-            onClick={onEmptyAction}
-            className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-full border border-line-strong bg-surface px-4 py-2 text-xs font-semibold text-ink transition-colors hover:border-primary hover:text-primary"
-          >
-            会議画面へ戻る
-            <ArrowRight aria-hidden="true" className="size-4" />
-          </button>
+          <Button variant="primary" onClick={onEmptyAction} className="mt-5">
+            <Plus aria-hidden="true" className="size-4" />
+            新しい会議を始める
+          </Button>
         )}
       </section>
     );
   }
+
+  const groups = groupByDay(meetings, new Date());
 
   return (
     <div className="min-w-0 p-3">
@@ -172,62 +163,65 @@ export function MeetingHistoryList({
           )}
         </div>
       )}
-      <ul className="space-y-2" aria-label="会議履歴">
-        {meetings.map((meeting) => {
-          const isSelected = meeting.id === selectedId;
-          return (
-            <li key={meeting.id}>
-              <button
-                type="button"
-                data-meeting-id={meeting.id}
-                onClick={() => onSelect(meeting.id)}
-                className={`w-full min-w-0 rounded-lg px-4 py-3.5 text-left transition-colors ${
-                  isSelected ? "bg-primary-soft" : "hover:bg-surface"
-                }`}
-                {...(isSelected ? { "aria-current": "page" as const } : {})}
-              >
-                <span className="block truncate text-sm font-semibold text-ink">
-                  {meeting.title || "タイトル未設定"}
-                </span>
-
-                <span className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted">
-                  <span className="inline-flex min-w-0 items-center gap-1.5">
-                    <CalendarDays
-                      aria-hidden="true"
-                      className="size-3.5 shrink-0"
-                    />
-                    <span className="truncate">
-                      {formatDate(meeting.started_at)}
-                    </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Clock3 aria-hidden="true" className="size-3.5 shrink-0" />
-                    {formatDuration(meeting.duration_seconds)}
-                  </span>
-                </span>
-
-                <span className="mt-2.5 flex items-center gap-2">
-                  <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${statusColor(meeting.status)}`}
-                  >
-                    {statusLabel(meeting.status)}
-                  </span>
-                  {meeting.has_recording && (
-                    <span
-                      className="inline-flex items-center gap-1 text-xs font-medium text-primary"
-                      aria-label="録音ファイルあり"
-                      title="録音ファイルあり"
+      <div className="space-y-4">
+        {groups.map((group) => (
+          <section key={`${group.label}-${group.meetings[0].id}`}>
+            <h2 className="px-3 pb-1 text-xs font-bold text-ink-muted">
+              {group.label}
+            </h2>
+            <ul className="space-y-0.5" aria-label={`${group.label}の会議`}>
+              {group.meetings.map((meeting) => {
+                const isSelected = meeting.id === selectedId;
+                return (
+                  <li key={meeting.id}>
+                    <button
+                      type="button"
+                      data-meeting-id={meeting.id}
+                      onClick={() => onSelect(meeting.id)}
+                      className={`w-full min-w-0 rounded-lg px-3 py-2.5 text-left transition-colors motion-reduce:transition-none ${
+                        isSelected
+                          ? "bg-surface shadow-card"
+                          : "hover:bg-surface-muted"
+                      }`}
+                      {...(isSelected
+                        ? { "aria-current": "page" as const }
+                        : {})}
                     >
-                      <Mic2 aria-hidden="true" className="size-3.5" />
-                      録音
-                    </span>
-                  )}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+                      <span className="block truncate text-sm font-semibold text-ink">
+                        {meeting.title || "タイトル未設定"}
+                      </span>
+                      <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+                        <span className="tabular-nums">
+                          {formatClock(meeting.started_at)}
+                        </span>
+                        <span aria-hidden="true" className="text-ink-faint">
+                          ·
+                        </span>
+                        <span>{formatDuration(meeting.duration_seconds)}</span>
+                        {meeting.has_recording && (
+                          <span
+                            className="inline-flex items-center gap-1"
+                            aria-label="録音ファイルあり"
+                            title="録音ファイルあり"
+                          >
+                            <Mic2 aria-hidden="true" className="size-3.5" />
+                            録音
+                          </span>
+                        )}
+                        {meeting.status === "aborted" && (
+                          <span className="inline-flex rounded-full bg-warning-soft px-1.5 py-0.5 font-semibold text-warning">
+                            中断
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
 
       {hasMore && (
         <div className="pt-3">
@@ -235,7 +229,7 @@ export function MeetingHistoryList({
             type="button"
             onClick={onLoadMore}
             disabled={loadingMore}
-            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink-muted transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
           >
             {loadingMore && (
               <RefreshCw

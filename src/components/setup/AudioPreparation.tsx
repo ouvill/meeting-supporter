@@ -76,10 +76,10 @@ export function SystemAudioTestControl() {
   }
 
   return (
-    <div className="pb-4 sm:pl-47">
+    <div className="-mt-1 pb-2.5 sm:pl-40">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="mt-0.5 text-xs leading-5 text-ink-muted">
+          <p className="text-xs leading-5 text-ink-faint">
             この端末の既定の出力から短い音を流します。
           </p>
         </div>
@@ -88,7 +88,7 @@ export function SystemAudioTestControl() {
           size="sm"
           onClick={() => void playTestSound()}
           disabled={status === "playing"}
-          className="shrink-0"
+          className="-mr-2 shrink-0"
         >
           <Volume2 aria-hidden="true" className="size-3.5" />
           {status === "playing" ? "再生中…" : "テスト音を再生"}

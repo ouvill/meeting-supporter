@@ -29,7 +29,9 @@ tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-wdio = { version = "1.2.0", optional = true }
-tauri-plugin-wdio-webdriver = { version = "1.2.0", optional = true }
+# Published 1.4.0 still uses incompatible Windows bindings with Tauri 2.12.
+# Pin the upstream fix until it is released: https://github.com/webdriverio/desktop-mobile/pull/687
+tauri-plugin-wdio-webdriver = { git = "https://github.com/webdriverio/desktop-mobile", rev = "e4bdb66ec5b1d96b7fd766d70370a8e8361e0459", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rand = "0.8"

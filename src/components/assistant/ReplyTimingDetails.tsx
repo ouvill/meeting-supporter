@@ -18,7 +18,7 @@ export function ReplyTimingDetails({
     ["文字開始 → 一文目", timing.sentenceStreamingMs],
   ] as const;
   return (
-    <details className="shrink-0 px-5 pb-3 text-xs text-ink-muted">
+    <details className="shrink-0 px-1 text-xs text-ink-faint">
       <summary className="cursor-pointer py-1">
         応答時間の内訳（開発用）
       </summary>

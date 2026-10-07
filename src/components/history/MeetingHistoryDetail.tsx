@@ -1,18 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, DialogClose, DialogContent } from "../ui/Dialog";
 import { Tooltip } from "../ui/Tooltip";
-import {
-  AlertCircle,
-  CalendarDays,
-  Check,
-  Clock3,
-  MessageSquareReply,
-  Mic2,
-  Pencil,
-  RefreshCw,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Check, Pencil, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
+import { Button } from "../ui/Button";
+import { InlineNotice } from "../ui/InlineNotice";
 import type {
   MeetingDetail,
   ReplySuggestionItem,
@@ -49,28 +40,6 @@ function formatDuration(seconds: number | null | undefined): string {
   const s = Math.floor(seconds % 60);
   if (m < 1) return `${s}秒`;
   return `${m}分${s}秒`;
-}
-
-function statusLabel(status: string): string {
-  switch (status) {
-    case "completed":
-      return "完了";
-    case "aborted":
-      return "中断";
-    default:
-      return "記録済み";
-  }
-}
-
-function statusColor(status: string): string {
-  switch (status) {
-    case "completed":
-      return "bg-positive-soft text-positive";
-    case "aborted":
-      return "bg-warning-soft text-warning";
-    default:
-      return "bg-surface-muted text-ink-muted";
-  }
 }
 
 function formatRelativeTime(
@@ -195,7 +164,7 @@ function InlineTitleEditor({
       <h2
         ref={headingRef}
         tabIndex={-1}
-        className="min-w-0 break-words font-display text-xl font-semibold leading-tight text-ink"
+        className="min-w-0 break-words font-display text-[22px] font-bold leading-tight tracking-tight text-ink outline-none"
         onClick={startEditing}
       >
         {displayTitle}
@@ -309,7 +278,7 @@ function CueCards({
   if (suggestions.length === 0) return null;
 
   return (
-    <div className="mt-3 space-y-2 border-l-2 border-cue-soft pl-3">
+    <div className="mt-1.5 w-full max-w-[88%] space-y-1.5 self-start">
       {suggestions.map((suggestion) => {
         const relativeTime = formatRelativeTime(
           suggestion.created_at,
@@ -318,23 +287,26 @@ function CueCards({
         return (
           <article
             key={suggestion.id}
-            className="rounded-xl border border-cue/25 bg-cue-soft/55 p-3"
+            className="rounded-xl border border-primary/25 bg-surface px-3.5 py-2.5"
           >
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-[0.14em] text-cue">
-                <MessageSquareReply aria-hidden="true" className="size-3.5" />
+            <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+              <span className="inline-flex items-center gap-1.5 font-bold text-primary">
+                <Sparkles aria-hidden="true" className="size-3" />
                 返答案
               </span>
-              <span className="flex items-center gap-2 text-xs text-ink-muted">
-                <span>スタイル: {suggestion.agent_label}</span>
-                {relativeTime && (
-                  <time dateTime={suggestion.created_at ?? undefined}>
-                    {relativeTime}
-                  </time>
-                )}
+              <span className="text-ink-muted">
+                スタイル: {suggestion.agent_label}
               </span>
+              {relativeTime && (
+                <time
+                  dateTime={suggestion.created_at ?? undefined}
+                  className="ml-auto tabular-nums text-ink-faint"
+                >
+                  {relativeTime}
+                </time>
+              )}
             </div>
-            <p className="whitespace-pre-wrap text-sm font-medium leading-6 text-ink">
+            <p className="whitespace-pre-wrap text-sm leading-6 text-ink">
               {suggestion.text}
             </p>
           </article>
@@ -374,15 +346,11 @@ function ConversationTimeline({
 
   if (orderedTurns.length === 0 && orderedSuggestions.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-line-strong bg-surface px-5 py-10 text-center">
-        <MessageSquareReply
-          aria-hidden="true"
-          className="mx-auto size-5 text-ink-faint"
-        />
-        <p className="mt-3 text-sm font-semibold text-ink">
+      <div className="py-8 text-center">
+        <p className="text-sm font-semibold text-ink-muted">
           会話の記録はありません
         </p>
-        <p className="mt-1 text-xs text-ink-muted">
+        <p className="mt-1 text-xs text-ink-faint">
           音声が認識されると、発言と返答案がここに並びます。
         </p>
       </div>
@@ -390,51 +358,55 @@ function ConversationTimeline({
   }
 
   return (
-    <ol className="space-y-1" aria-label="会話と返答案の時間軸">
+    <ol className="flex flex-col" aria-label="会話と返答案の時間軸">
       {orderedTurns.map((turn, index) => {
         const isOther = turn.speaker === "other";
         const relativeTime = formatRelativeTime(turn.created_at, startedAt);
         const cueCards = suggestionsByTurn.get(turn.id) ?? [];
+        const previous = orderedTurns[index - 1];
+        // A reply shown under the previous turn breaks the run of one speaker.
+        const continued =
+          previous?.speaker === turn.speaker &&
+          !suggestionsByTurn.has(previous.id);
         return (
           <li
             key={turn.id}
-            className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] gap-3"
+            className={`flex min-w-0 flex-col ${isOther ? "items-start" : "items-end"} ${index === 0 ? "" : continued ? "mt-1" : "mt-4"}`}
           >
-            <div className="pt-1 text-right text-xs tabular-nums text-ink-faint">
+            <div
+              className={`mb-1 flex items-baseline gap-2 px-1 text-xs ${continued ? "sr-only" : ""}`}
+            >
+              <span
+                className={`font-bold ${isOther ? "text-ink-muted" : "text-primary"}`}
+              >
+                {isOther ? "相手" : "自分"}
+              </span>
               {relativeTime ? (
-                <time dateTime={turn.created_at ?? undefined}>
+                <time
+                  dateTime={turn.created_at ?? undefined}
+                  className="tabular-nums text-ink-faint"
+                >
                   {relativeTime}
                 </time>
               ) : (
-                <span aria-label={`${index + 1}番目の発言`}>
-                  {String(index + 1).padStart(2, "0")}
-                </span>
+                <span className="sr-only">{index + 1}番目の発言</span>
               )}
             </div>
-            <div className="relative min-w-0 border-l border-line pb-5 pl-4">
-              <span
-                className={`absolute -left-[5px] top-1.5 size-2.5 rounded-full border-2 border-surface ${isOther ? "bg-cue" : "bg-positive"}`}
-              />
-              <div
-                className={`mb-1 text-xs font-semibold ${isOther ? "text-cue" : "text-positive"}`}
-              >
-                {isOther ? "相手" : "自分"}
-              </div>
-              <div className="py-2 text-sm leading-7 text-ink">{turn.text}</div>
-              <CueCards suggestions={cueCards} startedAt={startedAt} />
+            <div
+              className={`max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm leading-6 text-ink ${isOther ? "rounded-tl-md bg-surface-muted" : "rounded-tr-md bg-primary-soft"}`}
+            >
+              {turn.text}
             </div>
+            <CueCards suggestions={cueCards} startedAt={startedAt} />
           </li>
         );
       })}
       {unlinkedSuggestions.length > 0 && (
-        <li className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] gap-3">
-          <div />
-          <div className="min-w-0 border-l border-line pb-2 pl-4">
-            <p className="mb-2 text-xs font-semibold text-ink-muted">
-              保存された返答案
-            </p>
-            <CueCards suggestions={unlinkedSuggestions} startedAt={startedAt} />
-          </div>
+        <li className="mt-4 flex min-w-0 flex-col">
+          <p className="mb-1 px-1 text-xs font-bold text-ink-muted">
+            保存された返答案
+          </p>
+          <CueCards suggestions={unlinkedSuggestions} startedAt={startedAt} />
         </li>
       )}
     </ol>
@@ -444,17 +416,11 @@ function ConversationTimeline({
 function MinutesSection({ meeting }: { meeting: MeetingDetail }) {
   if (!meeting.minutes) return null;
   return (
-    <section
-      aria-labelledby="minutes-heading"
-      className="border-b border-line bg-surface py-5"
-    >
-      <h3
-        id="minutes-heading"
-        className="font-display text-lg font-semibold text-ink"
-      >
+    <section aria-labelledby="minutes-heading">
+      <h3 id="minutes-heading" className="text-sm font-bold text-ink">
         保存済みの議事録
       </h3>
-      <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-ink">
+      <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-ink">
         {meeting.minutes}
       </div>
     </section>
@@ -484,14 +450,11 @@ export function MeetingHistoryDetail({
       <div
         aria-label="会議の内容を読み込み中"
         aria-busy="true"
-        className="space-y-4 p-6"
+        className="mx-auto w-full max-w-3xl space-y-6 px-6 py-8 sm:px-10"
       >
         <span className="sr-only">会議の内容を読み込んでいます</span>
         {Array.from({ length: 5 }).map((_, index) => (
-          <div
-            key={index}
-            className="rounded-xl border border-line bg-surface p-4"
-          >
+          <div key={index}>
             <div className="skeleton mb-3 h-4 w-1/2" />
             <div className="skeleton h-3 w-full" />
           </div>
@@ -501,8 +464,8 @@ export function MeetingHistoryDetail({
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl min-w-0 space-y-5 p-4 sm:p-6">
-      <header className="border-b border-line bg-surface py-5">
+    <div className="mx-auto w-full min-w-0 max-w-3xl space-y-7 px-6 pb-10 pt-6 sm:px-10">
+      <header>
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <InlineTitleEditor
@@ -511,20 +474,17 @@ export function MeetingHistoryDetail({
               onSave={onUpdateTitle}
               saving={saving}
             />
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-muted">
-              <span className="inline-flex items-center gap-1.5">
-                <CalendarDays aria-hidden="true" className="size-3.5" />
-                {formatDate(meeting.started_at)}
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-ink-muted">
+              <span>{formatDate(meeting.started_at)}</span>
+              <span aria-hidden="true" className="text-ink-faint">
+                ·
               </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Clock3 aria-hidden="true" className="size-3.5" />
-                {formatDuration(meeting.duration_seconds)}
-              </span>
-              <span
-                className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${statusColor(meeting.status)}`}
-              >
-                {statusLabel(meeting.status)}
-              </span>
+              <span>{formatDuration(meeting.duration_seconds)}</span>
+              {meeting.status === "aborted" && (
+                <span className="inline-flex rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning">
+                  中断
+                </span>
+              )}
             </div>
           </div>
           <Tooltip content="会議を削除">
@@ -532,7 +492,7 @@ export function MeetingHistoryDetail({
               ref={deleteButtonRef}
               type="button"
               onClick={() => setDeleteOpen(true)}
-              className="flex size-9 shrink-0 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-danger-soft hover:text-danger"
+              className="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-danger-soft hover:text-danger motion-reduce:transition-none"
               aria-label="削除"
             >
               <Trash2 aria-hidden="true" className="size-4" />
@@ -542,13 +502,10 @@ export function MeetingHistoryDetail({
       </header>
 
       {meeting.status === "aborted" && (
-        <div
-          role="status"
-          className="rounded-xl border border-warning/25 bg-warning-soft px-4 py-3 text-sm text-ink"
-        >
+        <InlineNotice tone="warning">
           この会議は正常に終了しませんでした。保存できた記録を表示しています。
           文字起こしや録音が欠けている可能性があります。
-        </div>
+        </InlineNotice>
       )}
 
       <DeleteDialog
@@ -563,39 +520,42 @@ export function MeetingHistoryDetail({
       />
 
       {error && (
-        <div
-          role="alert"
-          className="flex min-w-0 flex-wrap items-center gap-3 rounded-xl border border-danger/25 bg-danger-soft px-4 py-3 text-xs text-danger"
+        <InlineNotice
+          tone="danger"
+          action={
+            onRetry && (
+              <Button variant="secondary" size="sm" onClick={onRetry}>
+                <RefreshCw aria-hidden="true" className="size-3.5" />
+                表示を更新
+              </Button>
+            )
+          }
         >
-          <AlertCircle aria-hidden="true" className="size-4 shrink-0" />
-          <p className="min-w-0 flex-1 leading-5">{error}</p>
-          {onRetry && (
-            <button
-              type="button"
-              onClick={onRetry}
-              className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-danger/30 bg-surface px-3 py-1.5 font-semibold transition-colors hover:border-danger"
-            >
-              <RefreshCw aria-hidden="true" className="size-3.5" />
-              表示を更新
-            </button>
-          )}
-        </div>
+          {error}
+        </InlineNotice>
       )}
 
+      <section aria-labelledby="recording-heading">
+        <h3
+          id="recording-heading"
+          className="mb-2.5 text-sm font-bold text-ink"
+        >
+          録音
+        </h3>
+        <RecordingPlayer meetingId={meeting.id} recordings={recordingAssets} />
+      </section>
+
       <section aria-labelledby="conversation-timeline-heading">
-        <div className="mb-3 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold tracking-[0.14em] text-primary">
-              REVIEW
-            </p>
-            <h3
-              id="conversation-timeline-heading"
-              className="font-display text-lg font-semibold text-ink"
-            >
-              会話と返答案
-            </h3>
-          </div>
-          <span className="text-xs text-ink-faint">開始からの流れ</span>
+        <div className="mb-3 flex items-baseline justify-between gap-4">
+          <h3
+            id="conversation-timeline-heading"
+            className="text-sm font-bold text-ink"
+          >
+            会話と返答案
+          </h3>
+          <span className="text-xs text-ink-faint">
+            時刻は会議開始からの経過
+          </span>
         </div>
         <ConversationTimeline
           turns={turns}
@@ -605,19 +565,6 @@ export function MeetingHistoryDetail({
       </section>
 
       <MinutesSection meeting={meeting} />
-
-      <section aria-labelledby="recording-heading">
-        <div className="mb-3 flex items-center gap-2">
-          <Mic2 aria-hidden="true" className="size-4 text-primary" />
-          <h3
-            id="recording-heading"
-            className="font-display text-lg font-semibold text-ink"
-          >
-            録音を聴く
-          </h3>
-        </div>
-        <RecordingPlayer meetingId={meeting.id} recordings={recordingAssets} />
-      </section>
     </div>
   );
 }

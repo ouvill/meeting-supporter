@@ -5,9 +5,14 @@ import { Tooltip } from "../ui/Tooltip";
 
 interface AlwaysOnTopControlProps {
   controller: AlwaysOnTopController;
+  /** Keeps the status text for assistive technology and the tooltip only. */
+  compact?: boolean;
 }
 
-export function AlwaysOnTopControl({ controller }: AlwaysOnTopControlProps) {
+export function AlwaysOnTopControl({
+  controller,
+  compact = false,
+}: AlwaysOnTopControlProps) {
   const { actual, busy, issue, statusMessage, retry, toggle } = controller;
   const known = actual !== "unknown";
   const enabled = actual === "on";
@@ -24,7 +29,11 @@ export function AlwaysOnTopControl({ controller }: AlwaysOnTopControlProps) {
     <div className="flex min-w-0 items-center gap-1.5">
       {statusMessage && (
         <span
-          className={`hidden max-w-52 truncate text-xs sm:inline ${issue ? "text-warning" : "text-ink-muted"}`}
+          className={
+            compact
+              ? "sr-only"
+              : `hidden max-w-52 truncate text-xs sm:inline ${issue ? "text-warning" : "text-ink-muted"}`
+          }
           role="status"
           title={statusMessage}
         >
@@ -45,6 +54,7 @@ export function AlwaysOnTopControl({ controller }: AlwaysOnTopControlProps) {
           aria-busy={busy || undefined}
           disabled={busy}
           onClick={() => void (known ? toggle() : retry())}
+          className={compact && issue ? "text-warning" : undefined}
         >
           {busy ? (
             <LoaderCircle

@@ -178,19 +178,31 @@ button {
   min-height: 0;
 }
 
+.app-sidebar {
+  width: 13rem;
+}
+
 @container app-shell (max-width: 759px) {
-  .product-bar {
-    gap: 6px;
-    padding-inline: 12px;
+  .app-sidebar {
+    width: 3.5rem;
+    padding-inline: 8px;
   }
-  .product-bar__brand {
-    padding-right: 8px;
+  .app-sidebar__brand,
+  .app-sidebar__item {
+    justify-content: center;
+    padding-inline: 0;
   }
-  .product-bar__status {
-    display: none;
+  .app-sidebar__footer {
+    flex-direction: column;
+    padding-left: 0;
   }
-  .product-bar__nav-label {
-    font-size: 12px;
+  .app-sidebar__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 

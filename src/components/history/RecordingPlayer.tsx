@@ -281,25 +281,22 @@ export function RecordingPlayer({ meetingId, recordings }: Props) {
 
   if (!hasAnyRecording) {
     return (
-      <div className="rounded-xl border border-dashed border-line-strong bg-surface px-5 py-8 text-center">
-        <Headphones
-          aria-hidden="true"
-          className="mx-auto size-5 text-ink-faint"
-        />
-        <p className="mt-3 text-sm font-semibold text-ink">
-          録音ファイルはありません
-        </p>
-        <p className="mt-1 text-xs text-ink-muted">
-          この会議では録音が保存されていません。
-        </p>
-      </div>
+      <p className="flex items-center gap-2 text-sm text-ink-muted">
+        <Headphones aria-hidden="true" className="size-4 text-ink-faint" />
+        <span>
+          <span className="font-semibold">録音ファイルはありません</span>
+          <span className="ml-2 text-xs">
+            この会議では録音が保存されていません。
+          </span>
+        </span>
+      </p>
     );
   }
 
   const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
   return (
-    <div className="min-w-0 space-y-4 border-b border-line bg-surface py-5">
+    <div className="min-w-0 space-y-4 rounded-xl border border-line bg-surface p-4">
       {otherAsset && (
         <audio
           ref={otherRef}

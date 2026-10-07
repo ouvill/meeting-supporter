@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
-import { CircleAlert } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { CircleAlert, X } from "lucide-react";
 import type { AiRoutesController } from "../hooks/useAiRoutes";
 import type { SendFn, SocketState } from "../types";
 import { AudioInputs } from "./setup/AudioInputs";
 import { AgentModelControl } from "./settings/AgentModelControl";
-import { AiSettingsTabs, type AiSettingsTab } from "./settings/AiSettingsTabs";
 import { Dialog, DialogContent } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { AiModelSettings } from "./settings/AiModelSettings";
@@ -14,7 +13,9 @@ import { PrivacySettingsPanel } from "./settings/PrivacySettingsPanel";
 import {
   SettingsNavigation,
   SettingsPage,
+  type SettingsView,
 } from "./settings/SettingsPrimitives";
+import { Tooltip } from "./ui/Tooltip";
 import type { ConnectionProvider } from "./settings/ApiConnectionControl";
 import { SupportMethodPanel } from "./settings/SupportMethodPanel";
 import type { SettingsCategory } from "./settings/types";
@@ -28,11 +29,17 @@ interface Props {
   state?: SocketState;
   send?: SendFn;
   initialSection?: "reply" | "speech";
+  /** Changes when something outside asks to leave settings, e.g. the sidebar. */
+  closeRequestToken?: number;
+  /** The user chose to stay after a close request found unsaved changes. */
+  onCloseCancelled?: () => void;
 }
 
+type AiSettingsTab = "reply" | "speech";
+
 const CATEGORY_LABELS: Record<SettingsCategory, string> = {
-  support: "AIと音声認識",
-  audio: "音声入力",
+  support: "返答案・文字起こし",
+  audio: "マイクと音声",
   privacy: "データと保存",
   about: "このアプリについて",
 };
@@ -45,7 +52,22 @@ export function SettingsModal({
   state,
   send,
   initialSection = "reply",
+  closeRequestToken,
+  onCloseCancelled,
 }: Props) {
+  const titleId = useId();
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const restoreFocusRef = useRef(restoreFocusTo);
+  restoreFocusRef.current = restoreFocusTo;
+  useEffect(() => {
+    titleRef.current?.focus();
+    return () => {
+      // Leaving through another control keeps the focus where the user put it.
+      const target = restoreFocusRef.current;
+      if (document.activeElement === document.body && target?.isConnected)
+        target.focus();
+    };
+  }, []);
   const controller = useSettingsForm({ routes, audioSettingsLocked });
   const {
     form,
@@ -108,6 +130,27 @@ export function SettingsModal({
     setDiscardConfirmationOpen(true);
   };
 
+  const requestCloseRef = useRef(requestClose);
+  requestCloseRef.current = requestClose;
+  const handledCloseRequestRef = useRef(closeRequestToken);
+  useEffect(() => {
+    if (handledCloseRequestRef.current === closeRequestToken) return;
+    handledCloseRequestRef.current = closeRequestToken;
+    requestCloseRef.current();
+  }, [closeRequestToken]);
+
+  const view: SettingsView =
+    activeCategory === "support" ? activeTab : activeCategory;
+  const selectView = (next: SettingsView) => {
+    if (next === "reply" || next === "speech") {
+      setActiveCategory("support");
+      setActiveTab(next);
+    } else {
+      setActiveCategory(next);
+    }
+    clearSaveMessage();
+  };
+
   const discardAndClose = () => {
     discardChanges();
     setDiscardConfirmationOpen(false);
@@ -117,68 +160,72 @@ export function SettingsModal({
   const currentSectionError =
     sectionError?.category === activeCategory ? sectionError.message : null;
   const summaryMessage = loadingError ?? sectionError?.message ?? null;
+  // Nothing to save, nothing to show: the bar appears with the first change.
+  const saveBarVisible =
+    dirty || busy || summaryMessage !== null || saveMessage !== null;
   return (
     <>
-      <Dialog
-        open={!discardConfirmationOpen}
-        onOpenChange={(open) => {
-          if (!open) requestClose();
+      <section
+        data-testid="settings-modal"
+        aria-labelledby={titleId}
+        className="absolute inset-0 z-20 flex min-h-0 flex-col bg-surface text-ink"
+        onKeyDown={(event) => {
+          if (event.key !== "Escape" || event.defaultPrevented) return;
+          event.preventDefault();
+          requestClose();
         }}
       >
-        <DialogContent
-          data-testid="settings-modal"
-          title="設定"
-          description="AI、音声入力、会議データを管理します"
-          closeLabel="設定を閉じる"
-          initialFocus="title"
-          bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            if (!discardConfirmationOpen && restoreFocusTo?.isConnected)
-              restoreFocusTo.focus();
-          }}
-          className="h-[calc(100vh_-_1rem)] max-h-[760px] max-w-5xl rounded-xl bg-surface md:h-[min(760px,92vh)]"
-        >
-          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-            <SettingsNavigation
-              active={activeCategory}
-              onChange={(category) => {
-                setActiveCategory(category);
-                clearSaveMessage();
-              }}
-            />
-            <main className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-9 md:py-8">
-              {currentSectionError && (
+        <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-line pl-6 pr-4 md:pl-9">
+          <h2
+            id={titleId}
+            ref={titleRef}
+            tabIndex={-1}
+            className="font-display text-lg font-bold text-ink outline-none focus-visible:shadow-none!"
+          >
+            設定
+          </h2>
+          <Tooltip content="設定を閉じる">
+            <Button
+              variant="quiet"
+              size="icon"
+              aria-label="設定を閉じる"
+              onClick={requestClose}
+            >
+              <X aria-hidden="true" className="size-4" />
+            </Button>
+          </Tooltip>
+        </header>
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          <SettingsNavigation active={view} onChange={selectView} />
+          <main className="min-h-0 flex-1 overflow-y-auto px-6 py-6 md:px-9 md:py-8">
+            {currentSectionError && (
+              <div
+                className="mx-auto mb-4 flex w-full max-w-3xl items-start gap-2 rounded-xl border border-danger/20 bg-danger-soft p-3 text-xs font-medium text-danger"
+                role="alert"
+              >
+                <CircleAlert
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  aria-hidden="true"
+                />
+                {currentSectionError}
+              </div>
+            )}
+            {activeCategory !== "about" && !loaded && !loadingError ? (
+              <div
+                className="flex h-48 items-center justify-center text-sm text-ink-muted"
+                role="status"
+              >
+                設定を読み込んでいます
+              </div>
+            ) : activeCategory === "support" ? (
+              <>
                 <div
-                  className="mx-auto mb-4 flex w-full max-w-3xl items-start gap-2 rounded-xl border border-danger/20 bg-danger-soft p-3 text-xs font-medium text-danger"
-                  role="alert"
+                  id="ai-settings-panel-reply"
+                  hidden={activeTab !== "reply"}
                 >
-                  <CircleAlert
-                    className="mt-0.5 h-4 w-4 shrink-0"
-                    aria-hidden="true"
-                  />
-                  {currentSectionError}
-                </div>
-              )}
-              {activeCategory !== "about" && !loaded && !loadingError ? (
-                <div
-                  className="flex h-48 items-center justify-center text-sm text-ink-muted"
-                  role="status"
-                >
-                  設定を読み込んでいます
-                </div>
-              ) : activeCategory === "support" ? (
-                <SettingsPage
-                  title="AIと音声認識"
-                  description="返答案と文字起こしに使うモデルを、ここでまとめて設定できます。"
-                >
-                  <AiSettingsTabs active={activeTab} onChange={setActiveTab} />
-                  <div
-                    className="[&>.settings-section]:border-0 [&>.settings-section]:pt-0"
-                    role="tabpanel"
-                    id="ai-settings-panel-reply"
-                    aria-labelledby="ai-settings-tab-reply"
-                    hidden={activeTab !== "reply"}
+                  <SettingsPage
+                    title="返答案"
+                    description="会議中、相手の発言への返答の案をAIが作ります。使うAIをここで選びます。"
                   >
                     <SupportMethodPanel
                       connectionRouteId={connectionRouteId}
@@ -237,13 +284,15 @@ export function SettingsModal({
                         ) : null
                       }
                     />
-                  </div>
-                  <div
-                    className="[&>.settings-section]:border-0 [&>.settings-section]:pt-0"
-                    role="tabpanel"
-                    id="ai-settings-panel-speech"
-                    aria-labelledby="ai-settings-tab-speech"
-                    hidden={activeTab !== "speech"}
+                  </SettingsPage>
+                </div>
+                <div
+                  id="ai-settings-panel-speech"
+                  hidden={activeTab !== "speech"}
+                >
+                  <SettingsPage
+                    title="文字起こし"
+                    description="会議の音声を文字にします。音声はこの端末の中で処理し、外部へ送りません。"
                   >
                     <AudioSettingsPanel
                       form={form}
@@ -253,47 +302,52 @@ export function SettingsModal({
                       audioSettingsLocked={audioSettingsLocked}
                       update={updateForm}
                     />
-                  </div>
-                </SettingsPage>
-              ) : activeCategory === "audio" ? (
-                <SettingsPage
-                  title="音声入力"
-                  description="音量バーが動くことを確認してください。入力の変更はすぐに反映されます。"
-                >
-                  {audioSettingsLocked && (
-                    <p className="text-sm text-ink-muted">
-                      会議中・準備中は音声入力を変更できません。
-                    </p>
-                  )}
-                  {state && send ? (
-                    <AudioInputs
-                      state={state}
-                      send={send}
-                      locked={audioSettingsLocked}
-                    />
-                  ) : (
-                    <p className="text-sm text-ink-muted">
-                      音声入力は会議前の画面で確認できます。
-                    </p>
-                  )}
-                </SettingsPage>
-              ) : activeCategory === "privacy" ? (
-                <PrivacySettingsPanel
-                  form={form}
-                  selectedRoute={selectedRoute}
-                  errors={fieldErrors}
-                  update={updateForm}
-                  onChooseContextDirectory={() => {
-                    void chooseContextDirectory();
-                  }}
-                />
-              ) : (
-                <AboutSettingsPanel />
-              )}
-            </main>
-          </div>
+                  </SettingsPage>
+                </div>
+              </>
+            ) : activeCategory === "audio" ? (
+              <SettingsPage
+                title="マイクと音声"
+                description="会議で使うマイクと、相手の声を拾う音声を選びます。話すか音を流して音量バーが動けば準備完了です。変更はすぐに反映されます。"
+              >
+                {audioSettingsLocked && (
+                  <p className="text-sm text-ink-muted">
+                    会議中・準備中は音声入力を変更できません。
+                  </p>
+                )}
+                {state && send ? (
+                  <AudioInputs
+                    state={state}
+                    send={send}
+                    locked={audioSettingsLocked}
+                  />
+                ) : (
+                  <p className="text-sm text-ink-muted">
+                    音声入力は会議前の画面で確認できます。
+                  </p>
+                )}
+              </SettingsPage>
+            ) : activeCategory === "privacy" ? (
+              <PrivacySettingsPanel
+                form={form}
+                selectedRoute={selectedRoute}
+                errors={fieldErrors}
+                update={updateForm}
+                onChooseContextDirectory={() => {
+                  void chooseContextDirectory();
+                }}
+              />
+            ) : (
+              <AboutSettingsPanel />
+            )}
+          </main>
+        </div>
 
-          <footer className="sticky bottom-0 z-10 flex shrink-0 items-center gap-3 border-t border-line bg-surface px-5 py-3.5">
+        {saveBarVisible && (
+          <footer
+            aria-label="設定の保存"
+            className="flex shrink-0 animate-slide-up items-center gap-3 border-t border-line bg-surface px-6 py-3.5 shadow-sticky md:px-9"
+          >
             <div className="min-w-0 flex-1">
               {summaryMessage ? (
                 <button
@@ -329,8 +383,8 @@ export function SettingsModal({
                   {saveMessage}
                 </p>
               ) : (
-                <p className="hidden text-xs text-ink-muted md:block">
-                  AI・文字起こしの設定は「保存」で反映します
+                <p className="text-sm font-medium text-ink" role="status">
+                  保存していない変更があります
                 </p>
               )}
             </div>
@@ -338,9 +392,7 @@ export function SettingsModal({
               <Button variant="quiet" size="sm" onClick={requestClose}>
                 閉じる
               </Button>
-              {(activeCategory === "support" ||
-                activeCategory === "privacy" ||
-                dirty) && (
+              {dirty && (
                 <Button
                   variant="primary"
                   size="sm"
@@ -355,12 +407,14 @@ export function SettingsModal({
               )}
             </div>
           </footer>
-        </DialogContent>
-      </Dialog>
+        )}
+      </section>
       <Dialog
         open={discardConfirmationOpen}
         onOpenChange={(open) => {
-          if (!open) setDiscardConfirmationOpen(false);
+          if (open) return;
+          setDiscardConfirmationOpen(false);
+          onCloseCancelled?.();
         }}
       >
         <DialogContent
@@ -375,7 +429,10 @@ export function SettingsModal({
               <Button
                 variant="quiet"
                 size="sm"
-                onClick={() => setDiscardConfirmationOpen(false)}
+                onClick={() => {
+                  setDiscardConfirmationOpen(false);
+                  onCloseCancelled?.();
+                }}
               >
                 設定に戻る
               </Button>

@@ -1,24 +1,33 @@
 import { cloneElement, isValidElement, useId, type ReactNode } from "react";
-import { AudioLines, Bot, Database, Info } from "lucide-react";
+import { Captions, Database, Info, Mic2, Sparkles } from "lucide-react";
 import type { SettingsCategory } from "./types";
 
-const CATEGORIES: Array<{
-  id: SettingsCategory;
+export type SettingsView = "reply" | "speech" | SettingsViewCategory;
+type SettingsViewCategory = Exclude<SettingsCategory, "support">;
+
+const VIEWS: Array<{
+  id: SettingsView;
   label: string;
   description: string;
-  icon: typeof Bot;
+  icon: typeof Info;
 }> = [
   {
-    id: "support",
-    label: "AIと音声認識",
-    description: "モデルと接続",
-    icon: Bot,
+    id: "reply",
+    label: "返答案",
+    description: "使うAIとモデル",
+    icon: Sparkles,
+  },
+  {
+    id: "speech",
+    label: "文字起こし",
+    description: "音声認識と会議の言語",
+    icon: Captions,
   },
   {
     id: "audio",
-    label: "音声入力",
-    description: "マイクと相手の音声",
-    icon: AudioLines,
+    label: "マイクと音声",
+    description: "入力の選択と音量の確認",
+    icon: Mic2,
   },
   {
     id: "privacy",
@@ -38,33 +47,36 @@ export function SettingsNavigation({
   active,
   onChange,
 }: {
-  active: SettingsCategory;
-  onChange: (category: SettingsCategory) => void;
+  active: SettingsView;
+  onChange: (view: SettingsView) => void;
 }) {
   return (
     <nav
       aria-label="設定カテゴリ"
-      className="grid shrink-0 grid-cols-2 gap-1 border-b border-line bg-paper p-3 md:flex md:w-52 md:flex-col md:border-b-0 md:border-r md:py-5"
+      className="grid shrink-0 grid-cols-2 gap-1 border-b border-line p-3 md:flex md:w-52 md:flex-col md:border-b-0 md:border-r md:px-3 md:py-6"
     >
-      {CATEGORIES.map(({ id, label, description, icon: Icon }) => {
+      {VIEWS.map(({ id, label, description, icon: Icon }) => {
         const selected = active === id;
         return (
           <button
             key={id}
+            id={`settings-nav-${id}`}
             type="button"
             aria-current={selected ? "page" : undefined}
             onClick={() => onChange(id)}
-            className={`group flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors ${selected ? "bg-primary-soft text-primary" : "text-ink-muted hover:bg-surface hover:text-ink"}`}
+            className={`group flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors motion-reduce:transition-none ${selected ? "bg-primary-soft text-primary" : "text-ink-muted hover:bg-surface-muted hover:text-ink"}`}
           >
             <Icon
               className={`h-4 w-4 shrink-0 ${selected ? "text-primary" : "text-ink-faint group-hover:text-ink-muted"}`}
               aria-hidden="true"
             />
             <span className="min-w-0">
-              <span className="block whitespace-nowrap text-sm font-medium">
+              <span className="block whitespace-nowrap text-sm font-semibold">
                 {label}
               </span>
-              <span className="mt-0.5 hidden text-xs leading-snug text-ink-muted md:block">
+              <span
+                className={`mt-0.5 hidden text-xs leading-snug md:block ${selected ? "text-primary" : "text-ink-muted"}`}
+              >
                 {description}
               </span>
             </span>
@@ -87,7 +99,7 @@ export function SettingsPage({
   return (
     <section
       data-settings-page={title}
-      className="mx-auto w-full max-w-3xl space-y-8"
+      className="mx-auto w-full max-w-3xl space-y-8 [&>header+.settings-section]:border-0 [&>header+.settings-section]:pt-0"
       aria-labelledby={`settings-${title}`}
     >
       <header>

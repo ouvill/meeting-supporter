@@ -6,7 +6,6 @@ import {
   Check,
   Clipboard,
   LoaderCircle,
-  MessageSquareQuote,
   RefreshCw,
   Settings,
   Sparkles,
@@ -59,6 +58,9 @@ const MODE_CHIPS: Array<{ label: string; mode: SuggestionMode }> = [
   { label: "時間をもらう", mode: "buy_time" },
 ];
 export const CANCEL_RESULT_TIMEOUT_MS = 10_000;
+const GENERATE_SHORTCUT = /Mac|iPhone|iPad/.test(navigator.platform)
+  ? "⌘ + Enter"
+  : "Ctrl + Enter";
 
 function findPrimarySuggestion(
   cards: SuggestionCard[],
@@ -401,57 +403,61 @@ function LiveReplySurface({
       )}
 
       <ContentRoot
-        className={`flex min-h-0 flex-1 flex-col overflow-hidden ${embedded ? "gap-3 p-0" : "gap-2.5 p-3"}`}
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden ${embedded ? "gap-3.5 p-0" : "gap-3 p-3"}`}
       >
-        {
-          <section
-            className="shrink-0"
-            aria-labelledby="latest-utterance-heading"
-          >
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <h2
-                id="latest-utterance-heading"
-                className="text-xs font-bold tracking-[0.12em] text-ink-muted"
-              >
-                直前の発言
-              </h2>
-              {latestLiveTurn && (
-                <span
-                  className={`text-xs font-bold ${latestLiveTurn.speaker === "other" ? "text-primary" : "text-positive"}`}
-                >
-                  {latestLiveTurn.speaker === "other" ? "相手" : "自分"}
-                  {latestLiveTurn.interim ? "・聞き取り中" : ""}
-                </span>
-              )}
-            </div>
-            <div
-              className="flex min-h-16 max-h-28 items-center overflow-y-auto border-l-2 border-line px-4 py-2"
-              aria-live="polite"
-              tabIndex={0}
+        <section
+          className="shrink-0"
+          aria-labelledby="latest-utterance-heading"
+        >
+          <div className="mb-1 flex items-baseline gap-2 px-1 text-xs">
+            <h2
+              id="latest-utterance-heading"
+              className="font-bold text-ink-muted"
             >
-              <p
-                className={`text-sm leading-6 ${latestLiveTurn ? "text-ink" : "text-ink-muted"}`}
+              直前の発言
+            </h2>
+            {latestLiveTurn && (
+              <span
+                className={`font-bold ${latestLiveTurn.speaker === "other" ? "text-ink" : "text-primary"}`}
               >
-                {latestLiveTurn?.text || "発言を待っています"}
-              </p>
-            </div>
-          </section>
-        }
+                {latestLiveTurn.speaker === "other" ? "相手" : "自分"}
+                {latestLiveTurn.interim ? "・聞き取り中" : ""}
+              </span>
+            )}
+          </div>
+          <div
+            className={`max-h-28 overflow-y-auto rounded-2xl rounded-tl-md px-3.5 py-2.5 ${
+              !latestLiveTurn || latestLiveTurn.interim
+                ? "border border-dashed border-line-strong bg-surface"
+                : latestLiveTurn.speaker === "other"
+                  ? "bg-surface-muted"
+                  : "bg-primary-soft"
+            }`}
+            aria-live="polite"
+            tabIndex={0}
+          >
+            <p
+              className={`whitespace-pre-wrap break-words text-sm leading-6 ${latestLiveTurn && !latestLiveTurn.interim ? "text-ink" : "text-ink-muted"}`}
+            >
+              {latestLiveTurn?.text || "発言を待っています"}
+            </p>
+          </div>
+        </section>
 
         <section
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-paper"
+          className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border ${
+            replyText
+              ? "border-primary/25 bg-primary-soft/35"
+              : "border-line bg-surface"
+          }`}
           aria-labelledby="cue-card-heading"
         >
-          <div className="flex shrink-0 items-center justify-between px-5 pb-2 pt-4">
-            <div className="flex items-center gap-2">
-              <MessageSquareQuote
-                aria-hidden="true"
-                size={15}
-                className="text-primary"
-              />
+          <div className="flex shrink-0 items-center justify-between px-4 pb-1 pt-3">
+            <div className="flex items-center gap-1.5">
+              <Sparkles aria-hidden="true" size={14} className="text-primary" />
               <h2
                 id="cue-card-heading"
-                className="font-display text-sm font-bold tracking-[0.08em] text-primary"
+                className="text-xs font-bold text-primary"
               >
                 返答の候補
               </h2>
@@ -471,7 +477,7 @@ function LiveReplySurface({
             )}
           </div>
           <div
-            className="min-h-0 flex-1 overflow-y-auto px-5 py-3"
+            className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1.5"
             aria-live="polite"
             aria-atomic="true"
             tabIndex={0}
@@ -486,16 +492,21 @@ function LiveReplySurface({
               </p>
             ) : state.isGeneratingReply ? (
               <div className="space-y-2.5 py-1" aria-label="返答案を作成中">
-                <div className="h-3 w-11/12 animate-pulse rounded bg-cue-soft motion-reduce:animate-none" />
-                <div className="h-3 w-4/5 animate-pulse rounded bg-cue-soft motion-reduce:animate-none" />
-                <div className="h-3 w-2/3 animate-pulse rounded bg-cue-soft motion-reduce:animate-none" />
+                <div className="h-3 w-11/12 animate-pulse rounded bg-primary-soft motion-reduce:animate-none" />
+                <div className="h-3 w-4/5 animate-pulse rounded bg-primary-soft motion-reduce:animate-none" />
+                <div className="h-3 w-2/3 animate-pulse rounded bg-primary-soft motion-reduce:animate-none" />
               </div>
             ) : replyRouteReady && replyEnabled ? (
-              <p className="text-sm leading-6 text-ink-muted">
-                必要なときに「返答案を作る」を押してください。
-              </p>
+              <div className="flex h-full min-h-16 flex-col items-center justify-center gap-1 text-center">
+                <p className="text-sm leading-6 text-ink-muted">
+                  必要なときに「返答案を作る」を押してください。
+                </p>
+                <p className="text-xs text-ink-faint">
+                  {GENERATE_SHORTCUT} でも作れます
+                </p>
+              </div>
             ) : (
-              <div className="flex h-full min-h-16 items-center gap-2.5 text-ink-muted">
+              <div className="flex h-full min-h-16 items-center justify-center gap-2.5 text-ink-muted">
                 <AlertCircle
                   aria-hidden="true"
                   size={17}
@@ -579,7 +590,8 @@ function LiveReplySurface({
                     !state.activeSuggestionTargetId
                   : !canGenerateReply)
               }
-              className="w-full rounded-xl text-sm motion-reduce:transform-none motion-reduce:transition-none"
+              title={`返答案を作る（${GENERATE_SHORTCUT}）`}
+              className="w-full text-sm motion-reduce:transform-none motion-reduce:transition-none"
             >
               {state.isGeneratingReply ? (
                 <X aria-hidden="true" size={15} />
@@ -604,7 +616,7 @@ function LiveReplySurface({
                     ? "コピー失敗"
                     : "コピー"
               }
-              className="h-10 min-w-20 rounded-xl px-3 text-sm"
+              className="h-10 min-w-20 px-3 text-sm"
             >
               {copyState === "copied" ? (
                 <Check aria-hidden="true" size={14} />
@@ -624,7 +636,7 @@ function LiveReplySurface({
             aria-label="返答案を言い換え"
             tabIndex={0}
           >
-            <span className="shrink-0 text-xs font-bold text-ink-muted">
+            <span className="shrink-0 text-xs font-medium text-ink-muted">
               言い換える
             </span>
             {MODE_CHIPS.map((item) => (

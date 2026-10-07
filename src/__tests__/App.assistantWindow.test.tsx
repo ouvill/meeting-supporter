@@ -70,7 +70,7 @@ describe("App window and reconnection behavior", () => {
     });
     expect(controls).toBeInTheDocument();
     expect(
-      screen.getByRole("navigation", { name: "アプリツールバー" }),
+      screen.getByRole("navigation", { name: "メインナビゲーション" }),
     ).toBeInTheDocument();
 
     setAssistantWindowVisibleMock.mockClear();
@@ -81,7 +81,7 @@ describe("App window and reconnection behavior", () => {
   it("keeps the setup screen mounted while reconnecting", async () => {
     render(<App />);
 
-    await screen.findByRole("navigation", { name: "アプリツールバー" });
+    await screen.findByRole("navigation", { name: "メインナビゲーション" });
     expect(
       screen.getByRole("heading", { name: "新しい会議" }),
     ).toBeInTheDocument();

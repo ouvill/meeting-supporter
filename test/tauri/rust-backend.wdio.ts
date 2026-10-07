@@ -20,8 +20,10 @@ describe("Rust desktop meeting persistence", () => {
   });
 
   afterEach(async () => {
-    const back = await $('button[aria-label="会議履歴を閉じて戻る"]');
-    if (await back.isExisting()) await back.click();
+    const home = await $(
+      '//nav[@aria-label="メインナビゲーション"]//button[normalize-space()="新しい会議"]',
+    );
+    if (await home.isExisting()) await home.click();
     await finishMeeting(waitOptions);
     await hideAssistantWindow(waitOptions);
   });
@@ -37,7 +39,9 @@ describe("Rust desktop meeting persistence", () => {
     await finishMeeting(waitOptions);
     await hideAssistantWindow(waitOptions);
 
-    const history = await $('//button[normalize-space()="過去の会議"]');
+    const history = await $(
+      '//nav[@aria-label="メインナビゲーション"]//button[normalize-space()="履歴"]',
+    );
     await history.waitForClickable(waitOptions);
     await history.click();
     await expectDisplayedSurface(
@@ -65,7 +69,9 @@ describe("Rust desktop meeting persistence", () => {
         document.body.dataset.e2eBlockedDirective = event.effectiveDirective;
       });
     });
-    await $('//button[normalize-space()="過去の会議"]').click();
+    await $(
+      '//nav[@aria-label="メインナビゲーション"]//button[normalize-space()="履歴"]',
+    ).click();
     await $('//*[normalize-space()="Synthetic Rust meeting"]').waitForDisplayed(
       waitOptions,
     );

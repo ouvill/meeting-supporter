@@ -42,10 +42,7 @@ export function AudioSettingsPanel({
   const usesLocalSpeechModel =
     form.sttBackend === "whisper" || form.sttBackend === "reazonspeech";
   return (
-    <SettingsSection
-      title="文字起こし"
-      description="音声認識のモデルと、会議の言語を設定します。音声はこの端末で処理します。"
-    >
+    <SettingsSection>
       {audioSettingsLocked && (
         <InlineNotice tone="warning">
           会議中は音声認識の設定を変更できません。会議を終了してから変更してください。
@@ -58,8 +55,8 @@ export function AudioSettingsPanel({
         <div>
           <div className="space-y-4">
             <FieldRow
-              label="認識方式"
-              hint="端末内の処理では音声を外部へ送りません"
+              label="音声認識の種類"
+              hint="日本語だけなら ReazonSpeech、英語も使うなら Whisper が向いています"
               error={errors.audio}
             >
               <select

@@ -292,6 +292,37 @@ describe("MainMeetingControlScreen", () => {
     expect(history.scrollTop).toBe(960);
   });
 
+  it("stops following while reading older turns and offers a jump to the newest", () => {
+    const session = activeSession([
+      { id: "turn-1", speaker: "other", text: "最初の発言です。" },
+    ]);
+    render(
+      <MainMeetingControlScreen
+        state={meetingState({ session })}
+        send={vi.fn<SendFn>()}
+        onSettings={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "会話履歴" }));
+    const history = screen.getByRole("region", { name: "会話履歴の内容" });
+    Object.defineProperties(history, {
+      clientHeight: { configurable: true, value: 192 },
+      scrollHeight: { configurable: true, value: 960 },
+    });
+    expect(
+      screen.queryByRole("button", { name: "最新の発言へ" }),
+    ).not.toBeInTheDocument();
+
+    history.scrollTop = 0;
+    fireEvent.scroll(history);
+    fireEvent.click(screen.getByRole("button", { name: "最新の発言へ" }));
+
+    expect(history.scrollTop).toBe(960);
+    expect(
+      screen.queryByRole("button", { name: "最新の発言へ" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("pins a historical reply under its target without replacing the current reply", () => {
     const session = activeSession([
       { id: "turn-old", speaker: "other", text: "以前の質問です。" },
