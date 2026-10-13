@@ -180,6 +180,8 @@ jobs:
           key: windows-rust-e2e
       - run: npm ci
       - run: npm run test:tauri:types
+      - name: Check automatic Windows worker builds
+        run: npm run test:rust-workers-build
       - name: Run isolated Rust desktop without Python or audio devices
         run: npm run test:tauri:rust
       - name: Upload synthetic failure logs

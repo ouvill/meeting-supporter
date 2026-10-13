@@ -169,5 +169,11 @@ try {
       await stopped;
     }
   }
-  await rm(temporary, { recursive: true, force: true });
+  // WebView2 may briefly hold temporary files after the Windows app exits.
+  await rm(temporary, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 200,
+  });
 }

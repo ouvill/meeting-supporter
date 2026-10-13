@@ -190,13 +190,17 @@ where
 {
     let data_failed = Arc::clone(failed);
     let error_failed = Arc::clone(failed);
+    let received = Arc::new(AtomicBool::new(false));
+    let data_received = Arc::clone(&received);
     let channels = usize::from(config.channels);
     let input = device
         .build_input_stream(
             config,
-            move |data: &[T], _| enqueue(data, channels, &mut producer, &data_failed),
-            move |_| {
-                error_failed.store(true, Ordering::Release);
+            move |data: &[T], _| {
+                enqueue(data, channels, &mut producer, &data_failed, &data_received)
+            },
+            move |error| {
+                input_error(error.kind(), &received, &error_failed);
             },
             Some(Duration::from_secs(3)),
         )
@@ -224,9 +228,27 @@ where
     Ok((input, keepalive))
 }
 
+fn input_error(kind: cpal::ErrorKind, received: &AtomicBool, failed: &AtomicBool) {
+    // WASAPI can report the initial buffer's discontinuity as Xrun even when
+    // its device position is nonzero. There is no previous captured audio to
+    // lose yet. Once samples arrive, any Xrun must still fail the recording.
+    if cfg!(target_os = "windows")
+        && kind == cpal::ErrorKind::Xrun
+        && !received.load(Ordering::Acquire)
+    {
+        return;
+    }
+    failed.store(true, Ordering::Release);
+}
+
 // No allocation, blocking, logging, file writes, or resampling on this callback.
-fn enqueue<T>(data: &[T], channels: usize, producer: &mut HeapProd<f32>, failed: &AtomicBool)
-where
+fn enqueue<T>(
+    data: &[T],
+    channels: usize,
+    producer: &mut HeapProd<f32>,
+    failed: &AtomicBool,
+    received: &AtomicBool,
+) where
     T: Sample,
     f32: cpal::FromSample<T>,
 {
@@ -252,6 +274,9 @@ where
             return;
         }
     }
+    if !data.is_empty() {
+        received.store(true, Ordering::Release);
+    }
 }
 
 #[cfg(test)]
@@ -262,19 +287,21 @@ mod tests {
     fn callback_mixes_normalizes_and_fails_closed_on_overflow() {
         let (mut producer, mut consumer) = HeapRb::<f32>::new(2).split();
         let failed = AtomicBool::new(false);
+        let received = AtomicBool::new(false);
         enqueue(
             &[i16::MIN, i16::MAX, 16384, 16384],
             2,
             &mut producer,
             &failed,
+            &received,
         );
         assert!(consumer.try_pop().unwrap().abs() < 0.0001);
         assert_eq!(consumer.try_pop(), Some(0.5));
-        enqueue(&[0u16, 32768, 65535], 1, &mut producer, &failed);
+        enqueue(&[0u16, 32768, 65535], 1, &mut producer, &failed, &received);
         assert!(failed.load(Ordering::Acquire));
         assert_eq!(consumer.try_pop(), Some(-1.0));
         assert_eq!(consumer.try_pop(), Some(0.0));
-        enqueue(&[0.5f32], 1, &mut producer, &failed);
+        enqueue(&[0.5f32], 1, &mut producer, &failed, &received);
         assert!(consumer.try_pop().is_none());
     }
 
@@ -283,7 +310,47 @@ mod tests {
         for (samples, channels) in [(vec![f32::NAN], 1), (vec![1.0], 2), (vec![], 0)] {
             let (mut producer, mut consumer) = HeapRb::<f32>::new(8).split();
             let failed = AtomicBool::new(false);
-            enqueue(&samples, channels, &mut producer, &failed);
+            let received = AtomicBool::new(false);
+            enqueue(&samples, channels, &mut producer, &failed, &received);
+            assert!(failed.load(Ordering::Acquire));
+            assert!(consumer.try_pop().is_none());
+        }
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn initial_wasapi_xrun_allows_samples_but_later_gaps_fail_closed() {
+        let (mut producer, mut consumer) = HeapRb::<f32>::new(8).split();
+        let failed = AtomicBool::new(false);
+        let received = AtomicBool::new(false);
+        input_error(cpal::ErrorKind::Xrun, &received, &failed);
+        enqueue::<f32>(&[], 1, &mut producer, &failed, &received);
+        assert!(!received.load(Ordering::Acquire));
+        input_error(cpal::ErrorKind::Xrun, &received, &failed);
+        enqueue(&[0.25f32, 0.5], 1, &mut producer, &failed, &received);
+        assert!(!failed.load(Ordering::Acquire));
+        assert_eq!(consumer.try_pop(), Some(0.25));
+        assert_eq!(consumer.try_pop(), Some(0.5));
+
+        input_error(cpal::ErrorKind::Xrun, &received, &failed);
+        enqueue(&[0.75f32], 1, &mut producer, &failed, &received);
+        assert!(failed.load(Ordering::Acquire));
+        assert!(consumer.try_pop().is_none());
+    }
+
+    #[test]
+    fn device_failures_reject_audio_even_before_the_first_buffer() {
+        for kind in [
+            cpal::ErrorKind::DeviceNotAvailable,
+            cpal::ErrorKind::PermissionDenied,
+            cpal::ErrorKind::StreamInvalidated,
+            cpal::ErrorKind::BackendError,
+        ] {
+            let (mut producer, mut consumer) = HeapRb::<f32>::new(8).split();
+            let failed = AtomicBool::new(false);
+            let received = AtomicBool::new(false);
+            input_error(kind, &received, &failed);
+            enqueue(&[0.5f32], 1, &mut producer, &failed, &received);
             assert!(failed.load(Ordering::Acquire));
             assert!(consumer.try_pop().is_none());
         }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -11,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const { scripts } = JSON.parse(
@@ -173,3 +174,110 @@ test(
     );
   },
 );
+
+// Windows cannot execute the POSIX fixture scripts above. Intercept only Cargo
+// in a child Node process so the real runner still handles paths and files.
+function windowsFixture(t) {
+  const directory = mkdtempSync(join(tmpdir(), "rust workers 日本語 "));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  mkdirSync(join(directory, "scripts"));
+  copyFileSync(
+    join(root, "scripts/build-rust-workers.mjs"),
+    join(directory, "scripts/build-rust-workers.mjs"),
+  );
+  const preload = join(directory, "cargo-fixture.mjs");
+  writeFileSync(
+    preload,
+    `
+import childProcess from "node:child_process";
+import { EventEmitter } from "node:events";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { join } from "node:path";
+childProcess.spawn = (command, args) => {
+  if (command !== "cargo") throw new Error("Unexpected child command");
+  appendFileSync("calls.jsonl", JSON.stringify(args) + "\\n");
+  const worker = args[args.indexOf("--bin") + 1];
+  const release = join(args[args.indexOf("--target-dir") + 1], "release");
+  mkdirSync(release, { recursive: true });
+  const content = process.env.FAIL_WORKER === worker ? "failed build" : "new build";
+  for (const name of [worker + ".exe", "onnxruntime.dll", "sherpa.DLL", "worker.pdb"]) {
+    writeFileSync(join(release, name), content);
+  }
+  const child = new EventEmitter();
+  process.nextTick(() => child.emit("exit", process.env.FAIL_WORKER === worker ? 42 : 0));
+  return child;
+};
+syncBuiltinESMExports();
+`,
+  );
+  function run(extra = {}) {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        pathToFileURL(preload).href,
+        "scripts/build-rust-workers.mjs",
+        "--gpu",
+        "cpu",
+      ],
+      {
+        cwd: directory,
+        env: {
+          SystemRoot: process.env.SystemRoot,
+          USERPROFILE: directory,
+          TEMP: directory,
+          TMP: directory,
+          CARGO_TARGET_DIR: join(directory, "unrelated-target"),
+          ...extra,
+        },
+        encoding: "utf8",
+        timeout: 30000,
+      },
+    );
+    assert.ifError(result.error);
+    return result;
+  }
+  return { directory, run };
+}
+
+const windowsOptions = { skip: process.platform !== "win32" };
+const speechFiles = ["meeting-native-backend.exe", "onnxruntime.dll", "sherpa.DLL"];
+
+test("Windows stages the speech executable and DLLs from a shorter build path", windowsOptions, (t) => {
+  const { directory, run } = windowsFixture(t);
+  const runtime = join(directory, "test/rust-native-backend/target/release");
+  const result = run();
+  assert.equal(result.status, 0, result.stderr);
+  const calls = readFileSync(join(directory, "calls.jsonl"), "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  const speech = calls.find((args) => args.includes("meeting-native-backend"));
+  const target = speech[speech.indexOf("--target-dir") + 1];
+  assert.ok(target.length < dirname(runtime).length);
+  for (const name of speechFiles) {
+    assert.equal(readFileSync(join(runtime, name), "utf8"), "new build");
+  }
+  assert.equal(existsSync(join(runtime, "worker.pdb")), false);
+  assert.equal(existsSync(join(directory, "unrelated-target")), false);
+
+  // An explicit default-path override still builds and publishes to that path.
+  const override = run({
+    MEETING_REAZON_WORKER: join(runtime, "meeting-native-backend.exe"),
+  });
+  assert.equal(override.status, 0, override.stderr);
+});
+
+test("a failed Windows speech build preserves the existing executable and DLLs", windowsOptions, (t) => {
+  const { directory, run } = windowsFixture(t);
+  const first = run();
+  assert.equal(first.status, 0, first.stderr);
+  const failed = run({ FAIL_WORKER: "meeting-native-backend" });
+  assert.notEqual(failed.status, 0);
+  assert.match(failed.stderr, /meeting-native-backend build failed/);
+  const runtime = join(directory, "test/rust-native-backend/target/release");
+  for (const name of speechFiles) {
+    assert.equal(readFileSync(join(runtime, name), "utf8"), "new build");
+  }
+});

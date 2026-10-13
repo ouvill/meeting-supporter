@@ -1,5 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -107,6 +114,12 @@ async function build(worker, gpu) {
     return;
   }
   const env = { ...process.env };
+  // CMake's nested compiler checks exceed MSBuild's MAX_PATH limit when the
+  // Windows speech worker is built below test/rust-native-backend/target.
+  const targetDirectory =
+    process.platform === "win32" && worker.name === "meeting-native-backend"
+      ? join(root, "target/speech")
+      : join(root, worker.directory, "target");
   const args = [
     "build",
     "--release",
@@ -115,9 +128,8 @@ async function build(worker, gpu) {
     `${worker.directory}/Cargo.toml`,
     "--bin",
     worker.name,
-    // Match the paths used by desktop_runtime.rs even with CARGO_TARGET_DIR set.
     "--target-dir",
-    join(root, worker.directory, "target"),
+    targetDirectory,
   ];
   if (worker.name === "meeting-native-backend") {
     const features = gpu === "cpu" ? "reazonspeech" : `reazonspeech,${gpu}`;
@@ -151,6 +163,25 @@ async function build(worker, gpu) {
     child.once("exit", (code) => resolve(code));
   });
   if (code !== 0) throw new Error(`${worker.name} build failed.`);
+  const releaseDirectory = join(targetDirectory, "release");
+  const runtimeDirectory = dirname(executable(worker));
+  if (releaseDirectory !== runtimeDirectory) {
+    // Keep desktop_runtime.rs and explicit default-path overrides compatible.
+    // sherpa-onnx places its required Windows DLLs beside the built executable.
+    mkdirSync(runtimeDirectory, { recursive: true });
+    for (const entry of readdirSync(releaseDirectory, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.toLowerCase().endsWith(".dll")) {
+        copyFileSync(
+          join(releaseDirectory, entry.name),
+          join(runtimeDirectory, entry.name),
+        );
+      }
+    }
+    copyFileSync(
+      join(releaseDirectory, worker.name + suffix),
+      executable(worker),
+    );
+  }
 }
 
 try {
