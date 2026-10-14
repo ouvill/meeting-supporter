@@ -297,18 +297,27 @@ async fn connection(mut api: Api, mut socket: WebSocketStream) {
     let worker_api = api.clone();
     let worker = tokio::spawn(async move {
         worker_api.runtime.lock().await.ensure_monitors().await;
-        while let Some((command, revision)) = receive.recv().await {
+        let mut monitor_tick = tokio::time::interval(std::time::Duration::from_secs(2));
+        monitor_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            let command = tokio::select! {
+                biased;
+                command = receive.recv() => match command {
+                    Some(command) => Some(command),
+                    None => break,
+                },
+                _ = monitor_tick.tick() => None,
+            };
             if *worker_api.stopping.borrow() {
                 break;
             }
-            if let Err(error) = worker_api
-                .runtime
-                .lock()
-                .await
-                .dispatch(command, revision)
-                .await
-            {
-                worker_api.shared.error(&error);
+            let mut runtime = worker_api.runtime.lock().await;
+            if let Some((command, revision)) = command {
+                if let Err(error) = runtime.dispatch(command, revision).await {
+                    worker_api.shared.error(&error);
+                }
+            } else {
+                runtime.recover_monitors().await;
             }
         }
     });

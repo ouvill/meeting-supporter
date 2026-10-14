@@ -334,6 +334,8 @@ pub(crate) struct Runtime {
     speech: Option<SharedSpeech>,
     closed: bool,
     resources_failed: bool,
+    monitor_retry_at: tokio::time::Instant,
+    monitor_retry_delay: Duration,
     ownership: Option<std::fs::File>,
     stopping: tokio::sync::watch::Receiver<bool>,
 }
@@ -394,6 +396,8 @@ impl Runtime {
             speech: None,
             closed: false,
             resources_failed: false,
+            monitor_retry_at: tokio::time::Instant::now(),
+            monitor_retry_delay: Duration::from_secs(1),
             ownership: Some(ownership),
             stopping,
         })
@@ -452,7 +456,7 @@ impl Runtime {
         result
     }
     pub async fn ensure_monitors(&mut self) {
-        if self.closed || *self.stopping.borrow() {
+        if self.closed || *self.stopping.borrow() || self.idle().is_err() {
             return;
         }
         let selected = self.shared.live.lock().await.selected.clone();
@@ -475,6 +479,43 @@ impl Runtime {
                 }
             }
         }
+    }
+    pub async fn recover_monitors(&mut self) {
+        // Run under the same runtime lock as meeting commands. Never replace an
+        // input during a meeting: a missing recording must remain interrupted.
+        if self.closed
+            || *self.stopping.borrow()
+            || self.idle().is_err()
+            || tokio::time::Instant::now() < self.monitor_retry_at
+        {
+            return;
+        }
+        let failed = self
+            .sources
+            .iter()
+            .any(|source| !source.supervisor.capture_healthy());
+        if !failed && self.sources.len() == 2 {
+            self.monitor_retry_delay = Duration::from_secs(1);
+            return;
+        }
+        if failed {
+            // Prepared inputs share one inference process. Retire and drain all
+            // old producers before opening a fresh pair of capture-only inputs.
+            if let Err(error) = self.close_sources().await {
+                self.shared.error(&error);
+                return;
+            }
+        }
+        self.ensure_monitors().await;
+        if self.sources.len() == 2 {
+            self.shared.emit(Event::Status {
+                text: "音声入力に再接続しました。".into(),
+            });
+            self.monitor_retry_delay = Duration::from_secs(1);
+        } else {
+            self.monitor_retry_delay = (self.monitor_retry_delay * 2).min(Duration::from_secs(30));
+        }
+        self.monitor_retry_at = tokio::time::Instant::now() + self.monitor_retry_delay;
     }
     pub async fn save_settings(&mut self, patch: crate::settings::Patch) -> Result<(), Error> {
         let shared = self.shared.clone();

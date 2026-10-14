@@ -67,6 +67,9 @@ impl Supervisor {
     pub fn detach_speech_input(&mut self) {
         self.capture.route.lock().unwrap().take();
     }
+    pub fn capture_healthy(&self) -> bool {
+        self.capture.healthy()
+    }
     pub fn is_prepared(&self) -> bool {
         match &self.speech {
             Speech::Prepared(_) => self.capture.healthy(),

@@ -198,6 +198,22 @@ fn speech(args: Vec<String>) {
     inference_thread.join().unwrap();
 }
 fn capture() {
+    let executable = std::env::current_exe().unwrap();
+    let control = (executable.file_stem().unwrap() == "controlled-capture-worker")
+        .then(|| executable.parent().unwrap().to_path_buf());
+    let args: Vec<String> = std::env::args().collect();
+    let role = args.windows(2).find(|a| a[0] == "--role").unwrap()[1].clone();
+    if let Some(control) = &control {
+        std::fs::write(
+            control.join(format!("capture-{role}-{}", std::process::id())),
+            "",
+        )
+        .unwrap();
+        if control.join(format!("offline-{role}")).exists() {
+            packet(json!({"type":"error","id":null}), &[]);
+            return;
+        }
+    }
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         for line in std::io::stdin().lock().lines() {
@@ -219,6 +235,16 @@ fn capture() {
         &[],
     );
     loop {
+        if control
+            .as_ref()
+            .is_some_and(|p| p.join(format!("fail-{role}")).exists())
+        {
+            if let Some(w) = writer.take() {
+                w.finalize().unwrap();
+            }
+            packet(json!({"type":"error","id":null}), &[]);
+            break;
+        }
         match rx.recv_timeout(std::time::Duration::from_millis(20)) {
             Ok(value) => match value["command"]["op"].as_str().unwrap() {
                 "start_recording" => {
