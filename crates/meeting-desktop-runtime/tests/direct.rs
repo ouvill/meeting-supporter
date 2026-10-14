@@ -2903,7 +2903,8 @@ async fn acp_recycle_preparation_can_be_disconnected_or_shutdown_while_blocked()
                 v["type"] == "meeting_state" && v["running"] == false
             })
             .await;
-            let response = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            // Allow Windows to release the agent process and its installation files.
+            let response = tokio::time::timeout(std::time::Duration::from_secs(10), async {
                 assert_eq!(
                     agent_request(
                         &server,
