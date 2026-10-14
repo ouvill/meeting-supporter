@@ -1,7 +1,7 @@
 # Product Surfaces
 
 - **Status**: Active
-- **Updated**: 2026-10-05
+- **Updated**: 2026-10-15
 - **Authority**: 画面の責務、状態、利用者向けの文言
 - **Requirements**: [Product Requirements](../product/prd.md)
 
@@ -16,6 +16,7 @@
 - 状態は色だけで伝えず、文言と必要な操作を添える。
 - availability、readiness、selectable は API の値に従い、UI が利用可能と推測しない。
 - OS のウィンドウ操作を HTML で再実装しない。
+- メイン画面とライブ返答支援画面は、起動時に表示倍率を考慮し、タスクバーを除いた作業領域内へ必要に応じて縮小して中央に配置する。ウィンドウ枠のために幅・高さそれぞれ合計64物理ピクセルの余裕を確保する。
 
 ## 共通の表示
 

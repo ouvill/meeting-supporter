@@ -34,12 +34,22 @@ struct Reservation {
 }
 impl Reservation {
     fn new(budget: &Arc<Budget>, role: Role, samples: usize) -> Result<Self, SpeechError> {
-        budget
-            .samples
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-                n.checked_add(samples).filter(|&n| n <= MAX_SAMPLES)
-            })
-            .map_err(|_| SpeechError::Busy)?;
+        let mut current = budget.samples.load(Ordering::Acquire);
+        loop {
+            let next = current
+                .checked_add(samples)
+                .filter(|&n| n <= MAX_SAMPLES)
+                .ok_or(SpeechError::Busy)?;
+            match budget.samples.compare_exchange_weak(
+                current,
+                next,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => break,
+                Err(actual) => current = actual,
+            }
+        }
         budget.pending[role.index()].fetch_add(1, Ordering::AcqRel);
         Ok(Self {
             budget: budget.clone(),
@@ -412,11 +422,48 @@ mod tests {
         let user = Reservation::new(&budget, Role::User, MAX_SAMPLES / 2).unwrap();
         let other = Reservation::new(&budget, Role::Other, MAX_SAMPLES / 2).unwrap();
         assert!(Reservation::new(&budget, Role::User, 1).is_err());
+        assert!(Reservation::new(&budget, Role::User, usize::MAX).is_err());
         assert_eq!(budget.pending[1].load(Ordering::Acquire), 1);
         drop(user);
         assert_eq!(budget.pending[0].load(Ordering::Acquire), 0);
         assert!(Reservation::new(&budget, Role::User, MAX_SAMPLES / 2).is_ok());
         drop(other);
         assert_eq!(budget.samples.load(Ordering::Acquire), 0);
+    }
+
+    #[test]
+    fn concurrent_reservations_cannot_exceed_the_shared_budget() {
+        let budget = Arc::new(Budget::default());
+        let start = Arc::new(std::sync::Barrier::new(8));
+        let tasks: Vec<_> = (0..8)
+            .map(|i| {
+                let budget = budget.clone();
+                let start = start.clone();
+                thread::spawn(move || {
+                    start.wait();
+                    let role = if i % 2 == 0 { Role::User } else { Role::Other };
+                    Reservation::new(&budget, role, MAX_SAMPLES / 2)
+                })
+            })
+            .collect();
+        let reservations: Vec<_> = tasks.into_iter().map(|task| task.join().unwrap()).collect();
+        assert_eq!(reservations.iter().filter(|r| r.is_ok()).count(), 2);
+        assert_eq!(budget.samples.load(Ordering::Acquire), MAX_SAMPLES);
+        assert_eq!(
+            budget
+                .pending
+                .iter()
+                .map(|p| p.load(Ordering::Acquire))
+                .sum::<usize>(),
+            2
+        );
+        drop(reservations);
+        assert_eq!(budget.samples.load(Ordering::Acquire), 0);
+        assert!(
+            budget
+                .pending
+                .iter()
+                .all(|p| p.load(Ordering::Acquire) == 0)
+        );
     }
 }

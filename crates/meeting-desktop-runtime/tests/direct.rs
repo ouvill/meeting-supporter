@@ -123,6 +123,149 @@ async fn wait_for_both_audio_inputs(ws: &mut Socket) {
     }
 }
 
+fn controlled_capture(config: &mut Config, temp: &tempfile::TempDir) -> std::path::PathBuf {
+    let control = temp.path().join("capture-control");
+    std::fs::create_dir(&control).unwrap();
+    let worker = control.join(format!(
+        "controlled-capture-worker{}",
+        std::env::consts::EXE_SUFFIX
+    ));
+    std::fs::copy(&config.audio_worker, &worker).unwrap();
+    config.audio_worker = worker;
+    control
+}
+
+fn capture_starts(control: &std::path::Path) -> usize {
+    std::fs::read_dir(control)
+        .unwrap()
+        .flatten()
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("capture-"))
+        .count()
+}
+
+#[tokio::test]
+async fn idle_audio_meters_recover_repeated_failures_without_reconnecting_the_ui() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut settings = config(&temp, "model");
+    let control = controlled_capture(&mut settings, &temp);
+    let server = Server::start(settings.clone()).await.unwrap();
+    let mut ws = connect(&server).await;
+    wait_for_both_audio_inputs(&mut ws).await;
+    assert!(!settings.model.as_ref().unwrap().join("preparing").exists());
+    for prepared in [false, true] {
+        if prepared {
+            send(&mut ws, json!({"type":"init_stt"})).await;
+            until(&mut ws, |v| {
+                v["type"] == "stt_state" && v["initialized"] == true
+            })
+            .await;
+            wait_for_both_audio_inputs(&mut ws).await;
+        }
+        for role in ["self", "other"] {
+            std::fs::write(control.join(format!("fail-{role}")), "").unwrap();
+        }
+        let mut stopped = [false; 2];
+        while !stopped.iter().all(|stopped| *stopped) {
+            let event = until(&mut ws, |v| v["type"] == "audio_level" && v["level"] == 0.0).await;
+            stopped[usize::from(event["role"] == "other")] = true;
+        }
+        for role in ["self", "other"] {
+            std::fs::remove_file(control.join(format!("fail-{role}"))).unwrap();
+        }
+        wait_for_both_audio_inputs(&mut ws).await;
+    }
+    assert!(capture_starts(&control) >= 6);
+    let (_, body) = http(&server, "GET", "/meetings", "").await;
+    assert_eq!(serde_json::from_slice::<Value>(&body).unwrap()["total"], 0);
+
+    // The UI prepares inference before sending the meeting start command.
+    send(&mut ws, json!({"type":"init_stt"})).await;
+    until(&mut ws, |v| {
+        v["type"] == "stt_state" && v["initialized"] == true
+    })
+    .await;
+    send(&mut ws, json!({"type":"start_meeting"})).await;
+    until(&mut ws, |v| {
+        v["type"] == "meeting_state" && v["running"] == true
+    })
+    .await;
+    wait_for_both_audio_inputs(&mut ws).await;
+    send(&mut ws, json!({"type":"stop_meeting"})).await;
+    let stopped = until(&mut ws, |v| {
+        v["type"] == "meeting_state" && v["running"] == false
+    })
+    .await;
+    assert_eq!(stopped["saved"], true);
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn idle_audio_meters_retry_when_an_input_is_temporarily_unavailable() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut settings = config(&temp, "model");
+    let control = controlled_capture(&mut settings, &temp);
+    std::fs::write(control.join("offline-other"), "").unwrap();
+    let server = Server::start(settings).await.unwrap();
+    let mut ws = connect(&server).await;
+    until(&mut ws, |v| v["type"] == "error").await;
+    // Let a retry fail as well, then make the same selected input available.
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        while capture_starts(&control) < 3 {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    std::fs::remove_file(control.join("offline-other")).unwrap();
+    wait_for_both_audio_inputs(&mut ws).await;
+    assert!(capture_starts(&control) <= 5);
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn active_audio_failure_is_not_silently_replaced_by_monitor_recovery() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut settings = config(&temp, "model");
+    let control = controlled_capture(&mut settings, &temp);
+    let server = Server::start(settings).await.unwrap();
+    let mut ws = connect(&server).await;
+    start(&mut ws).await;
+    let started = capture_starts(&control);
+    std::fs::write(control.join("fail-self"), "").unwrap();
+    until(&mut ws, |v| {
+        v["type"] == "audio_level" && v["role"] == "self" && v["level"] == 0.0
+    })
+    .await;
+    std::fs::remove_file(control.join("fail-self")).unwrap();
+    let observing = tokio::time::sleep(std::time::Duration::from_secs(5));
+    tokio::pin!(observing);
+    loop {
+        tokio::select! {
+            _ = &mut observing => break,
+            message = ws.next() => {
+                let message = message.unwrap().unwrap();
+                if let Message::Text(text) = message {
+                    let event: Value = serde_json::from_str(&text).unwrap();
+                    assert_ne!(event["type"], "stream_info");
+                }
+            }
+        }
+    }
+    assert_eq!(capture_starts(&control), started);
+    send(&mut ws, json!({"type":"stop_meeting"})).await;
+    let stopped = until(&mut ws, |v| {
+        v["type"] == "meeting_state" && v["running"] == false
+    })
+    .await;
+    assert_eq!(stopped["saved"], false);
+    assert_eq!(stopped["end_status"], "interrupted");
+    wait_for_both_audio_inputs(&mut ws).await;
+    drop(ws);
+    server.shutdown().await.unwrap();
+}
+
 #[tokio::test]
 async fn speech_capabilities_come_from_the_configured_worker_without_preparing_models() {
     for (name, expected) in [
@@ -1910,7 +2053,10 @@ async fn model_api_reuses_huggingface_snapshot_and_rejects_removed_backend() {
     assert_eq!(code, 200);
     let status: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(status["state"], "ready");
-    assert_eq!(status["model_path"], snapshot.to_str().unwrap());
+    assert_eq!(
+        std::path::Path::new(status["model_path"].as_str().unwrap()),
+        snapshot
+    );
     assert_eq!(
         http(
             &server,
@@ -2757,7 +2903,8 @@ async fn acp_recycle_preparation_can_be_disconnected_or_shutdown_while_blocked()
                 v["type"] == "meeting_state" && v["running"] == false
             })
             .await;
-            let response = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            // Allow Windows to release the agent process and its installation files.
+            let response = tokio::time::timeout(std::time::Duration::from_secs(10), async {
                 assert_eq!(
                     agent_request(
                         &server,
